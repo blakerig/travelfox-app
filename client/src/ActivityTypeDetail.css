@@ -1,0 +1,117 @@
+.activity-type-detail {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: 32px;
+}
+
+.activity-type-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 0;
+}
+
+.activity-type-detail-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.activity-type-detail-add {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-600);
+  text-decoration: none;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.activity-type-detail-status {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 14px;
+}
+
+.activity-type-detail-body {
+  padding: 12px 20px 0;
+}
+
+.activity-type-detail-name {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 4px 0 8px;
+  line-height: 1.25;
+}
+
+/* Description is optional (see ActivityType in schema.prisma) - when
+   present it sits above the provider list, same Markdown rendering as
+   EntryDetail.jsx's entry-detail-markdown. */
+.activity-type-detail-markdown {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin-bottom: 18px;
+}
+
+.activity-type-detail-markdown h1,
+.activity-type-detail-markdown h2,
+.activity-type-detail-markdown h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 20px 0 8px;
+}
+
+.activity-type-detail-markdown h1:first-child,
+.activity-type-detail-markdown h2:first-child,
+.activity-type-detail-markdown h3:first-child {
+  margin-top: 0;
+}
+
+.activity-type-detail-markdown p {
+  margin: 0 0 12px;
+}
+
+.activity-type-detail-markdown ul,
+.activity-type-detail-markdown ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.activity-type-detail-markdown li {
+  margin-bottom: 4px;
+}
+
+.activity-type-detail-markdown li:last-child {
+  margin-bottom: 0;
+}
+
+.activity-type-detail-markdown strong {
+  font-weight: 700;
+}
+
+.activity-type-detail-markdown em {
+  font-style: italic;
+}
+
+/* Provider list - same gap/no-scroll-container pattern as
+   CategoryScreen.css's .category-screen-list. */
+.activity-type-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}

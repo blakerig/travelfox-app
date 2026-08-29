@@ -1,0 +1,135 @@
+.entry-detail {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: 32px;
+}
+
+.entry-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 0;
+}
+
+.entry-detail-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.entry-detail-edit {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-600);
+  text-decoration: none;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.entry-detail-status {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 14px;
+}
+
+.entry-detail-body {
+  padding: 12px 20px 0;
+}
+
+.entry-detail-name {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 4px 0 8px;
+  line-height: 1.25;
+}
+
+.entry-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.entry-detail-rating {
+  color: var(--g-600);
+  font-weight: 600;
+}
+
+.entry-detail-markdown {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.entry-detail-markdown h1,
+.entry-detail-markdown h2,
+.entry-detail-markdown h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 20px 0 8px;
+}
+
+.entry-detail-markdown h1:first-child,
+.entry-detail-markdown h2:first-child,
+.entry-detail-markdown h3:first-child {
+  margin-top: 0;
+}
+
+.entry-detail-markdown p {
+  margin: 0 0 12px;
+}
+
+.entry-detail-markdown ul,
+.entry-detail-markdown ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.entry-detail-markdown li {
+  margin-bottom: 4px;
+}
+
+.entry-detail-markdown li:last-child {
+  margin-bottom: 0;
+}
+
+.entry-detail-markdown strong {
+  font-weight: 700;
+}
+
+.entry-detail-markdown em {
+  font-style: italic;
+}
+
+/* Full-width hero photo (Eating Out, Sightseeing - config.cardVariant ===
+   'photo'), the same image shown on the card in CategoryScreen, just
+   larger. Same 4:3 crop as .entry-card-photo-img in EntryCard.css for
+   consistency - it's literally the same stored photoUrl, just displayed at
+   a bigger size via getEntryPhotoUrl's default 1200x900. Sits above
+   .entry-detail-body (which keeps its own horizontal padding) so the photo
+   itself runs edge-to-edge, same pattern as the card. */
+.entry-detail-photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--line);
+  margin-top: 12px;
+}

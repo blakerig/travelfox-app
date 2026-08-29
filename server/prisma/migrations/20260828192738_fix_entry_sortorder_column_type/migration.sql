@@ -1,0 +1,14 @@
+-- AlterTable
+-- schema.prisma declares Entry.sortOrder as Float, but the migration that
+-- originally added the column (20260828100743_add_entry_sort_order) created
+-- it as INTEGER - the schema was hand-edited to Float afterward without a
+-- matching migration ever being generated for the column type itself. That
+-- drift was harmless for reads (an int reads fine into a Float-typed
+-- client field) but broke prisma.entry.create(): the query engine encodes
+-- the literal default 0 as an 8-byte float8 bind parameter, while the real
+-- column is still a 4-byte integer, so Postgres rejects it with
+-- "22P03: incorrect binary data format in bind parameter". This migration
+-- brings the actual column type in line with what schema.prisma has said
+-- all along. Existing values (currently just the default 0) convert
+-- losslessly int -> double.
+ALTER TABLE "Entry" ALTER COLUMN "sortOrder" SET DATA TYPE DOUBLE PRECISION;

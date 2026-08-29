@@ -13,34 +13,151 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Shared per-country info - added 2026-08-28 so cities in the same country
+// (Barcelona, Madrid, Valencia, ...) share one currency record instead of
+// each City repeating (and risking drift on) the same currencyName/
+// currencySymbol. Also replaces the old free-text City.country String,
+// which had no consistency guarantee across rows (e.g. "Spain" vs "spain").
+model Country {
+  id             Int     @id @default(autoincrement())
+  name           String  @unique
+  currencyName   String?
+  currencySymbol String?
+  cities         City[]
+}
+
 model City {
-  id        Int      @id @default(autoincrement())
-  name      String
-  country   String
-  latitude  Float
-  longitude Float
-  places    Place[]
+  id            Int            @id @default(autoincrement())
+  name          String
+  latitude      Float
+  longitude     Float
+  // Optional rather than required: existing City rows (Lyon, Barcelona)
+  // predate this relation and need backfilling by hand in Prisma Studio
+  // after this migration applies - a required relation can't be added in
+  // the same migration that drops the old `country` String column, since
+  // there'd be nothing yet to point existing rows at. Tighten to required
+  // once every City has a countryId set - see claude/todo.md.
+  country       Country?       @relation(fields: [countryId], references: [id])
+  countryId     Int?
+  entries       Entry[]
+  // Opposite side of ActivityType.city - a city's activity "type" groupings
+  // (Laser Tag, Padel, ...). See ActivityType below for the full rationale.
+  activityTypes ActivityType[]
 }
 
 model Category {
-  id     Int     @id @default(autoincrement())
-  name   String
-  places Place[]
+  id      Int     @id @default(autoincrement())
+  slug    String  @unique
+  name    String
+  entries Entry[]
 }
 
-model Place {
-  id          Int      @id @default(autoincrement())
+// Groups multiple provider Entries under one activity "type" (e.g. Laser
+// Tag, Padel, Escape Rooms) - added 2026-08-28 because, unlike Sightseeing
+// or Eating Out where each Entry is a unique, non-substitutable thing,
+// Activities often has one generic experience offered by several roughly
+// interchangeable providers. The Activities category screen is meant to
+// list ActivityType cards (not Entry cards directly); tapping one shows
+// its description plus its provider Entries as mini-cards.
+//
+// Scoped per-city (cityId required), not shared globally like Country -
+// deliberately, so a type with zero providers is unambiguous (it means
+// "this city has this activity, described, just not broken out by
+// provider" rather than colliding with "not curated yet" or "this city
+// doesn't have this activity at all"). Revisit sharing across cities only
+// if duplicate descriptions (e.g. re-explaining what padel is per city)
+// become a proven pain - same reasoning that delayed the Country model
+// until there were actually multiple Spanish cities to justify it.
+model ActivityType {
+  id          Int     @id @default(autoincrement())
   name        String
+  slug        String
+  // Optional short, punchy blurb for card display - same idea as
+  // Entry.summary above. NOTE the fallback order here is the reverse of
+  // Entry's: on the group card (see client/src/EntryCard.jsx) `description`
+  // is shown when present, falling back to `summary` only when description
+  // is blank. That's the opposite of Entry, where summary takes priority.
+  // Reasoning: for a provider Entry, summary is a deliberately-written hook
+  // that's *better* than the full description snippet, so it should win.
+  // For an ActivityType, description is the primary "what is this activity"
+  // explanation (see below) - summary here is just a shorter fallback for
+  // when no description has been written yet, not a preferred override.
+  summary     String?
+  // Short explanation of the activity itself - optional, since something
+  // self-explanatory (Laser Tag) doesn't need one but something less
+  // widely known outside the city (Padel) benefits from a line of context
+  // shown above its provider list. Also what's shown when there are no
+  // providers below it (see note above) - the type card behaves like a
+  // text-only reference entry in that case.
   description String?
-  address     String?
-  latitude    Float
-  longitude   Float
-  priceLevel  Int?
-  rating      Float?
-  city        City     @relation(fields: [cityId], references: [id])
+  city        City    @relation(fields: [cityId], references: [id])
   cityId      Int
-  category    Category @relation(fields: [categoryId], references: [id])
-  categoryId  Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  // Manual display order among ActivityType cards on the Activities
+  // screen - same mechanism/rationale as Entry.sortOrder below.
+  sortOrder   Float   @default(0)
+  entries     Entry[]
+
+  // Slugs are unique per city rather than globally, since types are
+  // per-city - e.g. a "padel" slug can exist independently in both
+  // Barcelona and a future city without colliding.
+  @@unique([cityId, slug])
+}
+
+model Entry {
+  id             Int           @id @default(autoincrement())
+  name           String
+  // Optional short, punchy blurb for card display. When present, the card
+  // shows this instead of a truncated snippet of `description` - lets an
+  // entry get a hand-written hook instead of relying on the first line of
+  // the full description reading well out of context. Falls back to
+  // `description` when blank (see client/src/EntryCard.jsx).
+  summary        String?
+  description    String?
+  address        String?
+  latitude       Float?
+  longitude      Float?
+  priceLevel     Int?
+  // URL of the entry's photo, hosted on Cloudinary - null falls back to
+  // the static placeholder image in EntryCard.jsx. See claude/todo.md for
+  // the hosting-provider decision (2026-08-29: Cloudinary, free tier).
+  photoUrl       String?
+  // Free-text sub-classification label for an entry - cuisine for
+  // restaurant-variant entries (e.g. "Tapas", "Japanese"), or a place type
+  // for photo/venue-variant entries like Sightseeing (e.g. "Museum",
+  // "Building"). Generic on purpose (renamed from `cuisine` 2026-08-28) so
+  // one field/filter mechanism serves every category instead of each
+  // needing its own differently-named column. Optional/free text for now,
+  // same rationale as `summary` - fast to hand-enter for v1, can revisit as
+  // a fixed enum later once there's a real spread of values to see. Set by
+  // hand in Prisma Studio, same as priceLevel/rating/address (see
+  // EntryEditor.jsx's scope note).
+  type           String?
+  rating         Float?
+  city           City          @relation(fields: [cityId], references: [id])
+  cityId         Int
+  category       Category      @relation(fields: [categoryId], references: [id])
+  categoryId     Int
+  // Optional link to an ActivityType, set only on provider Entries under
+  // the Activities category (e.g. a specific laser tag venue linking back
+  // to the "Laser Tag" ActivityType) - null for every entry in every other
+  // category, same pattern as other category-specific fields (e.g. `type`)
+  // living on the shared Entry model. See ActivityType above.
+  activityType   ActivityType? @relation(fields: [activityTypeId], references: [id])
+  activityTypeId Int?
+  // Manual display order within a category's card list (lower = earlier).
+  // Ties break on id (insertion order), so new entries default to last
+  // among same-sortOrder items rather than jumping around unpredictably.
+  // Float rather than Int (changed 2026-08-28, was Int @default(0)) so
+  // inserting an entry between two existing ones is always just "set it to
+  // the number halfway between their two values" - e.g. between 3 and 4 ->
+  // 3.5, then between 3 and 3.5 -> 3.25, and so on - without ever having to
+  // renumber the rest of the list to make room. See "Entry ordering" in
+  // claude/home-screen-spec.md for the fuller reasoning. Set by hand in
+  // Prisma Studio for now - not exposed in the in-app editor, which is
+  // deliberately scoped to text fields only (name/summary/description). See
+  // client/src/CategoryScreen.jsx / the server's entries query for where
+  // this is applied.
+  sortOrder      Float         @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }

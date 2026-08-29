@@ -1,28 +1,22 @@
-import { useEffect, useState } from 'react';
-import './App.css';
+import { Routes, Route } from 'react-router-dom';
+import { CityProvider } from './CityProvider.jsx';
+import Home from './Home.jsx';
+import CategoryScreen from './CategoryScreen.jsx';
+import EntryDetail from './EntryDetail.jsx';
+import EntryEditor from './EntryEditor.jsx';
+import ActivityTypeDetail from './ActivityTypeDetail.jsx';
 
 function App() {
-  const [cities, setCities] = useState([]);
-
-  useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/cities`)
-      .then((res) => res.json())
-      .then((data) => setCities(data))
-      .catch((err) => console.error('Failed to fetch cities:', err));
-  }, []);
-
   return (
-    <div>
-      <h1>Travel App</h1>
-      <h2>Cities</h2>
-      <ul>
-        {cities.map((city) => (
-          <li key={city.id}>
-            {city.name}, {city.country}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <CityProvider>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/category/:slug" element={<CategoryScreen />} />
+        <Route path="/category/:slug/type/:typeId" element={<ActivityTypeDetail />} />
+        <Route path="/category/:slug/entry/:entryId" element={<EntryDetail />} />
+        <Route path="/category/:slug/entry/:entryId/edit" element={<EntryEditor />} />
+      </Routes>
+    </CityProvider>
   );
 }
 

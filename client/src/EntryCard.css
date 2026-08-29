@@ -1,0 +1,73 @@
+.entry-card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.entry-card {
+  background: var(--card, #fff);
+  border: 1px solid var(--line, #e5e4e7);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(20, 30, 25, 0.06);
+}
+
+/* Photo variant (Eating Out, Sightseeing): photo runs edge-to-edge at the
+   top, so the card itself carries no padding - the text block below the
+   photo gets its own padding instead (.entry-card-body). Named 'photo'
+   rather than 'restaurant' (2026-08-28) since Sightseeing uses the same
+   layout - see cardVariant in categoryConfig.js. */
+.entry-card-photo {
+  padding: 0;
+  overflow: hidden;
+}
+
+.entry-card-photo-img {
+  display: block;
+  width: 100%;
+  /* Fixed 4:3 ratio (not a fixed pixel height) so the crop stays consistent
+     across device widths - a fixed height alone produces a different
+     effective ratio on every screen size. object-fit: cover then crops
+     whatever source image comes in (placeholder for now, real photos once
+     the data source/hosting decision is made - see claude/todo.md) to fill
+     that box rather than distorting it. */
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--line, #e5e4e7);
+}
+
+.entry-card-photo .entry-card-body {
+  padding: 12px 16px 14px;
+}
+
+.entry-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink, #08060d);
+  margin-bottom: 4px;
+}
+
+.entry-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted, #6b6375);
+  margin-bottom: 6px;
+}
+
+.entry-card-rating {
+  color: var(--g-600, #3a7d55);
+  font-weight: 600;
+}
+
+.entry-card-meta-sep {
+  color: var(--line, #e5e4e7);
+}
+
+.entry-card-snippet {
+  font-size: 13px;
+  color: var(--muted, #6b6375);
+  line-height: 1.4;
+}

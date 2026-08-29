@@ -1,0 +1,234 @@
+.entry-editor {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: 32px;
+}
+
+.entry-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 8px;
+}
+
+.entry-editor-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.entry-editor-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.entry-editor-status {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 14px;
+}
+
+.entry-editor-form {
+  padding: 8px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.entry-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.entry-editor-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.entry-editor-input,
+.entry-editor-textarea {
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.entry-editor-input:focus,
+.entry-editor-textarea:focus {
+  outline: 2px solid var(--g-600);
+  outline-offset: -1px;
+}
+
+.entry-editor-textarea-long {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13.5px;
+  line-height: 1.5;
+  min-height: 180px;
+}
+
+.entry-editor-desc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.entry-editor-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.entry-editor-tab {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.entry-editor-tab.is-active {
+  background: var(--g-600);
+  color: #fff;
+  font-weight: 600;
+}
+
+.entry-editor-preview {
+  min-height: 180px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.entry-editor-preview-empty {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.entry-editor-preview h1,
+.entry-editor-preview h2,
+.entry-editor-preview h3 {
+  font-size: 15.5px;
+  font-weight: 600;
+  margin: 14px 0 6px;
+}
+
+.entry-editor-preview h1:first-child,
+.entry-editor-preview h2:first-child,
+.entry-editor-preview h3:first-child {
+  margin-top: 0;
+}
+
+.entry-editor-preview p {
+  margin: 0 0 10px;
+}
+
+.entry-editor-preview ul,
+.entry-editor-preview ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.entry-editor-hint {
+  font-size: 11.5px;
+  color: var(--faint);
+  margin: 0;
+}
+
+.entry-editor-error {
+  font-size: 13px;
+  color: oklch(50% 0.18 25);
+  background: oklch(96% 0.03 25);
+  border: 1px solid oklch(80% 0.08 25);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.entry-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.entry-editor-cancel {
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 9px 16px;
+  border-radius: 10px;
+}
+
+.entry-editor-save {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--g-600);
+  border: none;
+  border-radius: 10px;
+  padding: 9px 18px;
+  cursor: pointer;
+}
+
+.entry-editor-save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.entry-editor-photo-preview {
+  display: block;
+  width: 100%;
+  max-width: 240px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.entry-editor-photo-status {
+  font-size: 12.5px;
+  color: var(--faint);
+}
+
+.entry-editor-photo-remove {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+}

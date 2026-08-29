@@ -140,16 +140,16 @@ None of this needs to be built now, but it's worth knowing the levers exist so e
 ## 11. This week's checklist
 
 1. ~~Install Node.js (LTS) and Docker Desktop on your development machine.~~ **Done.**
-2. Create the empty `travel-app` repository on GitHub.
-3. Set up the local folder structure and push the initial commit (section 3, steps 2–7).
-4. Start the local PostgreSQL container (section 4) and confirm it's reachable.
-5. Come back here and we'll scaffold the actual React + Vite client and Express server code together, wired up to run against that local database.
-6. Only once you actually want a live, shareable version — no rush, and no cost while you stay local — decide between Render's free (30-day) Postgres or a non-expiring option like Neon, then set up the Render web service for the API and a static site for the client (sections 5–6).
+2. ~~Create the empty `travel-app` repository on GitHub.~~ **Done.**
+3. ~~Set up the local folder structure and push the initial commit.~~ **Done.**
+4. ~~Start the local PostgreSQL container and confirm it's reachable.~~ **Done.**
+5. ~~Scaffold the React + Vite client and Express server, wired up to the local database.~~ **Done** — Prisma schema migrated, API serving seeded data, client rendering it live, PWA manifest and service worker working (installable, passes Chrome's manifest checks bar the optional screenshot warnings).
+6. ~~Set up a Cowork Project, connect it to the local repo folder, move this chat in.~~ **Done.**
+7. Only once you actually want a live, shareable version — no rush, and no cost while you stay local — decide between Render's free (30-day) Postgres or a non-expiring option like Neon, then set up the Render web service for the API and a static site for the client (sections 5–6).
+8. Decide on your restaurant/activity data source — licensed API (Google Places, Foursquare), OpenStreetMap, or manual entry. Doesn't block further coding, but shapes the schema in section 8 and the eventual admin/data-entry tool, so worth settling before too much gets built around assumptions.
+9. Commit and push tonight's client/server scaffolding to GitHub (nothing since the initial commit has been pushed yet).
 
-Not blocking the steps above, but worth doing in parallel:
-
-7. Set up a Cowork Project (e.g. "Travel App"), connect it to your local repo folder once it exists, and put the tech stack decisions from section 2 into its instructions field. Move this chat into that project (see section 13).
-8. Decide on your restaurant/activity data source — licensed API (Google Places, Foursquare), OpenStreetMap, or manual entry. It doesn't block starting to code, but it does shape the schema in section 8, so settle it before too much gets built around assumptions.
+**Local development environment is fully set up as of this session.** From here it's feature development: building out more of the app itself rather than more tooling.
 
 ## 12. What we build next
 

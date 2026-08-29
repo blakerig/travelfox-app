@@ -1,0 +1,218 @@
+.category-screen {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: 24px;
+}
+
+.category-screen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px 20px 8px;
+}
+
+.category-screen-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.category-screen-add {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-600);
+  text-decoration: none;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.category-screen-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.category-screen-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  text-transform: capitalize;
+}
+
+/* Entry count (2026-08-28): shows how many of the category's entries are
+   currently displayed, e.g. "42 restaurants" or, once a filter narrows the
+   list, "12 of 42 restaurants". Sits between the header and the sort/filter
+   controls so it reads before them, not tucked below the fold. */
+.category-screen-count {
+  padding: 0 20px 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.category-screen-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 20px 12px;
+}
+
+.category-screen-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.category-screen-sort select {
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+}
+
+/* Filters (2026-08-28): a single toggle button rather than always-visible
+   filter controls, so the controls row stays to one line even once a
+   category has both a sort dropdown and filters - the chips themselves only
+   take up space when the panel is actually open. */
+.category-screen-filter-toggle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-600);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.category-screen-filter-toggle[aria-expanded='true'] {
+  background: var(--g-600);
+  color: var(--card);
+  border-color: var(--g-600);
+}
+
+.category-screen-filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 20px 14px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.category-screen-filter-group-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  margin-bottom: 6px;
+}
+
+.category-screen-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.category-screen-filter-chip {
+  font-size: 13px;
+  color: var(--ink);
+  background: oklch(97% 0.015 150);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.category-screen-filter-chip[aria-pressed='true'] {
+  background: var(--g-600);
+  color: var(--card);
+  border-color: var(--g-600);
+  font-weight: 600;
+}
+
+.category-screen-filter-clear {
+  align-self: flex-start;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.category-screen-filter-clear-inline {
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--g-600);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Distance filter (2026-08-28): location-permission states, shown in place
+   of chips until the user opts in via "Use my location". */
+.category-screen-location-button {
+  align-self: flex-start;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-600);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 14px;
+  cursor: pointer;
+}
+
+.category-screen-location-status {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.category-screen-filter-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.category-screen-status {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 14px;
+}
+
+.category-screen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px;
+}
