@@ -55,9 +55,18 @@
 // routing API) is logged in claude/todo.md - that's what a "Nearest" sort
 // should wait for.
 //
-// Food & Drink is deliberately left out for now, same as in Home.jsx's
-// CATEGORY_DISPLAY and the server seed - no icon asset exists yet. Add it
-// here too once it's added in those other two places.
+// expandInPlace (2026-08-29) - when true, CategoryScreen renders this
+// category's cards without wrapping them in a Link to EntryDetail; instead
+// EntryCard handles its own expand/collapse (tapping the photo or text
+// toggles between the short snippet and the full description, in place,
+// right there in the list) - see EntryCard.jsx's `expandable` prop and
+// CategoryScreen.jsx's rendering branch. Local Cuisine is the only category
+// using this so far: unlike Eating Out/Sightseeing, a dish or drink doesn't
+// need its own full screen (no address/rating/hours to show), so a
+// separate detail screen would just be an extra tap for no benefit.
+// EntryDetail.jsx still works for this category if reached directly (e.g.
+// right after saving in the editor) - this flag only changes how
+// CategoryScreen links into cards, not whether the detail route exists.
 //
 // itemLabel/itemLabelPlural (2026-08-28) name a single entry in this
 // category, e.g. "restaurant"/"restaurants" - used by CategoryScreen.jsx to
@@ -139,6 +148,17 @@ export const CATEGORY_CONFIG = {
     filterOptions: ['type', 'distance'],
     itemLabel: 'place',
     itemLabelPlural: 'places',
+  },
+  'local-cuisine': {
+    title: 'Local Cuisine',
+    cardVariant: 'photo',
+    cardShowPrice: false,
+    // See the expandInPlace doc comment above.
+    expandInPlace: true,
+    sortOptions: null,
+    filterOptions: null,
+    itemLabel: 'dish',
+    itemLabelPlural: 'dishes',
   },
 };
 

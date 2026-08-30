@@ -2,13 +2,13 @@ require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// These four match the home screen's category grid (client/src/Home.jsx).
-// Food & Drink is intentionally left out for now - no icon asset yet.
+// These five match the home screen's category grid (client/src/Home.jsx).
 const CATEGORIES = [
   { slug: 'essentials', name: 'Essentials' },
   { slug: 'activities', name: 'Activities' },
   { slug: 'eating-out', name: 'Eating Out' },
   { slug: 'sightseeing', name: 'Sightseeing' },
+  { slug: 'local-cuisine', name: 'Local Cuisine' },
 ];
 
 async function main() {

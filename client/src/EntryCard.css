@@ -71,3 +71,75 @@
   color: var(--muted, #6b6375);
   line-height: 1.4;
 }
+
+/* Expandable photo cards (Local Cuisine, see expandInPlace in
+   categoryConfig.js) - the whole card is a clickable/focusable toggle
+   instead of being wrapped in a Link by CategoryScreen, so cursor/focus
+   styling lives directly on .entry-card here rather than on
+   .entry-card-link. */
+.entry-card-expandable {
+  cursor: pointer;
+}
+
+.entry-card-expandable:focus-visible {
+  outline: 2px solid var(--g-500, #63b17c);
+  outline-offset: 2px;
+}
+
+.entry-card-expand-toggle {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--g-600, #3a7d55);
+}
+
+.entry-card-expand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.entry-card-edit-link {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted, #6b6375);
+  text-decoration: underline;
+}
+
+/* Full description shown in place once an expandable card is expanded -
+   same Markdown look as .entry-detail-markdown in EntryDetail.css, just
+   scaled down slightly to fit inside a card rather than a full screen. */
+.entry-card-full-text {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink, #08060d);
+  margin-top: 2px;
+}
+
+.entry-card-full-text p {
+  margin: 0 0 8px;
+}
+
+.entry-card-full-text p:last-child {
+  margin-bottom: 0;
+}
+
+.entry-card-full-text ul,
+.entry-card-full-text ol {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+
+.entry-card-full-text li {
+  margin-bottom: 3px;
+}
+
+.entry-card-full-text strong {
+  font-weight: 700;
+}
+
+.entry-card-full-text em {
+  font-style: italic;
+}

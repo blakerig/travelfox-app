@@ -499,20 +499,41 @@ function CategoryScreen() {
 
       {sortedItems.length > 0 && (
         <div className="category-screen-list">
-          {sortedItems.map((item) => (
-            <Link
-              to={config.groupedByType ? activityTypeHref(slug, item) : `/category/${slug}/entry/${item.id}`}
-              className="entry-card-link"
-              key={item.id}
-            >
+          {/* expandInPlace categories (Local Cuisine, see categoryConfig.js)
+              render EntryCard directly instead of wrapping it in a Link -
+              the card manages its own expand/collapse and only navigates
+              via its own "Edit" link, so there's no separate detail screen
+              to tap through to. */}
+          {sortedItems.map((item) =>
+            config.expandInPlace ? (
               <EntryCard
+                key={item.id}
                 entry={item}
                 variant={config.cardVariant}
                 currencySymbol={currencySymbol}
                 showPrice={config.cardShowPrice ?? true}
+                expandable
+                editHref={`/category/${slug}/entry/${item.id}/edit`}
               />
-            </Link>
-          ))}
+            ) : (
+              <Link
+                to={
+                  config.groupedByType
+                    ? activityTypeHref(slug, item)
+                    : `/category/${slug}/entry/${item.id}`
+                }
+                className="entry-card-link"
+                key={item.id}
+              >
+                <EntryCard
+                  entry={item}
+                  variant={config.cardVariant}
+                  currencySymbol={currencySymbol}
+                  showPrice={config.cardShowPrice ?? true}
+                />
+              </Link>
+            )
+          )}
         </div>
       )}
     </div>

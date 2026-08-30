@@ -7,15 +7,15 @@ import iconEssentials from './assets/icon-essentials.png';
 import iconActivities from './assets/icon-activities.png';
 import iconEatingOut from './assets/icon-eating-out.png';
 import iconSightseeing from './assets/icon-sightseeing.png';
+import iconLocalCuisine from './assets/icon-local-cuisine.png';
 
 // Local display info for each category the home screen knows how to render.
-// Food & Drink has no icon asset yet - once one exists, add it here and it
-// will start showing up automatically as soon as a city has content in it.
 const CATEGORY_DISPLAY = [
   { slug: 'essentials', label: 'Essentials', icon: iconEssentials },
   { slug: 'activities', label: 'Activities', icon: iconActivities },
   { slug: 'eating-out', label: 'Eating Out', icon: iconEatingOut },
   { slug: 'sightseeing', label: 'Sightseeing', icon: iconSightseeing },
+  { slug: 'local-cuisine', label: 'Local Cuisine', icon: iconLocalCuisine },
 ];
 
 function Home() {
