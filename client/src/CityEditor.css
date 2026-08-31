@@ -1,0 +1,131 @@
+.city-editor {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: 32px;
+}
+
+.city-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 8px;
+}
+
+.city-editor-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.city-editor-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.city-editor-status {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 14px;
+}
+
+.city-editor-form {
+  padding: 8px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.city-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.city-editor-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.city-editor-photo-preview {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 390 / 270;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.city-editor-photo-status {
+  font-size: 12.5px;
+  color: var(--faint);
+}
+
+.city-editor-photo-remove {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.city-editor-error {
+  font-size: 13px;
+  color: oklch(50% 0.18 25);
+  background: oklch(96% 0.03 25);
+  border: 1px solid oklch(80% 0.08 25);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.city-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.city-editor-cancel {
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 9px 16px;
+  border-radius: 10px;
+}
+
+.city-editor-save {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--g-600);
+  border: none;
+  border-radius: 10px;
+  padding: 9px 18px;
+  cursor: pointer;
+}
+
+.city-editor-save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

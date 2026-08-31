@@ -26,15 +26,18 @@
 // single city could have 60-80 restaurants, where filtering matters more
 // than sort order (see CategoryScreen.jsx); Sightseeing entries don't
 // carry a comparable price tier (see cardShowPrice below), so it isn't
-// offered as a filter there either. 'type' is shared by both Eating Out
+// offered as a filter there either. 'types' is shared by both Eating Out
 // and Sightseeing (added there 2026-08-28) - it was `cuisine` until
 // Entry.cuisine was generalised to Entry.type so Sightseeing could reuse
 // the same field for its own place type (Museum, Building, ...) instead
 // of carrying a separate, differently-named column - see schema.prisma.
-// Available filter *values* within each dimension are derived from
-// whatever's actually present in the fetched entries, not hardcoded here -
-// so a filter chip never appears for a type/price level nothing currently
-// uses.
+// `Entry.type` itself became `Entry.types String[]` (2026-08-30, see
+// schema.prisma) so one entry can carry more than one value (a pinchos-and-
+// Catalan restaurant, a Japanese/Mexican fusion place) - filterOptions'
+// dimension key was renamed from 'type' to 'types' to match. Available
+// filter *values* within each dimension are derived from whatever's
+// actually present in the fetched entries, not hardcoded here - so a
+// filter chip never appears for a type/price level nothing currently uses.
 //
 // typeFilterLabel (2026-08-28) names the 'type' filter's group/chip-panel
 // heading for a category - e.g. "Cuisine" for Eating Out - since the
@@ -132,7 +135,7 @@ export const CATEGORY_CONFIG = {
     cardVariant: 'photo',
     cardShowPrice: true,
     sortOptions: SORT_CURATED_NAME,
-    filterOptions: ['type', 'priceLevel', 'distance'],
+    filterOptions: ['types', 'priceLevel', 'distance'],
     typeFilterLabel: 'Cuisine',
     itemLabel: 'restaurant',
     itemLabelPlural: 'restaurants',
@@ -145,7 +148,7 @@ export const CATEGORY_CONFIG = {
     // Type and distance, but not price (2026-08-28) - sightseeing entries
     // don't have a restaurant-style price tier worth filtering on, see
     // cardShowPrice above.
-    filterOptions: ['type', 'distance'],
+    filterOptions: ['types', 'distance'],
     itemLabel: 'place',
     itemLabelPlural: 'places',
   },

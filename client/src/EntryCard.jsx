@@ -82,7 +82,13 @@ function EntryCard({
 
   if (variant === 'photo') {
     const showPriceMeta = showPrice && entry.priceLevel != null;
-    const hasMeta = showPriceMeta || entry.type;
+    // entry.types (2026-08-30, array - was a single `type` string) can
+    // hold more than one value (a pinchos-and-Catalan restaurant, a
+    // Japanese/Mexican fusion place) - joined into one comma-separated
+    // label for the card's compact meta line, same spot the single value
+    // used to render.
+    const typesLabel = entry.types?.length ? entry.types.join(', ') : null;
+    const hasMeta = showPriceMeta || typesLabel;
 
     const photo = (
       <img
@@ -103,12 +109,12 @@ function EntryCard({
                 {currencySymbol.repeat(entry.priceLevel)}
               </span>
             )}
-            {showPriceMeta && entry.type && (
+            {showPriceMeta && typesLabel && (
               <span className="entry-card-meta-sep" aria-hidden="true">
                 &middot;
               </span>
             )}
-            {entry.type && <span className="entry-card-type">{entry.type}</span>}
+            {typesLabel && <span className="entry-card-type">{typesLabel}</span>}
           </div>
         )}
 

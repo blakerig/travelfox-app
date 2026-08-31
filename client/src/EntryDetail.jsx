@@ -109,7 +109,7 @@ function EntryDetail() {
                 <span className="entry-detail-rating">★ {entry.rating.toFixed(1)}</span>
               )}
               {entry.priceLevel != null && <span>{currencySymbol.repeat(entry.priceLevel)}</span>}
-              {entry.type && <span>{entry.type}</span>}
+              {entry.types?.length > 0 && <span>{entry.types.join(', ')}</span>}
               {entry.address && <span>{entry.address}</span>}
             </div>
           )}

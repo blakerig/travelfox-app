@@ -53,6 +53,35 @@ app.get('/api/cities', async (req, res) => {
   res.json(cities);
 });
 
+// Text-only edit for an existing city - currently just photoUrl, used by
+// CityEditor.jsx (client/src/CityEditor.jsx) to set the Home hero photo
+// without going through Prisma Studio. Deliberately scoped this narrowly,
+// same reasoning as the entries PATCH above - name/latitude/longitude/
+// countryId still go through Studio, since there's no in-app UI for those
+// yet either. Extend this (and the client form) if that changes.
+app.patch('/api/cities/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const { photoUrl } = req.body;
+
+  const data = {};
+  if (photoUrl !== undefined) data.photoUrl = photoUrl === '' ? null : photoUrl;
+
+  try {
+    const city = await prisma.city.update({
+      where: { id },
+      data,
+      include: { country: true },
+    });
+    res.json(city);
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'City not found' });
+    }
+    console.error('Failed to update city:', err);
+    res.status(500).json({ error: 'Failed to update city' });
+  }
+});
+
 app.get('/api/cities/:cityId/entries', async (req, res) => {
   const cityId = Number(req.params.cityId);
   // Optional ?category=<slug> filter - used by the CategoryScreen so it can
@@ -98,7 +127,7 @@ app.get('/api/entries/:id', async (req, res) => {
 // doesn't get called until the user actually hits Save there, so there's no
 // window where a half-empty stub entry exists in the database.
 app.post('/api/entries', async (req, res) => {
-  const { cityId, categoryId, name, summary, description, type, photoUrl, activityTypeId } = req.body;
+  const { cityId, categoryId, name, summary, description, types, photoUrl, activityTypeId } = req.body;
 
   if (!cityId || !categoryId) {
     return res.status(400).json({ error: 'cityId and categoryId are required' });
@@ -113,7 +142,7 @@ app.post('/api/entries', async (req, res) => {
         name,
         summary: summary || null,
         description: description || null,
-        type: type || null,
+        types: Array.isArray(types) ? types : [],
         photoUrl: photoUrl || null,
         city: { connect: { id: Number(cityId) } },
         category: { connect: { id: Number(categoryId) } },
@@ -140,7 +169,7 @@ app.post('/api/entries', async (req, res) => {
 // See project notes if/when this needs to grow into a full editor.
 app.patch('/api/entries/:id', async (req, res) => {
   const id = Number(req.params.id);
-  const { name, summary, description, type, photoUrl } = req.body;
+  const { name, summary, description, types, photoUrl } = req.body;
 
   const data = {};
   if (name !== undefined) {
@@ -151,7 +180,7 @@ app.patch('/api/entries/:id', async (req, res) => {
   }
   if (summary !== undefined) data.summary = summary === '' ? null : summary;
   if (description !== undefined) data.description = description === '' ? null : description;
-  if (type !== undefined) data.type = type === '' ? null : type;
+  if (types !== undefined) data.types = Array.isArray(types) ? types : [];
   if (photoUrl !== undefined) data.photoUrl = photoUrl === '' ? null : photoUrl;
 
   try {
@@ -237,6 +266,81 @@ app.get('/api/cities/:cityId/home-categories', async (req, res) => {
   }
 
   res.json(categories);
+});
+
+// Free-text search across a city's Entries and ActivityTypes - what
+// Search.jsx calls as the user types into the home-screen search bar (see
+// Home.jsx). Matches name/summary/description via a case-insensitive
+// substring on each field. Entry.types (the free-text cuisine/place-type
+// array) is deliberately not searched here - Prisma's array filters only
+// support exact-value matching, not substring, and this endpoint is meant
+// to behave like a plain "search everything" box rather than a faceted
+// lookup (that's what CategoryScreen's type filter chips are for).
+//
+// Entries and ActivityTypes come back merged into one ranked list (not as
+// separate sections) so a search for "padel" surfaces the Padel
+// ActivityType card the same way "tapas" surfaces a restaurant - the
+// client tells results apart via each one's `kind` field and shows a small
+// category badge (see Search.jsx). Ranking is a simple three-tier scheme
+// (name match, then summary match, then description-only match,
+// alphabetical within each tier) rather than a real search/ranking
+// library - plenty for this dataset's size, revisit if/when that stops
+// being true.
+app.get('/api/cities/:cityId/search', async (req, res) => {
+  const cityId = Number(req.params.cityId);
+  const q = (req.query.q || '').trim();
+
+  if (!q) {
+    return res.json([]);
+  }
+
+  const textFilter = (field) => ({ [field]: { contains: q, mode: 'insensitive' } });
+
+  const [entries, activityTypes] = await Promise.all([
+    prisma.entry.findMany({
+      where: {
+        cityId,
+        OR: [textFilter('name'), textFilter('summary'), textFilter('description')],
+      },
+      include: { category: true },
+      take: 30,
+    }),
+    prisma.activityType.findMany({
+      where: {
+        cityId,
+        OR: [textFilter('name'), textFilter('summary'), textFilter('description')],
+      },
+      // Just the id of each provider Entry - enough for the client to show
+      // a "N providers" count on the group card (see EntryCard.jsx's
+      // 'group' variant), without pulling every provider field along for
+      // the ride.
+      include: { entries: { select: { id: true } } },
+      take: 15,
+    }),
+  ]);
+
+  const results = [
+    ...entries.map((e) => ({ kind: 'entry', ...e })),
+    ...activityTypes.map((t) => ({
+      kind: 'activityType',
+      id: t.id,
+      name: t.name,
+      summary: t.summary,
+      description: t.description,
+      entries: t.entries,
+    })),
+  ];
+
+  const lower = q.toLowerCase();
+  function matchRank(item) {
+    if (item.name?.toLowerCase().includes(lower)) return 0;
+    if (item.summary?.toLowerCase().includes(lower)) return 1;
+    if (item.description?.toLowerCase().includes(lower)) return 2;
+    return 3;
+  }
+  results.sort((a, b) => matchRank(a) - matchRank(b) || a.name.localeCompare(b.name));
+
+  res.json(results.slice(0, 30));
 });
 
 const PORT = process.env.PORT || 3000;

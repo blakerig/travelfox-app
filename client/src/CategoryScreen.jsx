@@ -6,6 +6,7 @@ import { getCategoryConfig } from './categoryConfig.js';
 import EntryCard from './EntryCard.jsx';
 import { haversineDistanceKm, formatDistanceKm } from './geo.js';
 import { useUserLocation } from './useUserLocation.js';
+import { activityTypeHref } from './activityTypeHref.js';
 
 // Radius choices for the Eating Out distance filter (2026-08-28) - single
 // select (tapping the active one again clears it), not the OR-multi-select
@@ -46,9 +47,16 @@ function sortItems(items, sortBy) {
 // that dimension, not "match nothing" - multiple selections within one
 // dimension are OR'd together (any selected type matches), all active
 // dimensions are AND'd together (an entry must satisfy every active
-// filter). An entry with a blank type/priceLevel, or missing coordinates
-// when a radius is active, never matches an active filter on that
-// dimension - same as any other faceted filter UI.
+// filter). An entry with no types/a blank priceLevel, or missing
+// coordinates when a radius is active, never matches an active filter on
+// that dimension - same as any other faceted filter UI.
+//
+// `entry.type` became `entry.types` (2026-08-30, an array - see
+// schema.prisma) so one entry can carry more than one cuisine/place type.
+// The `types` filter dimension now matches if *any* of an entry's values is
+// in the selected set - i.e. OR both within the selection (pick "Tapas" or
+// "Catalan", either matches) and within the entry (an entry tagged both
+// only needs one to be selected).
 //
 // Distance uses straight-line (haversine) distance from `origin` (the
 // user's geolocated position, see useUserLocation.js) - a coarse, honestly
@@ -62,7 +70,7 @@ function sortItems(items, sortBy) {
 function filterItems(items, { types, priceLevels, radiusKm, origin }) {
   if (types.size === 0 && priceLevels.size === 0 && radiusKm == null) return items;
   return items.filter((entry) => {
-    const typeOk = types.size === 0 || (entry.type && types.has(entry.type));
+    const typeOk = types.size === 0 || (entry.types ?? []).some((t) => types.has(t));
     const priceOk =
       priceLevels.size === 0 || (entry.priceLevel != null && priceLevels.has(entry.priceLevel));
     const distanceOk =
@@ -114,20 +122,6 @@ function loadScrollY(key) {
   } catch {
     return null;
   }
-}
-
-// A type with no description and exactly one provider skips straight to
-// that provider's EntryDetail, rather than showing an intermediate screen
-// with just one card and nothing else worth reading first. A type *with* a
-// description still goes to ActivityTypeDetail even when it only has one
-// provider, so that description isn't silently skipped over - see
-// ActivityTypeDetail.jsx, which also handles being reached directly (e.g. a
-// bookmarked link) with zero or one provider without needing this check.
-function activityTypeHref(slug, activityType) {
-  if (!activityType.description && activityType.entries?.length === 1) {
-    return `/category/${slug}/entry/${activityType.entries[0].id}`;
-  }
-  return `/category/${slug}/type/${activityType.id}`;
 }
 
 // Generic category detail screen - one component for all five categories.
@@ -273,12 +267,12 @@ function CategoryScreen() {
   // Filter chip *values* come from whatever's actually present in this
   // city/category's items, not a fixed list - so a chip never appears for
   // a type or price level nothing currently uses. (Always empty for a
-  // grouped category, since ActivityType rows have no `type`/`priceLevel`
+  // grouped category, since ActivityType rows have no `types`/`priceLevel`
   // - harmless, filterOptions is null there so nothing renders these.)
   const availableTypes = useMemo(() => {
     const set = new Set();
     (items ?? []).forEach((item) => {
-      if (item.type) set.add(item.type);
+      (item.types ?? []).forEach((t) => set.add(t));
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [items]);
@@ -380,7 +374,7 @@ function CategoryScreen() {
 
       {config.filterOptions && filterPanelOpen && hasFilterableData && (
         <div className="category-screen-filter-panel">
-          {config.filterOptions.includes('type') && availableTypes.length > 0 && (
+          {config.filterOptions.includes('types') && availableTypes.length > 0 && (
             <div className="category-screen-filter-group">
               <div className="category-screen-filter-group-label">
                 {config.typeFilterLabel ?? 'Type'}

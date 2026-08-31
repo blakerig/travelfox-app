@@ -1,0 +1,127 @@
+.search-screen {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: 24px;
+}
+
+.search-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  position: sticky;
+  top: 0;
+  background: oklch(97% 0.015 150);
+  z-index: 1;
+}
+
+.search-back {
+  flex-shrink: 0;
+  font-size: 20px;
+  color: var(--ink);
+  background: none;
+  border: none;
+  padding: 4px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.search-input-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 14px;
+  color: var(--faint);
+  box-shadow: 0 1px 3px rgba(20, 30, 25, 0.06);
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.search-input::placeholder {
+  color: var(--faint);
+}
+
+/* Suppress the native browser clear button on type="search" so it doesn't
+   sit next to the custom one below and double up. */
+.search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.search-clear {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: var(--line);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.search-status {
+  padding: 40px 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.search-results {
+  padding: 4px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.search-result {
+  display: block;
+  position: relative;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Sits above each card rather than overlaid on its photo, so it renders
+   consistently across every EntryCard variant search can surface ('photo',
+   'venue', 'reference', 'group') instead of only the ones with a photo to
+   sit on top of. */
+.search-result-badge {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--g-600);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}

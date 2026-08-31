@@ -40,14 +40,46 @@
   background: linear-gradient(to top, rgba(10, 20, 15, 0.55), rgba(10, 20, 15, 0));
 }
 
+.home-hero-edit {
+  position: absolute;
+  right: 16px;
+  top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(10, 20, 15, 0.35);
+  color: #fff;
+  text-decoration: none;
+}
+
 .home-hero-city {
   position: absolute;
   left: 20px;
   bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: none;
+  padding: 0;
   color: #fff;
+  font: inherit;
   font-size: 22px;
   font-weight: 600;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+.home-hero-city:disabled {
+  cursor: default;
+}
+
+.home-hero-city-chevron {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .home-search {
@@ -65,6 +97,9 @@
   color: var(--faint);
   font-size: 15px;
   box-shadow: 0 1px 3px rgba(20, 30, 25, 0.06);
+  /* Now a Link (was a plain div) - see Home.jsx - so the anchor defaults
+     need overriding explicitly. */
+  text-decoration: none;
 }
 
 .home-categories {

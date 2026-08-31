@@ -31,6 +31,13 @@ model City {
   name          String
   latitude      Float
   longitude     Float
+  // URL of the city's cover photo, hosted on Cloudinary - same pattern as
+  // Entry.photoUrl below (null falls back to the static placeholder image
+  // in Home.jsx). See claude/todo.md for the hosting-provider decision
+  // (2026-08-29: Cloudinary, free tier). No in-app upload UI for this yet -
+  // set by hand in Prisma Studio, same as latitude/longitude/countryId
+  // below, since City has no in-app editor at all currently.
+  photoUrl      String?
   // Optional rather than required: existing City rows (Lyon, Barcelona)
   // predate this relation and need backfilling by hand in Prisma Studio
   // after this migration applies - a required relation can't be added in
@@ -121,17 +128,29 @@ model Entry {
   // the static placeholder image in EntryCard.jsx. See claude/todo.md for
   // the hosting-provider decision (2026-08-29: Cloudinary, free tier).
   photoUrl       String?
-  // Free-text sub-classification label for an entry - cuisine for
-  // restaurant-variant entries (e.g. "Tapas", "Japanese"), or a place type
-  // for photo/venue-variant entries like Sightseeing (e.g. "Museum",
+  // Free-text sub-classification labels for an entry - cuisines for
+  // restaurant-variant entries (e.g. "Tapas", "Catalan" on one pinchos bar,
+  // or "Japanese"/"Mexican" on a fusion place), or place types for
+  // photo/venue-variant entries like Sightseeing (e.g. "Museum",
   // "Building"). Generic on purpose (renamed from `cuisine` 2026-08-28) so
   // one field/filter mechanism serves every category instead of each
-  // needing its own differently-named column. Optional/free text for now,
-  // same rationale as `summary` - fast to hand-enter for v1, can revisit as
-  // a fixed enum later once there's a real spread of values to see. Set by
-  // hand in Prisma Studio, same as priceLevel/rating/address (see
-  // EntryEditor.jsx's scope note).
-  type           String?
+  // needing its own differently-named column.
+  //
+  // Array rather than a single String (changed 2026-08-30) - raised once
+  // the user pointed out a restaurant can genuinely belong to more than one
+  // cuisine (a pinchos-and-Catalan place, a Japanese/Mexican fusion
+  // restaurant), which a single value couldn't represent. A plain Postgres
+  // string array, not a separate lookup table with a many-to-many relation
+  // - stays free text/no new model, matching how every other field here
+  // has been kept simple until real volume justifies more structure (same
+  // reasoning as `summary`/`cuisine` originally). The tradeoff: this is
+  // still free text, so the existing spelling-drift risk ("Tapas" vs
+  // "tapas" showing as separate filter chips - see EntryEditor.jsx) now
+  // applies per-value instead of per-entry. A proper Cuisine/EntryType
+  // lookup table (pick from existing values instead of retyping them)
+  // would fix multi-value *and* spelling drift together, logged as a
+  // heavier follow-up in claude/todo.md rather than built now.
+  types          String[] @default([])
   rating         Float?
   city           City          @relation(fields: [cityId], references: [id])
   cityId         Int

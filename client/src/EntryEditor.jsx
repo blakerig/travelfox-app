@@ -7,7 +7,7 @@ import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import { useCity } from './city-context.js';
 import './EntryEditor.css';
 
-// Text-only editor for an entry: name, summary, type, description. Handles both
+// Text-only editor for an entry: name, summary, types, description. Handles both
 // editing an existing entry (/category/:slug/entry/:entryId/edit) and
 // creating a new one (/category/:slug/entry/new/edit - entryId === 'new',
 // reached via "+ Add" on CategoryScreen). Same form either way; creation
@@ -24,6 +24,19 @@ import './EntryEditor.css';
 // a full editor (city/category pickers, location, price, rating), that's
 // the point to reach for a form library rather than continuing to hand-roll
 // individual useState fields.
+// Splits the comma-separated types field into a clean array for the API:
+// trims whitespace around each value, drops empty entries (a trailing
+// comma, or the field left blank), but doesn't dedupe or otherwise
+// normalize casing/spelling - see the Entry.types comment in schema.prisma
+// for why that's a deliberate limitation of the free-text approach, not an
+// oversight.
+function parseTypesInput(input) {
+  return input
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
 function EntryEditor() {
   const { slug, entryId } = useParams();
   const navigate = useNavigate();
@@ -50,7 +63,14 @@ function EntryEditor() {
 
   const [name, setName] = useState('');
   const [summary, setSummary] = useState('');
-  const [type, setType] = useState('');
+  // Held as a plain comma-separated string while editing (e.g. "Tapas,
+  // Catalan"), not an array - simplest possible UI for a field that can now
+  // hold more than one value (2026-08-30, see schema.prisma's Entry.types),
+  // consistent with this form staying a plain hand-rolled text input rather
+  // than a proper multi-select/tag picker. Parsed into an array only at
+  // save time (parseTypesInput below); loaded back by joining the existing
+  // array with ", " (see the fetch effect below).
+  const [typesInput, setTypesInput] = useState('');
   const [description, setDescription] = useState('');
   const [descTab, setDescTab] = useState('write'); // 'write' | 'preview'
   const [photoUrl, setPhotoUrl] = useState('');
@@ -73,7 +93,7 @@ function EntryEditor() {
     setError(null);
     setName('');
     setSummary('');
-    setType('');
+    setTypesInput('');
     setDescription('');
     setDescTab('write');
     setPhotoUrl('');
@@ -96,7 +116,7 @@ function EntryEditor() {
         setEntry(data);
         setName(data.name ?? '');
         setSummary(data.summary ?? '');
-        setType(data.type ?? '');
+        setTypesInput((data.types ?? []).join(', '));
         setDescription(data.description ?? '');
         setPhotoUrl(data.photoUrl ?? '');
       })
@@ -170,7 +190,7 @@ function EntryEditor() {
             categoryId,
             name,
             summary,
-            type,
+            types: parseTypesInput(typesInput),
             description,
             photoUrl,
             activityTypeId,
@@ -179,7 +199,7 @@ function EntryEditor() {
       : fetch(`${import.meta.env.VITE_API_URL}/api/entries/${entryId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, summary, type, description, photoUrl }),
+          body: JSON.stringify({ name, summary, types: parseTypesInput(typesInput), description, photoUrl }),
         });
 
     request
@@ -248,13 +268,15 @@ function EntryEditor() {
           <label className="entry-editor-field">
             <span className="entry-editor-label">
               Type (optional - shown on the card, e.g. cuisine for restaurants or a place type
-              like &quot;Museum&quot; for sightseeing)
+              like &quot;Museum&quot; for sightseeing. Separate more than one with a comma, e.g.
+              &quot;Pinchos, Catalan&quot;)
             </span>
             <input
               type="text"
-              value={type}
-              onChange={(e) => setType(e.target.value)}
+              value={typesInput}
+              onChange={(e) => setTypesInput(e.target.value)}
               className="entry-editor-input"
+              placeholder="e.g. Tapas, Catalan"
             />
           </label>
 
