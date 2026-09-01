@@ -265,17 +265,77 @@ app.get('/api/cities/:cityId/home-categories', async (req, res) => {
     }
   }
 
+  // Same reasoning as the Activities special-case above, but for
+  // Neighbourhoods (2026-08-31, see Neighbourhood in schema.prisma):
+  // Neighbourhoods has no Entry rows of its own at all (it's a map of
+  // Neighbourhood points, not a list of Entry cards), so the Entry-based
+  // check above can never find it. The icon should show whenever this
+  // city has at least one Neighbourhood.
+  if (!categories.some((c) => c.slug === 'neighbourhoods')) {
+    const hasNeighbourhood = await prisma.neighbourhood.findFirst({ where: { cityId } });
+    if (hasNeighbourhood) {
+      const neighbourhoodsCategory = await prisma.category.findUnique({ where: { slug: 'neighbourhoods' } });
+      if (neighbourhoodsCategory) categories.push(neighbourhoodsCategory);
+    }
+  }
+
   res.json(categories);
 });
 
+// Neighbourhood pins for the Neighbourhoods map screen (client/src/
+// Neighbourhoods.jsx) - see Neighbourhood in schema.prisma. Unlike
+// /entries, there's no ?category filter here since every row this returns
+// already belongs to one city's Neighbourhoods, not a shared Entry table.
+app.get('/api/cities/:cityId/neighbourhoods', async (req, res) => {
+  const cityId = Number(req.params.cityId);
+  const neighbourhoods = await prisma.neighbourhood.findMany({
+    where: { cityId },
+    orderBy: { name: 'asc' },
+  });
+  res.json(neighbourhoods);
+});
+
+// Lowercases and strips accents/diacritics for search matching - "Gaudi"
+// should find "Gaudí", same for e.g. "cafe"/"café" or "Malaga"/"Málaga",
+// since a visitor typing on a phone keyboard is unlikely to bother typing
+// the accented form even when the actual name has one. Works by Unicode-
+// decomposing each accented character into its plain base letter plus a
+// separate combining mark (NFD normalization), then stripping every
+// combining mark - no dictionary/locale table needed, and it's the
+// standard technique for this in JS. Used by GET
+// /api/cities/:cityId/search below on both the query and the fields it's
+// matched against, so matching is accent-insensitive in both directions
+// (an accented query still finds an unaccented name, and vice versa).
+function foldAccents(str) {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 // Free-text search across a city's Entries and ActivityTypes - what
 // Search.jsx calls as the user types into the home-screen search bar (see
-// Home.jsx). Matches name/summary/description via a case-insensitive
-// substring on each field. Entry.types (the free-text cuisine/place-type
-// array) is deliberately not searched here - Prisma's array filters only
-// support exact-value matching, not substring, and this endpoint is meant
-// to behave like a plain "search everything" box rather than a faceted
-// lookup (that's what CategoryScreen's type filter chips are for).
+// Home.jsx). Matches name/summary/description via an accent- and case-
+// insensitive substring on each field (see foldAccents above). Entry.types
+// (the free-text cuisine/place-type array) is deliberately not searched
+// here - Prisma's array filters only support exact-value matching, not
+// substring, and this endpoint is meant to behave like a plain "search
+// everything" box rather than a faceted lookup (that's what
+// CategoryScreen's type filter chips are for).
+//
+// The accent-folded matching happens in JS rather than as a Prisma/SQL
+// `contains` filter, because Postgres's own case-insensitive matching
+// (ILIKE / Prisma's `mode: 'insensitive'`) doesn't fold accents - that
+// needs either the `unaccent` extension (a migration to enable it, plus
+// dropping to raw SQL for this one query, since Prisma's filter DSL can't
+// wrap a field in a custom SQL function) or doing the fold in application
+// code. Went with application code: it keeps this query in Prisma's normal
+// typed builder like everything else in this file, and every city's full
+// Entry/ActivityType list is small enough (same "low hundreds of places"
+// scale assumed elsewhere - see claude/todo.md) that fetching it
+// unfiltered and matching in memory costs nothing that matters yet. Revisit
+// with `unaccent` + raw SQL if a city's content ever grows enough that
+// pulling its whole list on every keystroke stops being free.
 //
 // Entries and ActivityTypes come back merged into one ranked list (not as
 // separate sections) so a search for "padel" surfaces the Padel
@@ -294,33 +354,35 @@ app.get('/api/cities/:cityId/search', async (req, res) => {
     return res.json([]);
   }
 
-  const textFilter = (field) => ({ [field]: { contains: q, mode: 'insensitive' } });
-
   const [entries, activityTypes] = await Promise.all([
     prisma.entry.findMany({
-      where: {
-        cityId,
-        OR: [textFilter('name'), textFilter('summary'), textFilter('description')],
-      },
+      where: { cityId },
       include: { category: true },
-      take: 30,
     }),
     prisma.activityType.findMany({
-      where: {
-        cityId,
-        OR: [textFilter('name'), textFilter('summary'), textFilter('description')],
-      },
+      where: { cityId },
       // Just the id of each provider Entry - enough for the client to show
       // a "N providers" count on the group card (see EntryCard.jsx's
       // 'group' variant), without pulling every provider field along for
       // the ride.
       include: { entries: { select: { id: true } } },
-      take: 15,
     }),
   ]);
 
+  const needle = foldAccents(q);
+
+  // Returns which field tier matched (0 = name, 1 = summary, 2 =
+  // description), or null if none did - doubles as this search's filter
+  // (see the .filter() call below) and its ranking (see the .sort() call).
+  function matchRank(item) {
+    if (item.name && foldAccents(item.name).includes(needle)) return 0;
+    if (item.summary && foldAccents(item.summary).includes(needle)) return 1;
+    if (item.description && foldAccents(item.description).includes(needle)) return 2;
+    return null;
+  }
+
   const results = [
-    ...entries.map((e) => ({ kind: 'entry', ...e })),
+    ...entries.map((e) => ({ kind: 'entry', ...e, rank: matchRank(e) })),
     ...activityTypes.map((t) => ({
       kind: 'activityType',
       id: t.id,
@@ -328,19 +390,13 @@ app.get('/api/cities/:cityId/search', async (req, res) => {
       summary: t.summary,
       description: t.description,
       entries: t.entries,
+      rank: matchRank(t),
     })),
-  ];
+  ].filter((item) => item.rank !== null);
 
-  const lower = q.toLowerCase();
-  function matchRank(item) {
-    if (item.name?.toLowerCase().includes(lower)) return 0;
-    if (item.summary?.toLowerCase().includes(lower)) return 1;
-    if (item.description?.toLowerCase().includes(lower)) return 2;
-    return 3;
-  }
-  results.sort((a, b) => matchRank(a) - matchRank(b) || a.name.localeCompare(b.name));
+  results.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
 
-  res.json(results.slice(0, 30));
+  res.json(results.slice(0, 30).map(({ rank, ...item }) => item));
 });
 
 const PORT = process.env.PORT || 3000;

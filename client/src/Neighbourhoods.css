@@ -1,0 +1,163 @@
+.neighbourhoods-screen {
+  --g-600: oklch(49% 0.135 150);
+  --g-500: oklch(58% 0.14 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  margin: 0 auto;
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+.neighbourhoods-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 8px;
+}
+
+.neighbourhoods-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.neighbourhoods-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.neighbourhoods-map-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.neighbourhoods-map {
+  position: absolute;
+  inset: 0;
+}
+
+.neighbourhoods-status {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  box-shadow: 0 2px 8px rgba(20, 30, 25, 0.1);
+  z-index: 2;
+  max-width: 85%;
+  text-align: center;
+}
+
+.neighbourhoods-status-error {
+  color: oklch(50% 0.16 30);
+  border-color: oklch(80% 0.1 30 / 0.4);
+}
+
+/* Pin shape: a rounded square rotated 45deg, classic CSS map-pin trick.
+   Plain <button> element (see Neighbourhoods.jsx) so it's keyboard/tap
+   accessible without extra ARIA wiring. */
+.neighbourhood-pin {
+  width: 26px;
+  height: 26px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  transform: translateY(0);
+}
+
+.neighbourhood-pin::before {
+  content: '';
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: 0 auto;
+  background: var(--g-500);
+  border: 2.5px solid var(--card);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 1px 4px rgba(20, 30, 25, 0.35);
+}
+
+.neighbourhood-pin.active::before {
+  background: var(--g-600);
+  width: 24px;
+  height: 24px;
+}
+
+.neighbourhoods-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--card);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -4px 16px rgba(20, 30, 25, 0.14);
+  padding: 10px 20px 22px;
+  z-index: 1;
+  max-height: 40%;
+  overflow-y: auto;
+}
+
+.neighbourhoods-sheet-grabber {
+  width: 34px;
+  height: 4px;
+  background: var(--line);
+  border-radius: 3px;
+  margin: 0 auto 12px;
+}
+
+.neighbourhoods-sheet-name {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.neighbourhoods-sheet-description {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* MapLibre's attribution control - added 2026-09-01. This is the small
+   collapsed "i" button (compact: true, see Neighbourhoods.jsx) that
+   expands to show the required "© MapTiler © OpenStreetMap
+   contributors" text/links. It can't be removed - attribution is a term
+   of MapTiler's license on every self-serve plan, not just a UI default -
+   but it can look like it belongs to this app rather than MapLibre's
+   stock styling. Restyled to match the app's card/shadow language instead
+   of overriding its content.  */
+.neighbourhoods-screen .maplibregl-ctrl-attrib {
+  background: var(--card);
+  border-radius: 8px;
+  font-size: 10.5px;
+  color: var(--muted);
+  box-shadow: 0 1px 4px rgba(20, 30, 25, 0.15);
+}
+
+.neighbourhoods-screen .maplibregl-ctrl-attrib a {
+  color: var(--muted);
+}
+
+.neighbourhoods-screen .maplibregl-ctrl-attrib-button {
+  background-color: var(--card);
+  box-shadow: 0 1px 4px rgba(20, 30, 25, 0.15);
+}

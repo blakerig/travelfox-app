@@ -18,6 +18,16 @@ const DEBOUNCE_MS = 300;
 // even firing that mostly-useless request.
 const MIN_QUERY_LENGTH = 2;
 
+// Duration of the panel's entrance transition (see .search-panel in
+// Search.css) - kept as a JS constant too so the input's auto-focus can be
+// timed to land just as the panel finishes sliding in, rather than popping
+// the keyboard up mid-animation.
+const PANEL_ENTER_MS = 240;
+
+// How long the panel's exit transition plays before actually navigating
+// back on Cancel - see handleCancel below.
+const EXIT_MS = 180;
+
 // Badge label shown on each result card so a mixed list (a restaurant next
 // to an activity type next to a sightseeing spot) still reads clearly at a
 // glance - see "Unified search + result badges" in the product discussion
@@ -42,6 +52,22 @@ function resultHref(result) {
   return `/category/${result.category.slug}/entry/${result.id}`;
 }
 
+// Reached from Home's search bar - rendered by App.jsx as an overlay on
+// top of Home rather than a screen that replaces it (2026-08-31, see the
+// comment in App.jsx for why: a plain route swap was unmounting Home
+// entirely, which is what read as "a different page," and no amount of
+// animating this component's own entrance could hide that). Home is still
+// really there underneath, so this component only needs to own the space
+// below Home's hero - `.search-overlay-spacer` is a transparent, empty
+// block the same height as Home's hero image, letting it show through
+// untouched (city name, edit button and all) rather than duplicating it.
+// `.search-panel` then slides up into the space Home's icon grid occupied.
+//
+// This still works fine as a standalone page too (a direct link, a
+// bookmark, a hard refresh on /search - see App.jsx) - there's just
+// nothing behind the spacer in that case, so it reads as a plain empty
+// header rather than Home's hero peeking through. Not worth a special
+// case for.
 function Search() {
   const { city } = useCity();
   const currencySymbol = city?.country?.currencySymbol || '$';
@@ -55,12 +81,30 @@ function Search() {
   // of state set synchronously inside the effect below (see the
   // set-state-in-effect note on that effect).
   const [resultsForQuery, setResultsForQuery] = useState(null);
+  // Starts false (panel off-screen/transparent, matching the moment before
+  // this component existed) and flips true a moment after mount to trigger
+  // the slide-up/fade-in transition - see the entrance effect below. Also
+  // reused, inverted, as the exit transition when Cancel is tapped.
+  const [expanded, setExpanded] = useState(false);
+  const [exiting, setExiting] = useState(false);
 
-  // Auto-focus the input the moment this screen mounts - it's reached by
-  // tapping the search bar specifically to type, so the keyboard should be
-  // up immediately rather than requiring a second tap.
+  // Plays the entrance transition and times the keyboard to land just
+  // after it - two nested rAFs (rather than one) so the browser is
+  // guaranteed to have painted the initial, collapsed frame at least once
+  // before the CSS transition to `expanded` starts; a single rAF can still
+  // land before that first paint on some browsers, which would skip
+  // straight to the expanded state with no visible animation.
   useEffect(() => {
-    inputRef.current?.focus();
+    let raf2;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setExpanded(true));
+    });
+    const focusTimer = setTimeout(() => inputRef.current?.focus(), PANEL_ENTER_MS);
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+      clearTimeout(focusTimer);
+    };
   }, []);
 
   // Whether the current query is even long enough to search - derived
@@ -98,96 +142,108 @@ function Search() {
     return () => clearTimeout(timer);
   }, [searchable, city, trimmedQuery]);
 
+  // Plays the panel's exit transition, then actually closes - navigate(-1)
+  // rather than navigate('/') since this route was reached by *pushing*
+  // /search on top of wherever we came from (see Home.jsx); popping it is
+  // exactly what the back button already does, so Cancel just does the
+  // same thing on purpose instead of pushing yet another entry. Guarded so
+  // a double-tap doesn't queue two navigations.
+  function handleCancel() {
+    if (exiting) return;
+    setExiting(true);
+    setTimeout(() => navigate(-1), EXIT_MS);
+  }
+
   return (
-    <div className="search-screen">
-      <div className="search-header">
-        <button
-          type="button"
-          className="search-back"
-          aria-label="Back to home"
-          onClick={() => navigate('/')}
-        >
-          &larr;
-        </button>
-        <div className="search-input-wrap">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
-            <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
-            <line x1="20" y1="20" x2="15.8" y2="15.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          <input
-            ref={inputRef}
-            type="search"
-            inputMode="search"
-            className="search-input"
-            placeholder={city ? `Search ${city.name}` : 'Search'}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          {query && (
-            <button
-              type="button"
-              className="search-clear"
-              aria-label="Clear search"
-              onClick={() => {
-                setQuery('');
-                inputRef.current?.focus();
-              }}
-            >
-              &times;
-            </button>
-          )}
-        </div>
-      </div>
+    <div className={`search-overlay${expanded ? ' is-expanded' : ''}${exiting ? ' is-exiting' : ''}`}>
+      {/* Empty on purpose - see the component doc comment above. */}
+      <div className="search-overlay-spacer" aria-hidden="true" />
 
-      {trimmedQuery.length === 0 && (
-        <div className="search-status">Search restaurants, activities, sights and more.</div>
-      )}
-
-      {trimmedQuery.length > 0 && trimmedQuery.length < MIN_QUERY_LENGTH && (
-        <div className="search-status">Keep typing…</div>
-      )}
-
-      {loading && <div className="search-status">Searching…</div>}
-
-      {!loading && searchable && results !== null && (
-        results.length === 0 ? (
-          <div className="search-status">No results for &ldquo;{trimmedQuery}&rdquo;.</div>
-        ) : (
-          <div className="search-results">
-            {results.map((result) => {
-              const config = getCategoryConfig(
-                result.kind === 'activityType' ? 'activities' : result.category.slug
-              );
-              // A provider Entry filed directly under Activities (matched
-              // by its own name/summary, not via its ActivityType) uses
-              // the 'venue' provider-card layout, not the 'group' layout
-              // ActivityType cards use on CategoryScreen's Activities list
-              // - see providerCardVariant in categoryConfig.js.
-              const variant =
-                result.kind === 'activityType'
-                  ? 'group'
-                  : result.category.slug === 'activities'
-                    ? config.providerCardVariant
-                    : config.cardVariant;
-              return (
-                <Link
-                  to={resultHref(result)}
-                  className="search-result"
-                  key={`${result.kind}-${result.id}`}
-                >
-                  <div className="search-result-badge">{resultBadge(result)}</div>
-                  <EntryCard
-                    entry={result}
-                    variant={variant}
-                    currencySymbol={currencySymbol}
-                    showPrice={config.cardShowPrice ?? true}
-                  />
-                </Link>
-              );
-            })}
+      <div className="search-panel">
+        <div className="search-header">
+          <div className="search-input-wrap">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
+              <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
+              <line x1="20" y1="20" x2="15.8" y2="15.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            <input
+              ref={inputRef}
+              type="search"
+              inputMode="search"
+              className="search-input"
+              placeholder={city ? `Search ${city.name}` : 'Search'}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query && (
+              <button
+                type="button"
+                className="search-clear"
+                aria-label="Clear search"
+                onClick={() => {
+                  setQuery('');
+                  inputRef.current?.focus();
+                }}
+              >
+                &times;
+              </button>
+            )}
           </div>
-        )
-      )}
+          <button type="button" className="search-cancel" onClick={handleCancel}>
+            Cancel
+          </button>
+        </div>
+
+        {trimmedQuery.length === 0 && (
+          <div className="search-status">Search restaurants, activities, sights and more.</div>
+        )}
+
+        {trimmedQuery.length > 0 && trimmedQuery.length < MIN_QUERY_LENGTH && (
+          <div className="search-status">Keep typing…</div>
+        )}
+
+        {loading && <div className="search-status">Searching…</div>}
+
+        {!loading && searchable && results !== null && (
+          results.length === 0 ? (
+            <div className="search-status">No results for &ldquo;{trimmedQuery}&rdquo;.</div>
+          ) : (
+            <div className="search-results">
+              {results.map((result) => {
+                const config = getCategoryConfig(
+                  result.kind === 'activityType' ? 'activities' : result.category.slug
+                );
+                // A provider Entry filed directly under Activities (matched
+                // by its own name/summary, not via its ActivityType) uses
+                // the 'venue' provider-card layout, not the 'group' layout
+                // ActivityType cards use on CategoryScreen's Activities
+                // list - see providerCardVariant in categoryConfig.js.
+                const variant =
+                  result.kind === 'activityType'
+                    ? 'group'
+                    : result.category.slug === 'activities'
+                      ? config.providerCardVariant
+                      : config.cardVariant;
+                return (
+                  <Link
+                    to={resultHref(result)}
+                    className="search-result"
+                    key={`${result.kind}-${result.id}`}
+                  >
+                    <div className="search-result-badge">{resultBadge(result)}</div>
+                    <EntryCard
+                      entry={result}
+                      variant={variant}
+                      currencySymbol={currencySymbol}
+                      showPrice={config.cardShowPrice ?? true}
+                    />
+                  </Link>
+                );
+              })}
+            </div>
+          )
+        )}
+      </div>
     </div>
   );
 }

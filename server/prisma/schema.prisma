@@ -50,6 +50,9 @@ model City {
   // Opposite side of ActivityType.city - a city's activity "type" groupings
   // (Laser Tag, Padel, ...). See ActivityType below for the full rationale.
   activityTypes ActivityType[]
+  // Named areas/districts within this city, shown as pins on the
+  // Neighbourhoods map screen - see Neighbourhood below.
+  neighbourhoods Neighbourhood[]
 }
 
 model Category {
@@ -57,6 +60,37 @@ model Category {
   slug    String  @unique
   name    String
   entries Entry[]
+}
+
+// A named area/district within a city, shown as a pin on the dedicated
+// Neighbourhoods map screen (client/src/Neighbourhoods.jsx) - added
+// 2026-08-31 so a first-time visitor can get oriented (where is Gracia,
+// what's near it) before diving into Eating Out/Activities/Sightseeing,
+// and so someone deciding where to stay can compare areas. See the
+// "Neighbourhoods" discussion in claude/home-screen-spec.md for the
+// fuller reasoning.
+//
+// Deliberately just a centroid point for now (latitude/longitude, plain
+// Float - same convention City/Entry already use), not a real boundary
+// polygon. A pin on a real map already conveys rough position and what's
+// adjacent; filled boundary shapes would need real geometry (hand-traced
+// or sourced from OSM) that's a bigger content lift, and PostGIS isn't
+// used elsewhere in this schema for the same reason - revisit only if/
+// when boundary-based queries or fills are actually wanted.
+model Neighbourhood {
+  id          Int     @id @default(autoincrement())
+  name        String
+  slug        String
+  latitude    Float
+  longitude   Float
+  description String?
+  city        City    @relation(fields: [cityId], references: [id])
+  cityId      Int
+
+  // Slugs are unique per city rather than globally, same reasoning as
+  // ActivityType.slug above - e.g. a "gracia" slug can exist independently
+  // in both Barcelona and a future city without colliding.
+  @@unique([cityId, slug])
 }
 
 // Groups multiple provider Entries under one activity "type" (e.g. Laser

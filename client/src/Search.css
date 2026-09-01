@@ -1,4 +1,4 @@
-.search-screen {
+.search-overlay {
   --g-600: oklch(49% 0.135 150);
   --ink: oklch(22% 0.02 150);
   --muted: oklch(48% 0.02 150);
@@ -6,35 +6,93 @@
   --line: oklch(70% 0.02 150 / 0.3);
   --card: oklch(99% 0.004 150);
 
+  /* Fixed and full-viewport rather than part of the normal document flow -
+     this sits on top of Home (which is still mounted underneath, see
+     App.jsx) instead of replacing it, so it can't just be "the next thing
+     in the page." Same max-width/centering as Home so it lines up with
+     Home's own column on wider viewports instead of spanning edge-to-edge
+     underneath it.
+
+     pointer-events: none on the container itself (2026-08-31, fixing a
+     bug found after the first pass): the spacer below is transparent and
+     was already pointer-events: none so taps would reach Home's hero
+     underneath, but that alone wasn't enough - this fixed, full-viewport
+     container still covered the same area and, having its own default
+     pointer-events: auto, ended up catching the tap itself before it
+     could fall through to the spacer's sibling-in-paint-order (Home). The
+     container disclaiming pointer events entirely, with .search-panel
+     explicitly opting back in below, is what actually lets Home's city
+     button/chevron stay tappable while searching. */
+  position: fixed;
+  inset: 0;
   max-width: 480px;
   margin: 0 auto;
-  min-height: 100svh;
-  background: oklch(97% 0.015 150);
-  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  padding-bottom: 24px;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+/* Empty and transparent - Home's real hero (photo, city name, edit button)
+   shows through here untouched, rather than this component duplicating
+   it. Same aspect-ratio box Home's own hero uses (see .home-hero in
+   Home.css), so the height matches exactly without measuring anything in
+   JS - both are driven by the same container width. No pointer-events
+   rule needed here anymore now that the parent (.search-overlay above)
+   disclaims pointer events itself - this element just inherits that. */
+.search-overlay-spacer {
+  width: 100%;
+  aspect-ratio: 390 / 270;
+  flex-shrink: 0;
+}
+
+/* Takes over the space below the hero - where Home's search bar and icon
+   grid were - and is what actually contains this screen's own UI. Slides
+   up/fades in on mount (see .is-expanded below) so it reads as rising into
+   that space rather than snapping into it.
+
+   pointer-events: auto opts back in to receiving clicks/taps - the parent
+   .search-overlay disclaims them (see above) so Home's hero stays usable
+   through the spacer, but this panel is where Search's own actual UI
+   lives and very much does need to be interactive. */
+.search-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: oklch(97% 0.015 150);
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 240ms ease, transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: auto;
+}
+
+.search-overlay.is-expanded .search-panel {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.search-overlay.is-exiting .search-panel {
+  opacity: 0;
+  transform: translateY(10px);
+  transition-duration: 180ms;
 }
 
 .search-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 20px;
+  gap: 10px;
+  /* Matches Home's own .home-search padding (see Home.css) so the input
+     lines up with where Home's static search bar sits, right below the
+     hero. */
+  padding: 16px 20px 12px;
   position: sticky;
   top: 0;
   background: oklch(97% 0.015 150);
   z-index: 1;
-}
-
-.search-back {
-  flex-shrink: 0;
-  font-size: 20px;
-  color: var(--ink);
-  background: none;
-  border: none;
-  padding: 4px;
-  line-height: 1;
-  cursor: pointer;
 }
 
 .search-input-wrap {
@@ -42,6 +100,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -88,6 +147,24 @@
   cursor: pointer;
 }
 
+/* Text button rather than a back arrow - a back arrow reads as "leave to
+   somewhere else"; "Cancel" reads as "close this and return to what was
+   already there", matching the framing that this is a temporary expansion
+   of Home, not a separate destination (see the component doc comment).
+   Standard placement (top-right, next to the field) for the same reason
+   iOS/Android search fields use it there. */
+.search-cancel {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 4px 2px;
+  color: var(--g-600);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .search-status {
   padding: 40px 24px 0;
   text-align: center;
@@ -96,7 +173,7 @@
 }
 
 .search-results {
-  padding: 4px 20px 0;
+  padding: 4px 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -124,4 +201,12 @@
   font-weight: 600;
   letter-spacing: 0.3px;
   text-transform: uppercase;
+}
+
+/* Respect a user's reduced-motion preference by jumping straight to the
+   end state instead of animating. */
+@media (prefers-reduced-motion: reduce) {
+  .search-panel {
+    transition: none;
+  }
 }

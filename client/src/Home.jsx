@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import './Home.css';
 import { useCity } from './city-context.js';
 import CityPicker from './CityPicker.jsx';
@@ -10,18 +10,26 @@ import iconActivities from './assets/icon-activities.png';
 import iconEatingOut from './assets/icon-eating-out.png';
 import iconSightseeing from './assets/icon-sightseeing.png';
 import iconLocalCuisine from './assets/icon-local-cuisine.png';
+import iconNeighbourhoods from './assets/icon-neighbourhoods.png';
 
 // Local display info for each category the home screen knows how to render.
+// `to` overrides the default `/category/:slug` destination - Neighbourhoods
+// isn't a CategoryScreen (Entry-card list) at all, it's the dedicated map
+// screen (client/src/Neighbourhoods.jsx), added 2026-08-31 - see
+// Neighbourhood in schema.prisma and the "Neighbourhoods" discussion in
+// claude/home-screen-spec.md.
 const CATEGORY_DISPLAY = [
   { slug: 'essentials', label: 'Essentials', icon: iconEssentials },
   { slug: 'activities', label: 'Activities', icon: iconActivities },
   { slug: 'eating-out', label: 'Eating Out', icon: iconEatingOut },
   { slug: 'sightseeing', label: 'Sightseeing', icon: iconSightseeing },
   { slug: 'local-cuisine', label: 'Local Cuisine', icon: iconLocalCuisine },
+  { slug: 'neighbourhoods', label: 'Neighbourhoods', icon: iconNeighbourhoods, to: '/neighbourhoods' },
 ];
 
 function Home() {
   const { city } = useCity();
+  const location = useLocation();
   const [availableSlugs, setAvailableSlugs] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -82,7 +90,10 @@ function Home() {
       </div>
 
       <div className="home-search">
-        <Link to="/search" className="home-search-bar">
+        {/* state.backgroundLocation is what tells App.jsx to render Search
+            as an overlay on top of this screen instead of replacing it -
+            see the comment there. */}
+        <Link to="/search" state={{ backgroundLocation: location }} className="home-search-bar">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
             <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
             <line x1="20" y1="20" x2="15.8" y2="15.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -93,7 +104,7 @@ function Home() {
 
       <div className="home-categories">
         {visibleCategories.map((cat) => (
-          <Link to={`/category/${cat.slug}`} className="home-category" key={cat.slug}>
+          <Link to={cat.to ?? `/category/${cat.slug}`} className="home-category" key={cat.slug}>
             <img src={cat.icon} alt="" className="home-category-icon" />
             <div className="home-category-label">{cat.label}</div>
           </Link>

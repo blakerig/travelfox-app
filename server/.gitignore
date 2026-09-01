@@ -3,3 +3,6 @@ node_modules
 .env
 
 /generated/prisma
+
+# Production DB / Cloudinary secrets - never commit
+.env-production
