@@ -9,7 +9,7 @@ import { useCityData } from './city-data-context.js';
 import './EntryEditor.css';
 
 // Text-only editor for an entry: name, summary, types, phone, website,
-// opening times, description (plus a photo upload). Handles both
+// opening times, description, notes (plus a photo upload). Handles both
 // editing an existing entry (/category/:slug/entry/:entryId/edit) and
 // creating a new one (/category/:slug/entry/new/edit - entryId === 'new',
 // reached via "+ Add" on CategoryScreen). Same form either way; creation
@@ -86,6 +86,9 @@ function EntryEditor() {
   const [openingTimes, setOpeningTimes] = useState('');
   const [description, setDescription] = useState('');
   const [descTab, setDescTab] = useState('write'); // 'write' | 'preview'
+  // Internal-only - see Entry.notes in schema.prisma. Never read by any
+  // user-facing screen, only shown here at the bottom of the form.
+  const [notes, setNotes] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState(null);
@@ -112,6 +115,7 @@ function EntryEditor() {
     setOpeningTimes('');
     setDescription('');
     setDescTab('write');
+    setNotes('');
     setPhotoUrl('');
     setPhotoError(null);
   }
@@ -139,6 +143,7 @@ function EntryEditor() {
       setWebsite(data.website ?? '');
       setOpeningTimes(data.openingTimes ?? '');
       setDescription(data.description ?? '');
+      setNotes(data.notes ?? '');
       setPhotoUrl(data.photoUrl ?? '');
     }
 
@@ -236,6 +241,7 @@ function EntryEditor() {
             openingTimes,
             description,
             photoUrl,
+            notes,
             activityTypeId,
           }),
         })
@@ -251,6 +257,7 @@ function EntryEditor() {
             openingTimes,
             description,
             photoUrl,
+            notes,
           }),
         });
 
@@ -450,6 +457,19 @@ function EntryEditor() {
               *italic*, # headings, and - bullets.
             </p>
           </div>
+
+          <label className="entry-editor-field">
+            <span className="entry-editor-label">
+              Notes (optional - for us only, never shown in the app. Ideas, things to
+              check, drafts to fold into the description later)
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="entry-editor-textarea entry-editor-textarea-short"
+              rows={3}
+            />
+          </label>
 
           {error && <div className="entry-editor-error">{error}</div>}
 

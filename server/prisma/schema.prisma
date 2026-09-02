@@ -234,6 +234,18 @@ model Entry {
   // (EntryDetail.jsx) - purely a display convenience there, separate from
   // the real parsing openingHours.js does for the "open now" badge/filter.
   openingTimes   String?
+  // Internal-only scratch space for whoever's editing an entry - ideas,
+  // half-formed copy, a reminder to double-check a fact, something to
+  // maybe fold into `description` later. Added 2026-09-02. Deliberately
+  // never read by any user-facing screen (EntryCard.jsx, EntryDetail.jsx,
+  // ActivityTypeDetail.jsx) - only EntryEditor.jsx shows it, at the
+  // bottom of the form, below Description. Note this is a normal Prisma
+  // column like every other Entry field: the GET endpoints below return
+  // the full row with no `select` restriction, so it does travel over
+  // the API response even though nothing renders it - same trust model
+  // as the rest of the app (see the no-auth-on-writes gap logged in
+  // claude/todo.md/dev-workflow.md), not a hard privacy boundary.
+  notes          String?
   rating         Float?
   city           City          @relation(fields: [cityId], references: [id])
   cityId         Int
