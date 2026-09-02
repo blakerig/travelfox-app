@@ -8,7 +8,8 @@ import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
 import './EntryEditor.css';
 
-// Text-only editor for an entry: name, summary, types, description. Handles both
+// Text-only editor for an entry: name, summary, types, phone, website,
+// opening times, description (plus a photo upload). Handles both
 // editing an existing entry (/category/:slug/entry/:entryId/edit) and
 // creating a new one (/category/:slug/entry/new/edit - entryId === 'new',
 // reached via "+ Add" on CategoryScreen). Same form either way; creation
@@ -18,12 +19,12 @@ import './EntryEditor.css';
 // "blank draft" step that could leave a half-empty stub row behind if the
 // user backs out.
 //
-// Deliberately scoped to just these four String fields for now, matching
-// the server's PATCH/POST endpoints - editing/setting location/price/rating
-// still goes through Prisma Studio. This is a plain field-by-field form on
-// purpose (no generic form-schema abstraction yet); when the scope grows to
-// a full editor (city/category pickers, location, price, rating), that's
-// the point to reach for a form library rather than continuing to hand-roll
+// Deliberately scoped to text/string fields only, matching the server's
+// PATCH/POST endpoints - editing/setting location/price/rating still goes
+// through Prisma Studio. This is a plain field-by-field form on purpose (no
+// generic form-schema abstraction yet); when the scope grows to a full
+// editor (city/category pickers, location, price, rating), that's the point
+// to reach for a form library rather than continuing to hand-roll
 // individual useState fields.
 // Splits the comma-separated types field into a clean array for the API:
 // trims whitespace around each value, drops empty entries (a trailing
@@ -80,6 +81,9 @@ function EntryEditor() {
   // save time (parseTypesInput below); loaded back by joining the existing
   // array with ", " (see the fetch effect below).
   const [typesInput, setTypesInput] = useState('');
+  const [phone, setPhone] = useState('');
+  const [website, setWebsite] = useState('');
+  const [openingTimes, setOpeningTimes] = useState('');
   const [description, setDescription] = useState('');
   const [descTab, setDescTab] = useState('write'); // 'write' | 'preview'
   const [photoUrl, setPhotoUrl] = useState('');
@@ -103,6 +107,9 @@ function EntryEditor() {
     setName('');
     setSummary('');
     setTypesInput('');
+    setPhone('');
+    setWebsite('');
+    setOpeningTimes('');
     setDescription('');
     setDescTab('write');
     setPhotoUrl('');
@@ -128,6 +135,9 @@ function EntryEditor() {
       setName(data.name ?? '');
       setSummary(data.summary ?? '');
       setTypesInput((data.types ?? []).join(', '));
+      setPhone(data.phone ?? '');
+      setWebsite(data.website ?? '');
+      setOpeningTimes(data.openingTimes ?? '');
       setDescription(data.description ?? '');
       setPhotoUrl(data.photoUrl ?? '');
     }
@@ -221,6 +231,9 @@ function EntryEditor() {
             name,
             summary,
             types: parseTypesInput(typesInput),
+            phone,
+            website,
+            openingTimes,
             description,
             photoUrl,
             activityTypeId,
@@ -229,7 +242,16 @@ function EntryEditor() {
       : fetch(`${import.meta.env.VITE_API_URL}/api/entries/${entryId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, summary, types: parseTypesInput(typesInput), description, photoUrl }),
+          body: JSON.stringify({
+            name,
+            summary,
+            types: parseTypesInput(typesInput),
+            phone,
+            website,
+            openingTimes,
+            description,
+            photoUrl,
+          }),
         });
 
     request
@@ -312,6 +334,46 @@ function EntryEditor() {
               onChange={(e) => setTypesInput(e.target.value)}
               className="entry-editor-input"
               placeholder="e.g. Tapas, Catalan"
+            />
+          </label>
+
+          <label className="entry-editor-field">
+            <span className="entry-editor-label">
+              Phone (optional - shown on the card, tap-to-call on the detail screen)
+            </span>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="entry-editor-input"
+              placeholder="e.g. +34 933 123 456"
+            />
+          </label>
+
+          <label className="entry-editor-field">
+            <span className="entry-editor-label">Website (optional)</span>
+            <input
+              type="text"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              className="entry-editor-input"
+              placeholder="e.g. https://restaurant.com"
+            />
+          </label>
+
+          <label className="entry-editor-field">
+            <span className="entry-editor-label">
+              Opening times (optional - free text, e.g. &quot;Mon: 7.30pm to
+              11.30pm, Tue-Sat: 1pm to 3.45pm &amp; 7.30pm to 11.30pm&quot; -
+              commas separate day-range clauses, &quot;&amp;&quot; separates
+              multiple windows in one clause, minutes use a period like
+              7.30pm)
+            </span>
+            <textarea
+              value={openingTimes}
+              onChange={(e) => setOpeningTimes(e.target.value)}
+              className="entry-editor-textarea entry-editor-textarea-short"
+              rows={2}
             />
           </label>
 

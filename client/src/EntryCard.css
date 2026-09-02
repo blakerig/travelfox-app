@@ -20,6 +20,36 @@
 .entry-card-photo {
   padding: 0;
   overflow: hidden;
+  /* Positioning context for .entry-card-open-badge below - the badge sits
+     over the photo's top-left corner via position: absolute, and since
+     this element has zero padding and the <img> is its first child, this
+     element's own top-left corner coincides exactly with the photo's. */
+  position: relative;
+}
+
+/* "Open now"/"Closed" pill (2026-09-02) - see the showOpenStatus doc
+   comment in EntryCard.jsx. Sits over the photo's top-left corner rather
+   than in the meta line, so it reads at a glance without competing with
+   price/type/phone. */
+.entry-card-open-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(20, 30, 25, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.entry-card-open-badge.is-open {
+  background: rgba(58, 125, 85, 0.85);
+}
+
+.entry-card-open-badge.is-closed {
+  background: rgba(107, 99, 117, 0.75);
 }
 
 .entry-card-photo-img {
@@ -64,6 +94,26 @@
 
 .entry-card-meta-sep {
   color: var(--line, #e5e4e7);
+}
+
+/* Tap-to-call phone chip on the front card (2026-09-02, see cardShowPhone
+   in categoryConfig.js) - a <button>, not a plain meta <span>, since it's
+   the one clickable segment on an otherwise inert meta line. Reset to look
+   like plain inline text rather than a native button, then colored/
+   weighted the same way .entry-card-rating already signals "this number
+   means something" (the app's existing convention for a green, bold meta
+   segment), so it doesn't need its own new visual language. */
+.entry-card-phone {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--g-600, #3a7d55);
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .entry-card-snippet {

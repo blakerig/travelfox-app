@@ -8,6 +8,7 @@ import EntryCard from './EntryCard.jsx';
 import { haversineDistanceKm, formatDistanceKm } from './geo.js';
 import { useUserLocation } from './useUserLocation.js';
 import { activityTypeHref } from './activityTypeHref.js';
+import { isOpenNow } from './openingHours.js';
 
 // Radius choices for the Eating Out distance filter (2026-08-28) - single
 // select (tapping the active one again clears it), not the OR-multi-select
@@ -65,11 +66,20 @@ function sortItems(items, sortBy) {
 // 'distance' note in categoryConfig.js for why this is a filter only, not
 // also a sort.
 //
+// 'openNow' (2026-09-02, Eating Out only) works the same way as the other
+// dimensions - an independent AND'd-in condition - but unlike
+// types/priceLevel/distance it isn't derived from `items` at all; it calls
+// isOpenNow() (openingHours.js) per-entry using the *current* moment in
+// `timezone` (the active city's, passed down from CategoryScreen's render
+// - see city.timezone in schema.prisma). See categoryConfig.js's
+// cardShowOpenStatus/'openNow' doc comments for why this filter is only
+// offered when the city has a timezone set at all.
+//
 // A grouped category (Activities) never has any dimension active - no UI
 // drives filterOptions there (see categoryConfig.js) - so this returns
 // early before touching any ActivityType-shaped item.
-function filterItems(items, { types, priceLevels, radiusKm, origin }) {
-  if (types.size === 0 && priceLevels.size === 0 && radiusKm == null) return items;
+function filterItems(items, { types, priceLevels, radiusKm, origin, openNowOnly, timezone }) {
+  if (types.size === 0 && priceLevels.size === 0 && radiusKm == null && !openNowOnly) return items;
   return items.filter((entry) => {
     const typeOk = types.size === 0 || (entry.types ?? []).some((t) => types.has(t));
     const priceOk =
@@ -81,7 +91,12 @@ function filterItems(items, { types, priceLevels, radiusKm, origin }) {
         entry.longitude != null &&
         haversineDistanceKm(origin.latitude, origin.longitude, entry.latitude, entry.longitude) <=
           radiusKm);
-    return typeOk && priceOk && distanceOk;
+    // An entry with no parseable opening-hours text, or whose city has no
+    // timezone set, gets isOpenNow === null - treated as "doesn't match"
+    // while the filter is active, same as priceOk/distanceOk excluding an
+    // entry missing that data rather than guessing.
+    const openNowOk = !openNowOnly || isOpenNow(entry.openingTimes, timezone) === true;
+    return typeOk && priceOk && distanceOk && openNowOk;
   });
 }
 
@@ -162,6 +177,9 @@ function CategoryScreen() {
     () => new Set(initialPrefs?.priceLevels ?? [])
   );
   const [selectedRadiusKm, setSelectedRadiusKm] = useState(initialPrefs?.radiusKm ?? null);
+  const [selectedOpenNowOnly, setSelectedOpenNowOnly] = useState(
+    initialPrefs?.openNowOnly ?? false
+  );
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   // Tracks whether this component instance has completed at least one
   // "key settled" pass yet - see the loadedKey block below. Plain state
@@ -195,6 +213,7 @@ function CategoryScreen() {
       setSelectedTypes(new Set());
       setSelectedPriceLevels(new Set());
       setSelectedRadiusKm(null);
+      setSelectedOpenNowOnly(false);
     }
     setFilterPanelOpen(false);
     setHasSettledKey(true);
@@ -231,12 +250,13 @@ function CategoryScreen() {
           types: Array.from(selectedTypes),
           priceLevels: Array.from(selectedPriceLevels),
           radiusKm: selectedRadiusKm,
+          openNowOnly: selectedOpenNowOnly,
         })
       );
     } catch {
       // ignore - see loadSavedPrefs
     }
-  }, [key, sortBy, selectedTypes, selectedPriceLevels, selectedRadiusKm]);
+  }, [key, sortBy, selectedTypes, selectedPriceLevels, selectedRadiusKm, selectedOpenNowOnly]);
 
   // Continuously records scroll position while on this screen (so the very
   // last position before navigating into EntryDetail.jsx is captured, not
@@ -292,10 +312,27 @@ function CategoryScreen() {
   );
   const showDistanceFilter = Boolean(config.filterOptions?.includes('distance')) && hasCoordinateData;
 
+  // Only offered when the city has a timezone set (see categoryConfig.js's
+  // 'openNow' doc comment) - without one, isOpenNow() would return null for
+  // every entry and the filter would just always show zero results, a
+  // confusing dead control rather than a useful one.
+  const hasOpenNowData = useMemo(
+    () => (items ?? []).some((item) => Boolean(item.openingTimes)),
+    [items]
+  );
+  const showOpenNowFilter =
+    Boolean(config.filterOptions?.includes('openNow')) && Boolean(city?.timezone) && hasOpenNowData;
+
   const hasFilterableData =
-    availableTypes.length > 0 || availablePriceLevels.length > 0 || showDistanceFilter;
+    availableTypes.length > 0 ||
+    availablePriceLevels.length > 0 ||
+    showDistanceFilter ||
+    showOpenNowFilter;
   const activeFilterCount =
-    selectedTypes.size + selectedPriceLevels.size + (selectedRadiusKm != null ? 1 : 0);
+    selectedTypes.size +
+    selectedPriceLevels.size +
+    (selectedRadiusKm != null ? 1 : 0) +
+    (selectedOpenNowOnly ? 1 : 0);
 
   const filteredItems = useMemo(
     () =>
@@ -304,8 +341,18 @@ function CategoryScreen() {
         priceLevels: selectedPriceLevels,
         radiusKm: selectedRadiusKm,
         origin: userCoords,
+        openNowOnly: selectedOpenNowOnly,
+        timezone: city?.timezone,
       }),
-    [items, selectedTypes, selectedPriceLevels, selectedRadiusKm, userCoords]
+    [
+      items,
+      selectedTypes,
+      selectedPriceLevels,
+      selectedRadiusKm,
+      userCoords,
+      selectedOpenNowOnly,
+      city?.timezone,
+    ]
   );
   const sortedItems = useMemo(() => sortItems(filteredItems, sortBy), [filteredItems, sortBy]);
 
@@ -313,6 +360,7 @@ function CategoryScreen() {
     setSelectedTypes(new Set());
     setSelectedPriceLevels(new Set());
     setSelectedRadiusKm(null);
+    setSelectedOpenNowOnly(false);
   }
 
   return (
@@ -469,6 +517,22 @@ function CategoryScreen() {
             </div>
           )}
 
+          {showOpenNowFilter && (
+            <div className="category-screen-filter-group">
+              <div className="category-screen-filter-group-label">Hours</div>
+              <div className="category-screen-filter-chips">
+                <button
+                  type="button"
+                  className="category-screen-filter-chip"
+                  aria-pressed={selectedOpenNowOnly}
+                  onClick={() => setSelectedOpenNowOnly((prev) => !prev)}
+                >
+                  Open now
+                </button>
+              </div>
+            </div>
+          )}
+
           {activeFilterCount > 0 && (
             <button type="button" className="category-screen-filter-clear" onClick={clearFilters}>
               Clear filters
@@ -512,6 +576,9 @@ function CategoryScreen() {
                 variant={config.cardVariant}
                 currencySymbol={currencySymbol}
                 showPrice={config.cardShowPrice ?? true}
+                showPhone={config.cardShowPhone ?? false}
+                showOpenStatus={config.cardShowOpenStatus ?? false}
+                timezone={city?.timezone}
                 expandable
                 editHref={`/category/${slug}/entry/${item.id}/edit`}
               />
@@ -530,6 +597,9 @@ function CategoryScreen() {
                   variant={config.cardVariant}
                   currencySymbol={currencySymbol}
                   showPrice={config.cardShowPrice ?? true}
+                  showPhone={config.cardShowPhone ?? false}
+                  showOpenStatus={config.cardShowOpenStatus ?? false}
+                  timezone={city?.timezone}
                 />
               </Link>
             )

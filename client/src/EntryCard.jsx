@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -6,6 +6,7 @@ import { markdownComponents } from './markdownComponents.jsx';
 import './EntryCard.css';
 import photoPlaceholder from './assets/entry-photo-placeholder.svg';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
+import { isOpenNow } from './openingHours.js';
 
 // Strip common Markdown syntax for a plain-text card snippet. Entry.description
 // is authored as Markdown (see project notes), but full formatted rendering
@@ -58,11 +59,25 @@ function snippet(text, max = 120) {
 // currencySymbol comes from the current city (City.currencySymbol) so
 // priceLevel renders as e.g. "€€" rather than a hardcoded "$" - falls back
 // to "$" for any city that hasn't had its currency fields set yet.
+//
+// showOpenStatus/timezone (2026-09-02, 'photo' variant only) render a
+// compact "Open now"/"Closed" pill over the top-left corner of the photo,
+// computed by isOpenNow() (openingHours.js) from entry.openingTimes and
+// `timezone` - the entry's *city* timezone (City.timezone), passed down
+// from CategoryScreen.jsx/Search.jsx, not the viewer's own device
+// timezone (see the discussion in claude/todo.md). isOpenNow returning
+// null (no parseable hours, or no timezone) hides the badge entirely
+// rather than showing a "don't know" state - same as showPrice/showPhone
+// only rendering when there's real data. See categoryConfig.js's
+// cardShowOpenStatus for the per-category on/off switch.
 function EntryCard({
   entry,
   variant,
   currencySymbol = '$',
   showPrice = true,
+  showPhone = false,
+  showOpenStatus = false,
+  timezone,
   expandable = false,
   editHref,
 }) {
@@ -88,7 +103,65 @@ function EntryCard({
     // label for the card's compact meta line, same spot the single value
     // used to render.
     const typesLabel = entry.types?.length ? entry.types.join(', ') : null;
-    const hasMeta = showPriceMeta || typesLabel;
+    const showPhoneMeta = showPhone && Boolean(entry.phone);
+
+    // Meta line segments as an array (2026-09-02, was two hand-special-cased
+    // segments before phone was added) so a middot separator only appears
+    // between whichever segments actually end up present, in any
+    // combination, without a growing pile of pairwise `showX && showY &&`
+    // checks. Order here is display order: price, then type/cuisine, then
+    // phone.
+    //
+    // The phone segment is a <button>, not a plain <span> like the others -
+    // it's the only clickable one. This card is normally rendered inside a
+    // CategoryScreen/Search-supplied <Link> to the entry-detail screen (see
+    // CategoryScreen.jsx), so tapping the phone number needs to trigger a
+    // call instead of navigating - stopPropagation keeps the click from
+    // reaching that outer Link, and preventDefault is just defensive (a
+    // <button> has no default navigation of its own). Deliberately a
+    // <button>, not a nested <a href="tel:...">, since a nested <a> inside
+    // the outer Link's own <a> would be invalid HTML.
+    const metaSegments = [
+      showPriceMeta && (
+        <span key="price" className="entry-card-price">
+          {currencySymbol.repeat(entry.priceLevel)}
+        </span>
+      ),
+      typesLabel && (
+        <span key="types" className="entry-card-type">
+          {typesLabel}
+        </span>
+      ),
+      showPhoneMeta && (
+        <button
+          key="phone"
+          type="button"
+          className="entry-card-phone"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.href = `tel:${entry.phone}`;
+          }}
+        >
+          &#9742; {entry.phone}
+        </button>
+      ),
+    ].filter(Boolean);
+    const hasMeta = metaSegments.length > 0;
+
+    // Only computed for the 'photo' variant - the badge has nowhere sensible
+    // to sit on the plain-text 'venue'/'reference'/'group' cards, and none
+    // of those variants pass showOpenStatus today anyway (see
+    // categoryConfig.js).
+    const openStatus = showOpenStatus ? isOpenNow(entry.openingTimes, timezone) : null;
+    const openBadge =
+      openStatus != null ? (
+        <div
+          className={`entry-card-open-badge ${openStatus ? 'is-open' : 'is-closed'}`}
+        >
+          {openStatus ? 'Open now' : 'Closed'}
+        </div>
+      ) : null;
 
     const photo = (
       <img
@@ -104,17 +177,16 @@ function EntryCard({
 
         {hasMeta && (
           <div className="entry-card-meta">
-            {showPriceMeta && (
-              <span className="entry-card-price">
-                {currencySymbol.repeat(entry.priceLevel)}
-              </span>
-            )}
-            {showPriceMeta && typesLabel && (
-              <span className="entry-card-meta-sep" aria-hidden="true">
-                &middot;
-              </span>
-            )}
-            {typesLabel && <span className="entry-card-type">{typesLabel}</span>}
+            {metaSegments.map((segment, i) => (
+              <Fragment key={segment.key}>
+                {i > 0 && (
+                  <span className="entry-card-meta-sep" aria-hidden="true">
+                    &middot;
+                  </span>
+                )}
+                {segment}
+              </Fragment>
+            ))}
           </div>
         )}
 
@@ -169,6 +241,7 @@ function EntryCard({
           }}
         >
           {photo}
+          {openBadge}
           {body}
         </div>
       );
@@ -177,6 +250,7 @@ function EntryCard({
     return (
       <div className="entry-card entry-card-photo">
         {photo}
+        {openBadge}
         {body}
       </div>
     );

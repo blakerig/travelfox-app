@@ -46,6 +46,16 @@ model City {
   // once every City has a countryId set - see claude/todo.md.
   country       Country?       @relation(fields: [countryId], references: [id])
   countryId     Int?
+  // IANA timezone identifier for this city (e.g. "Europe/Madrid",
+  // "Europe/Paris"), used to compute "is this entry open now" from
+  // Entry.openingTimes in the restaurant's own local time rather than the
+  // viewer's device time - see client/src/openingHours.js and the discussion
+  // in claude/todo.md (2026-09-02). Optional and hand-set in Prisma Studio
+  // like photoUrl/latitude/longitude above, since City has no in-app
+  // editor - existing rows (Lyon, Barcelona, The Hague) need backfilling
+  // after this migration applies, and the open-now badge/filter simply
+  // stays hidden for any city left blank rather than guessing.
+  timezone      String?
   entries       Entry[]
   // Opposite side of ActivityType.city - a city's activity "type" groupings
   // (Laser Tag, Padel, ...). See ActivityType below for the full rationale.
@@ -185,6 +195,45 @@ model Entry {
   // would fix multi-value *and* spelling drift together, logged as a
   // heavier follow-up in claude/todo.md rather than built now.
   types          String[] @default([])
+  // Contact/practical-info fields, added 2026-09-02 for Eating Out (raised
+  // alongside the front-card display of phone below) but left on the
+  // shared Entry model rather than a category-specific one, same reasoning
+  // as `types`/`photoUrl` - any category with a real-world venue could
+  // plausibly want these later (e.g. a museum's phone/website/hours under
+  // Sightseeing), even though only Eating Out populates them for now.
+  //
+  // phone: free text rather than a validated/normalized format, so
+  // whatever the user actually dials works (country code, spacing, etc.)
+  // without fighting a parser. Rendered as a tel: link wherever it's shown
+  // (EntryCard.jsx's front card, EntryDetail.jsx) so tapping it calls the
+  // restaurant directly instead of just displaying the digits.
+  phone          String?
+  // website: free text, not validated as a URL at save time (see
+  // EntryEditor.jsx) - a bare domain like "restaurant.com" is accepted and
+  // normalized with a https:// prefix only at render time
+  // (EntryDetail.jsx's normalizeWebsiteUrl), so entering it without a
+  // scheme still produces a working link.
+  website        String?
+  // openingTimes: a single free-text string, not structured per-day/time
+  // data - e.g. "Mon: 7.30pm to 11.30pm, Tue-Sat: 1pm to 3.45pm & 7.30pm
+  // to 11.30pm". Convention (settled 2026-09-02, a few hours after this
+  // field shipped, once actual typing habits diverged from the first
+  // guess): a comma separates day-range clauses, "&" separates multiple
+  // time windows within one clause (a lunch/dinner split), a colon
+  // separates the day range from its hours, and minutes use a period
+  // ("7.30pm") rather than a colon - chosen specifically because it stays
+  // easy to read/type as plain text now AND splits cleanly if this ever
+  // becomes real structured data later. A semicolon (instead of a comma)
+  // and a colon (instead of a period, for minutes) are also still
+  // accepted - that was the original convention this field shipped with,
+  // so already-entered values keep parsing. See client/src/openingHours.js
+  // for the full parser and its "open now" logic - built the same day,
+  // once the string had actually been used enough to know it needed
+  // parsing (see claude/todo.md's "Structured opening hours" item).
+  // Rendered by splitting on "," or ";" for one clause per line
+  // (EntryDetail.jsx) - purely a display convenience there, separate from
+  // the real parsing openingHours.js does for the "open now" badge/filter.
+  openingTimes   String?
   rating         Float?
   city           City          @relation(fields: [cityId], references: [id])
   cityId         Int

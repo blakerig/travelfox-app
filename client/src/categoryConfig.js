@@ -20,6 +20,21 @@
 // doesn't have a restaurant-style $/$$/$$$ tier, so its card just shows the
 // type instead. Defaults to true when omitted; ignored by other variants.
 //
+// cardShowPhone (2026-09-02, 'photo' variant only) - whether the meta line
+// also includes a tap-to-call Entry.phone chip. Defaults to false when
+// omitted (unlike cardShowPrice, which defaults to true) since most
+// categories have no phone data at all yet - only Eating Out opts in.
+// See EntryCard.jsx for the tel: link/stopPropagation handling.
+//
+// cardShowOpenStatus (2026-09-02, 'photo' variant only) - whether the card
+// shows an "Open now"/"Closed" badge, computed from Entry.openingTimes and
+// the entry's City.timezone (see openingHours.js's isOpenNow). Defaults to
+// false when omitted, same reasoning as cardShowPhone: only Eating Out has
+// opening-hours data worth showing a status for right now. The badge is
+// hidden entirely (not shown as "unknown") when isOpenNow returns null -
+// e.g. no opening-hours text yet, or the city has no timezone backfilled -
+// rather than guessing, same principle as the distance filter.
+//
 // filterOptions lists which Entry fields CategoryScreen should offer as
 // filter chips (2026-08-28) - null/omitted means no filter control at all.
 // 'priceLevel' is Eating Out only - raised once the user pointed out a
@@ -38,6 +53,15 @@
 // filter *values* within each dimension are derived from whatever's
 // actually present in the fetched entries, not hardcoded here - so a
 // filter chip never appears for a type/price level nothing currently uses.
+//
+// 'openNow' (2026-09-02, Eating Out only) - a single on/off filter chip
+// that keeps only entries isOpenNow() currently reports as true (an entry
+// with no parseable opening hours, or whose city has no timezone set, is
+// excluded while the filter is on rather than included by default - see
+// CategoryScreen.jsx's hasOpenNowData/filterItems). Distinct from
+// cardShowOpenStatus above: a category could in principle show the badge
+// without offering the filter, or vice versa, though Eating Out enables
+// both together for now.
 //
 // typeFilterLabel (2026-08-28) names the 'type' filter's group/chip-panel
 // heading for a category - e.g. "Cuisine" for Eating Out - since the
@@ -134,8 +158,20 @@ export const CATEGORY_CONFIG = {
     title: 'Eating Out',
     cardVariant: 'photo',
     cardShowPrice: true,
+    // Shows Entry.phone on the front card's meta line, tap-to-call
+    // (2026-09-02) - see cardShowPrice above for the same on/off-per-
+    // category pattern. Eating Out only for now (the field itself is
+    // generic on Entry - see schema.prisma - but phone/website/opening
+    // hours are only actually being entered for restaurants so far).
+    // Website and opening times aren't shown on the card at all, only on
+    // the entry-detail screen (EntryDetail.jsx) - the card's meta line is
+    // meant to stay a compact single line, not grow into a full contact
+    // block.
+    cardShowPhone: true,
+    // See cardShowOpenStatus doc comment above.
+    cardShowOpenStatus: true,
     sortOptions: SORT_CURATED_NAME,
-    filterOptions: ['types', 'priceLevel', 'distance'],
+    filterOptions: ['types', 'priceLevel', 'distance', 'openNow'],
     typeFilterLabel: 'Cuisine',
     itemLabel: 'restaurant',
     itemLabelPlural: 'restaurants',

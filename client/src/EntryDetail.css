@@ -73,6 +73,79 @@
   font-weight: 600;
 }
 
+/* Contact block (2026-09-02, see the JSX comment in EntryDetail.jsx) -
+   phone/website/opening times as labeled rows, mirroring the border/
+   spacing rhythm of .entry-detail-meta above it (same margin/padding/
+   border-bottom) so the two blocks read as one sectioned group above the
+   description rather than visually competing layouts. */
+.entry-detail-contact {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.entry-detail-contact-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 0;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+/* Only <a> rows (phone/website) are actually clickable - the Hours row is
+   a plain <div> (see EntryDetail.jsx), so its label/value stay the default
+   ink color instead of the green "this is tappable" signal below. */
+a.entry-detail-contact-row .entry-detail-contact-value {
+  color: var(--g-600);
+}
+
+.entry-detail-contact-label {
+  flex: 0 0 68px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.entry-detail-contact-value {
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.entry-detail-hours-value div {
+  margin-bottom: 2px;
+}
+
+.entry-detail-hours-value div:last-child {
+  margin-bottom: 0;
+}
+
+/* "Open now"/"Closed" pill next to the Hours label (2026-09-02) - see the
+   openStatus doc comment in EntryDetail.jsx. Inline in the same flex row
+   as the label/value, unlike EntryCard.jsx's photo-overlay version of the
+   same badge, since there's no photo to sit over here. */
+.entry-detail-open-badge {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--muted, #6b6375);
+}
+
+.entry-detail-open-badge.is-open {
+  background: var(--g-600, #3a7d55);
+}
+
+.entry-detail-open-badge.is-closed {
+  background: var(--muted, #6b6375);
+}
+
 .entry-detail-markdown {
   font-size: 15px;
   line-height: 1.6;

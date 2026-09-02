@@ -9,6 +9,17 @@ import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
 import photoPlaceholder from './assets/entry-photo-placeholder.svg';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
+import { isOpenNow } from './openingHours.js';
+
+// Prefixes a bare domain (e.g. "restaurant.com", typed without a scheme -
+// see the hint on EntryEditor.jsx's Website field, which doesn't enforce
+// one) with https:// so the link actually navigates rather than being
+// resolved as a relative path on this app's own domain. Entry.website is
+// free text, not validated at save time, so this has to tolerate either
+// form.
+function normalizeWebsiteUrl(url) {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
 
 // Full-entry view, reached by tapping a card on CategoryScreen. Renders the
 // full `description` as Markdown (bold/italic/bullets/headings) - see the
@@ -92,6 +103,13 @@ function EntryDetail() {
     ? `/category/${slug}/type/${entry.activityTypeId}`
     : `/category/${slug}`;
 
+  // Uses the *city's* timezone (City.timezone), not the viewer's own device
+  // time - see the doc comment on EntryCard.jsx's showOpenStatus prop and
+  // the discussion in claude/todo.md. null (no parseable opening-hours
+  // text, or no timezone set for this city yet) means "don't show a
+  // status" - handled below by simply not rendering the badge.
+  const openStatus = entry ? isOpenNow(entry.openingTimes, city?.timezone) : null;
+
   return (
     <div className="entry-detail">
       <div className="entry-detail-header">
@@ -128,6 +146,70 @@ function EntryDetail() {
               {entry.priceLevel != null && <span>{currencySymbol.repeat(entry.priceLevel)}</span>}
               {entry.types?.length > 0 && <span>{entry.types.join(', ')}</span>}
               {entry.address && <span>{entry.address}</span>}
+            </div>
+          )}
+
+          {/* Contact block (2026-09-02) - phone/website/opening times, each
+              shown only if set. Deliberately separate from entry-detail-meta
+              above rather than folded into it: those are short inline
+              facts, these are each a labeled, often-clickable row (tap to
+              call, tap to open the site), so they need their own layout.
+              Not gated by cardVariant/showMetaRow the way the meta row is -
+              these fields are free to appear on any category's detail
+              screen once populated (see Entry.phone/website/openingTimes in
+              schema.prisma), even though only Eating Out enters them today. */}
+          {(entry.phone || entry.website || entry.openingTimes) && (
+            <div className="entry-detail-contact">
+              {entry.phone && (
+                <a href={`tel:${entry.phone}`} className="entry-detail-contact-row">
+                  <span className="entry-detail-contact-label">Call</span>
+                  <span className="entry-detail-contact-value">{entry.phone}</span>
+                </a>
+              )}
+              {entry.website && (
+                <a
+                  href={normalizeWebsiteUrl(entry.website)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="entry-detail-contact-row"
+                >
+                  <span className="entry-detail-contact-label">Website</span>
+                  <span className="entry-detail-contact-value">{entry.website}</span>
+                </a>
+              )}
+              {entry.openingTimes && (
+                <div className="entry-detail-contact-row">
+                  <span className="entry-detail-contact-label">Hours</span>
+                  {/* openStatus (2026-09-02, see the const above) renders as a
+                      badge right next to the "Hours" label when it can be
+                      confidently determined - null (unparseable hours, or
+                      no city timezone) just omits the badge rather than
+                      guessing. */}
+                  {openStatus != null && (
+                    <span
+                      className={`entry-detail-open-badge ${
+                        openStatus ? 'is-open' : 'is-closed'
+                      }`}
+                    >
+                      {openStatus ? 'Open now' : 'Closed'}
+                    </span>
+                  )}
+                  {/* Split on "," or ";" purely for display - one day-range
+                      clause per line, matching the convention documented on
+                      Entry.openingTimes in schema.prisma (comma is the
+                      current convention; semicolon still works too, see
+                      openingHours.js). This is not parsing in the sense of
+                      understanding what the values mean, just a
+                      readability win over one long run-on line - the
+                      actual parsing that drives openStatus above happens
+                      in openingHours.js. */}
+                  <span className="entry-detail-contact-value entry-detail-hours-value">
+                    {entry.openingTimes.split(/[,;]/).map((line, i) => (
+                      <div key={i}>{line.trim()}</div>
+                    ))}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

@@ -236,6 +236,9 @@ function Search() {
                       variant={variant}
                       currencySymbol={currencySymbol}
                       showPrice={config.cardShowPrice ?? true}
+                      showPhone={config.cardShowPhone ?? false}
+                      showOpenStatus={config.cardShowOpenStatus ?? false}
+                      timezone={city?.timezone}
                     />
                   </Link>
                 );
