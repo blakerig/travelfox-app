@@ -476,7 +476,12 @@ function CategoryScreen() {
         </div>
       )}
 
-      {(cityLoading || items === null) && <div className="category-screen-status">Loading…</div>}
+      {(cityLoading || items === null) && (
+        <div className="category-screen-status">
+          <div className="category-screen-spinner" aria-hidden="true" />
+          <p>Loading…</p>
+        </div>
+      )}
 
       {items !== null && items.length === 0 && (
         <div className="category-screen-status">Nothing here yet.</div>
