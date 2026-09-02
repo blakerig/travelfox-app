@@ -18,7 +18,26 @@ cloudinary.config({
 // written to disk on the server. 8MB cap comfortably covers a phone photo.
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
-app.use(cors());
+// Requests with no Origin header (curl, server-to-server, the Vercel
+// build itself) are allowed through - the check below only applies to
+// actual browser cross-origin requests.
+const allowedOrigins = [
+  'https://travelfox-app.vercel.app', // production client (Vercel)
+  'http://localhost:5173',            // local Vite dev server
+];
+// Vercel preview deployments for this project, e.g.
+// https://travelfox-app-git-<branch>-travel-fox.vercel.app or
+// https://travelfox-<hash>-travel-fox.vercel.app
+const isVercelPreview = (origin) => /^https:\/\/travelfox[a-z0-9-]*-travel-fox\.vercel\.app$/.test(origin);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin) || isVercelPreview(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
+}));
 app.use(express.json());
 
 // Uploads a single image to Cloudinary and returns its URL. Decoupled from
