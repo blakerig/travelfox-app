@@ -1,5 +1,7 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { CityProvider } from './CityProvider.jsx';
+import { useCity } from './city-context.js';
+import LoadingScreen from './LoadingScreen.jsx';
 import Home from './Home.jsx';
 import CategoryScreen from './CategoryScreen.jsx';
 import EntryDetail from './EntryDetail.jsx';
@@ -10,6 +12,23 @@ import Search from './Search.jsx';
 import Neighbourhoods from './Neighbourhoods.jsx';
 
 function App() {
+  return (
+    <CityProvider>
+      <AppRoutes />
+    </CityProvider>
+  );
+}
+
+// Split out from App so it can read CityProvider's context (a component
+// can't consume a context it renders itself as a JSX child) - needed for
+// `loading` below, added 2026-09-02 so the very first screen a visitor
+// sees isn't a blank Home shell while the initial /api/cities fetch (and,
+// on Render's free tier, a possible cold-start wake-up) is still in
+// flight. See claude/todo.md.
+function AppRoutes() {
+  const { loading } = useCity();
+  const location = useLocation();
+
   // Search renders as an overlay on top of whichever screen was showing
   // when it was opened, rather than replacing it outright (2026-08-31,
   // "modal route over a background location" - a standard React Router
@@ -28,11 +47,14 @@ function App() {
   // below instead. Search.jsx renders fine as a standalone page in that
   // case too (see its own comment) - it just won't have Home's hero
   // showing through behind it.
-  const location = useLocation();
   const backgroundLocation = location.state?.backgroundLocation;
 
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
   return (
-    <CityProvider>
+    <>
       <Routes location={backgroundLocation || location}>
         <Route path="/" element={<Home />} />
         <Route path="/search" element={<Search />} />
@@ -54,7 +76,7 @@ function App() {
           <Route path="/search" element={<Search />} />
         </Routes>
       )}
-    </CityProvider>
+    </>
   );
 }
 
