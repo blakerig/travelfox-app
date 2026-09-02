@@ -81,9 +81,18 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Local copy saved to: $localDumpPath" -ForegroundColor Green
 
 # --- Step 3: restore into Neon, from inside the same container -------------
+# --no-owner --no-acl: the local dump's tables are owned by the local
+# Docker Postgres image's default "postgres" role, which doesn't exist as
+# a role name on Neon (Neon names its role something else entirely) - so
+# pg_restore's "ALTER TABLE ... OWNER TO postgres" statements fail with
+# "role does not exist". These flags skip emitting ownership/ACL
+# statements altogether rather than trying to match role names across two
+# unrelated Postgres hosts - the restored tables end up owned by whichever
+# role the $neonUrl connection authenticates as, which is exactly what you
+# want anyway.
 Write-Host ""
 Write-Host "Restoring into Neon..." -ForegroundColor Cyan
-docker exec -i $containerName pg_restore -d $neonUrl --clean --if-exists $containerPath
+docker exec -i $containerName pg_restore -d $neonUrl --clean --if-exists --no-owner --no-acl $containerPath
 if ($LASTEXITCODE -ne 0) {
     Write-Error "pg_restore failed with exit code $LASTEXITCODE - check the output above for details."
 }
