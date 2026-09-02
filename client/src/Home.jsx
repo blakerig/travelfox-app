@@ -48,14 +48,22 @@ function Home() {
   return (
     <div className="home">
       <div className="home-hero">
-        <img
-          // city.photoUrl is set by hand in Prisma Studio for now (see
-          // City.photoUrl in schema.prisma) - falls back to the static
-          // placeholder when unset, same pattern as EntryCard's photo.
-          src={city?.photoUrl ? getCityPhotoUrl(city.photoUrl) : heroPlaceholder}
-          alt=""
-          className="home-hero-image"
-        />
+        {city && (
+          <img
+            // city.photoUrl is set by hand in Prisma Studio for now (see
+            // City.photoUrl in schema.prisma) - falls back to the static
+            // placeholder when unset, same pattern as EntryCard's photo.
+            // Gated on `city` (not just photoUrl) so that during the
+            // initial /api/cities fetch - before we know which city we're
+            // even showing - we render nothing here rather than flashing
+            // this placeholder photo of a specific city that may not even
+            // be the one that ends up loading. The .home-hero container's
+            // own background color shows through in that gap instead.
+            src={city.photoUrl ? getCityPhotoUrl(city.photoUrl) : heroPlaceholder}
+            alt=""
+            className="home-hero-image"
+          />
+        )}
         <div className="home-hero-gradient" />
         {city && (
           <Link
