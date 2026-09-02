@@ -8,6 +8,7 @@
   --card: oklch(99% 0.004 150);
 
   max-width: 480px;
+  width: 100%;
   margin: 0 auto;
   height: 100svh;
   display: flex;

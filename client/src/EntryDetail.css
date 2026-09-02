@@ -6,6 +6,7 @@
   --line: oklch(70% 0.02 150 / 0.3);
 
   max-width: 480px;
+  width: 100%;
   margin: 0 auto;
   min-height: 100svh;
   background: oklch(97% 0.015 150);
