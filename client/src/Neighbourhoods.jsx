@@ -12,6 +12,7 @@ import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './Neighbourhoods.css';
 import { useCity } from './city-context.js';
+import { useCityData } from './city-data-context.js';
 
 // Neighbourhoods map screen - added 2026-08-31. A first cut, deliberately
 // simple: pins only (no boundary polygons, no landmarks yet - those are
@@ -32,26 +33,33 @@ const MAP_STYLE_URL = `https://api.maptiler.com/maps/streets-v2/style.json?key=$
 
 function Neighbourhoods() {
   const { city } = useCity();
-  const [neighbourhoods, setNeighbourhoods] = useState(null);
+  const { cityData } = useCityData();
+  // Derived from the shared per-city cache (see CityDataProvider.jsx)
+  // instead of fetching its own copy of
+  // /api/cities/:cityId/neighbourhoods on every mount.
+  const neighbourhoods = cityData?.neighbourhoods ?? null;
   const [selectedId, setSelectedId] = useState(null);
+  // Tracks which city's neighbourhoods `selectedId` was last auto-picked
+  // for - see the render-time block below.
+  const [autoSelectedForCity, setAutoSelectedForCity] = useState(null);
   const [mapError, setMapError] = useState(null);
 
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef(new Map()); // neighbourhood id -> { marker, el }
 
-  useEffect(() => {
-    if (!city) return;
-    setNeighbourhoods(null);
-    setSelectedId(null);
-    fetch(`${import.meta.env.VITE_API_URL}/api/cities/${city.id}/neighbourhoods`)
-      .then((res) => res.json())
-      .then((data) => {
-        setNeighbourhoods(data);
-        if (data.length > 0) setSelectedId(data[0].id);
-      })
-      .catch((err) => console.error('Failed to fetch neighbourhoods:', err));
-  }, [city]);
+  // Picks the first neighbourhood by default the first time this city's
+  // list becomes available, during render rather than in an effect - same
+  // "adjust state when a prop/derived value changes" pattern
+  // CategoryScreen.jsx's loadedKey block and EntryDetail.jsx's
+  // loadedEntryId block use, and for the same reason: keyed on city id
+  // rather than on `neighbourhoods` itself, so a later background refresh
+  // of the same city's data (see CityDataProvider.jsx) never clobbers a
+  // selection you've already made by re-picking the first one again.
+  if (city && neighbourhoods && autoSelectedForCity !== city.id) {
+    setAutoSelectedForCity(city.id);
+    setSelectedId(neighbourhoods.length > 0 ? neighbourhoods[0].id : null);
+  }
 
   // Creates the map once we have both a container to render into and at
   // least one neighbourhood to centre/fit it on. Guarded by mapRef so a

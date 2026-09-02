@@ -5,6 +5,7 @@ import remarkBreaks from 'remark-breaks';
 import { markdownComponents } from './markdownComponents.jsx';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import { useCity } from './city-context.js';
+import { useCityData } from './city-data-context.js';
 import './EntryEditor.css';
 
 // Text-only editor for an entry: name, summary, types, description. Handles both
@@ -42,6 +43,7 @@ function EntryEditor() {
   const navigate = useNavigate();
   const isCreate = entryId === 'new';
   const { city, loading: cityLoading } = useCity();
+  const { cityData, cityDataReady, ensureCategories, upsertEntry } = useCityData();
 
   // Create mode only, and only reached from ActivityTypeDetail's "+ Add
   // provider" link (?activityTypeId=<id> in the URL) - links this new
@@ -55,6 +57,13 @@ function EntryEditor() {
   const [entry, setEntry] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [loadedEntryId, setLoadedEntryId] = useState(null);
+  // Tracks which entryId the form fields have actually been populated
+  // for - see the edit-mode load effect below. Separate from
+  // loadedEntryId (which drives the render-time reset block just below
+  // this) so that effect can safely depend on cityData without
+  // re-populating (and clobbering whatever you're mid-typing) every
+  // time the cache changes for a reason unrelated to this entry.
+  const [populatedEntryId, setPopulatedEntryId] = useState(null);
 
   // Create mode only: the category this new entry belongs to, resolved from
   // the :slug in the URL (city comes from CityProvider instead).
@@ -100,9 +109,36 @@ function EntryEditor() {
     setPhotoError(null);
   }
 
-  // Edit mode: load the existing entry's current values.
+  // Edit mode: load the existing entry's current values into the form -
+  // from the shared per-city cache first (see CityDataProvider.jsx),
+  // falling back to a direct fetch only once that cache is ready and still
+  // doesn't have this id (e.g. a bookmarked edit link for an entry
+  // belonging to a city other than whatever's currently selected). Only
+  // ever populates the form once per entryId (see populatedEntryId above)
+  // - deliberately does NOT re-run every time cityData changes afterwards
+  // (a background revalidation, or this exact save patching the cache via
+  // upsertEntry below), which would otherwise silently overwrite whatever
+  // you're still typing.
   useEffect(() => {
-    if (isCreate) return;
+    if (isCreate || populatedEntryId === entryId) return;
+
+    function populate(data) {
+      setPopulatedEntryId(entryId);
+      setEntry(data);
+      setName(data.name ?? '');
+      setSummary(data.summary ?? '');
+      setTypesInput((data.types ?? []).join(', '));
+      setDescription(data.description ?? '');
+      setPhotoUrl(data.photoUrl ?? '');
+    }
+
+    const cached = cityData?.entries.find((e) => String(e.id) === entryId);
+    if (cached) {
+      populate(cached);
+      return;
+    }
+    if (!cityDataReady) return;
+
     fetch(`${import.meta.env.VITE_API_URL}/api/entries/${entryId}`)
       .then((res) => {
         if (res.status === 404) {
@@ -112,32 +148,26 @@ function EntryEditor() {
         return res.json();
       })
       .then((data) => {
-        if (!data) return;
-        setEntry(data);
-        setName(data.name ?? '');
-        setSummary(data.summary ?? '');
-        setTypesInput((data.types ?? []).join(', '));
-        setDescription(data.description ?? '');
-        setPhotoUrl(data.photoUrl ?? '');
+        if (data) populate(data);
       })
       .catch((err) => console.error('Failed to fetch entry:', err));
-  }, [isCreate, entryId]);
+  }, [isCreate, entryId, populatedEntryId, cityData, cityDataReady]);
 
-  // Create mode: resolve the category id matching :slug.
+  // Create mode: resolve the category id matching :slug - via the shared,
+  // fetched-once category list (see CityDataProvider.jsx's
+  // ensureCategories) instead of re-fetching /api/categories every time the
+  // "+ Add" form opens.
   useEffect(() => {
     if (!isCreate) return;
-    fetch(`${import.meta.env.VITE_API_URL}/api/categories`)
-      .then((res) => res.json())
-      .then((cats) => {
-        const match = cats.find((c) => c.slug === slug);
-        if (!match) {
-          setCategoryError(true);
-          return;
-        }
-        setCategoryId(match.id);
-      })
-      .catch((err) => console.error('Failed to fetch categories:', err));
-  }, [isCreate, slug]);
+    ensureCategories().then((cats) => {
+      const match = cats.find((c) => c.slug === slug);
+      if (!match) {
+        setCategoryError(true);
+        return;
+      }
+      setCategoryId(match.id);
+    });
+  }, [isCreate, slug, ensureCategories]);
 
   const ready = isCreate ? Boolean(city) && categoryId != null : entry != null;
 
@@ -208,6 +238,11 @@ function EntryEditor() {
         return res.json();
       })
       .then((saved) => {
+        // Patch the shared cache in place (see CityDataProvider.jsx) so
+        // EntryDetail/CategoryScreen show this save immediately on the
+        // very next screen, instead of still holding whatever was cached
+        // before it.
+        upsertEntry(saved);
         navigate(`/category/${slug}/entry/${saved.id}`);
       })
       .catch((err) => {

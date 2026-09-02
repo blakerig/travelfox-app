@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import './Home.css';
 import { useCity } from './city-context.js';
+import { useCityData } from './city-data-context.js';
 import CityPicker from './CityPicker.jsx';
 import heroPlaceholder from './assets/home-hero-placeholder.jpg';
 import { getCityPhotoUrl } from './cloudinaryUrl.js';
@@ -29,17 +30,17 @@ const CATEGORY_DISPLAY = [
 
 function Home() {
   const { city } = useCity();
+  const { cityData } = useCityData();
   const location = useLocation();
-  const [availableSlugs, setAvailableSlugs] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  useEffect(() => {
-    if (!city) return;
-    fetch(`${import.meta.env.VITE_API_URL}/api/cities/${city.id}/home-categories`)
-      .then((res) => res.json())
-      .then((data) => setAvailableSlugs(new Set(data.map((c) => c.slug))))
-      .catch((err) => console.error('Failed to fetch home categories:', err));
-  }, [city]);
+  // Which category icons to show - derived from the shared per-city cache
+  // (see CityDataProvider.jsx) instead of Home fetching its own copy of
+  // /api/cities/:cityId/home-categories on every mount. null (rather than
+  // an empty grid) until cityData has loaded for this city, same
+  // "don't show 'nothing here' while we just haven't asked yet" reasoning
+  // the old fetch-based version had.
+  const availableSlugs = cityData ? new Set(cityData.homeCategorySlugs) : null;
 
   const visibleCategories = availableSlugs
     ? CATEGORY_DISPLAY.filter((c) => availableSlugs.has(c.slug))

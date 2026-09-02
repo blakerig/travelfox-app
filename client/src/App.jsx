@@ -1,6 +1,7 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { CityProvider } from './CityProvider.jsx';
 import { useCity } from './city-context.js';
+import { CityDataProvider } from './CityDataProvider.jsx';
 import LoadingScreen from './LoadingScreen.jsx';
 import Home from './Home.jsx';
 import CategoryScreen from './CategoryScreen.jsx';
@@ -14,7 +15,9 @@ import Neighbourhoods from './Neighbourhoods.jsx';
 function App() {
   return (
     <CityProvider>
-      <AppRoutes />
+      <CityDataProvider>
+        <AppRoutes />
+      </CityDataProvider>
     </CityProvider>
   );
 }

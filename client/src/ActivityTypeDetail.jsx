@@ -6,6 +6,7 @@ import { markdownComponents } from './markdownComponents.jsx';
 import './ActivityTypeDetail.css';
 import { getCategoryConfig } from './categoryConfig.js';
 import { useCity } from './city-context.js';
+import { useCityData } from './city-data-context.js';
 import EntryCard from './EntryCard.jsx';
 
 // Detail screen for one ActivityType (e.g. "Laser Tag", "Padel") - reached
@@ -31,9 +32,16 @@ function ActivityTypeDetail() {
   const { slug, typeId } = useParams();
   const config = getCategoryConfig(slug);
   const { city } = useCity();
+  const { cityData, cityDataReady } = useCityData();
   const currencySymbol = city?.country?.currencySymbol || '$';
 
-  const [activityType, setActivityType] = useState(null);
+  // Read straight out of the current city's cache first (see
+  // CityDataProvider.jsx) - the common case, since this is normally
+  // reached by tapping a type card on CategoryScreen for whichever city is
+  // already selected.
+  const cachedType = cityData?.activityTypes.find((t) => String(t.id) === typeId) ?? null;
+
+  const [fetchedType, setFetchedType] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [loadedTypeId, setLoadedTypeId] = useState(null);
 
@@ -42,11 +50,19 @@ function ActivityTypeDetail() {
   // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
   if (typeId !== loadedTypeId) {
     setLoadedTypeId(typeId);
-    setActivityType(null);
+    setFetchedType(null);
     setNotFound(false);
   }
 
+  // Falls back to a direct fetch-by-id only once the current city's cache
+  // has loaded AND still doesn't have this type - i.e. a bookmarked/shared
+  // link to an ActivityType belonging to a city other than whatever's
+  // currently selected (see the doc comment above this component about
+  // this screen working when reached directly). Waiting for cityDataReady
+  // first avoids firing a redundant fetch during the ordinary case where
+  // the type simply hasn't finished loading into the cache yet.
   useEffect(() => {
+    if (!cityDataReady || cachedType) return;
     fetch(`${import.meta.env.VITE_API_URL}/api/activity-types/${typeId}`)
       .then((res) => {
         if (res.status === 404) {
@@ -56,11 +72,12 @@ function ActivityTypeDetail() {
         return res.json();
       })
       .then((data) => {
-        if (data) setActivityType(data);
+        if (data) setFetchedType(data);
       })
       .catch((err) => console.error('Failed to fetch activity type:', err));
-  }, [typeId]);
+  }, [typeId, cityDataReady, cachedType]);
 
+  const activityType = cachedType ?? fetchedType;
   const providers = activityType?.entries ?? [];
 
   return (

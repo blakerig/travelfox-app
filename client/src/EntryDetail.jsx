@@ -6,6 +6,7 @@ import { markdownComponents } from './markdownComponents.jsx';
 import './EntryDetail.css';
 import { getCategoryConfig } from './categoryConfig.js';
 import { useCity } from './city-context.js';
+import { useCityData } from './city-data-context.js';
 import photoPlaceholder from './assets/entry-photo-placeholder.svg';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 
@@ -33,11 +34,18 @@ function EntryDetail() {
   const { slug, entryId } = useParams();
   const config = getCategoryConfig(slug);
   const { city } = useCity();
+  const { cityData, cityDataReady } = useCityData();
   const currencySymbol = city?.country?.currencySymbol || '$';
 
-  const [entry, setEntry] = useState(null);
+  // Read straight out of the current city's cache first (see
+  // CityDataProvider.jsx) - the common case, since this is normally
+  // reached by tapping a card on CategoryScreen for whichever city is
+  // already selected.
+  const cachedEntry = cityData?.entries.find((e) => String(e.id) === entryId) ?? null;
+
+  const [fetchedEntry, setFetchedEntry] = useState(null);
   const [notFound, setNotFound] = useState(false);
-  // Tracks which entryId `entry`/`notFound` currently belong to.
+  // Tracks which entryId `fetchedEntry`/`notFound` currently belong to.
   const [loadedEntryId, setLoadedEntryId] = useState(null);
 
   // Reset to a loading state during render when we've navigated to a
@@ -45,11 +53,18 @@ function EntryDetail() {
   // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
   if (entryId !== loadedEntryId) {
     setLoadedEntryId(entryId);
-    setEntry(null);
+    setFetchedEntry(null);
     setNotFound(false);
   }
 
+  // Falls back to a direct fetch-by-id only once the current city's cache
+  // has loaded AND still doesn't have this entry - i.e. a bookmarked/
+  // shared link to an Entry belonging to a city other than whatever's
+  // currently selected. Waiting for cityDataReady first avoids firing a
+  // redundant fetch during the ordinary case where the entry simply hasn't
+  // finished loading into the cache yet.
   useEffect(() => {
+    if (!cityDataReady || cachedEntry) return;
     fetch(`${import.meta.env.VITE_API_URL}/api/entries/${entryId}`)
       .then((res) => {
         if (res.status === 404) {
@@ -59,10 +74,12 @@ function EntryDetail() {
         return res.json();
       })
       .then((data) => {
-        if (data) setEntry(data);
+        if (data) setFetchedEntry(data);
       })
       .catch((err) => console.error('Failed to fetch entry:', err));
-  }, [entryId]);
+  }, [entryId, cityDataReady, cachedEntry]);
+
+  const entry = cachedEntry ?? fetchedEntry;
 
   const showMetaRow = config.cardVariant === 'venue' || config.cardVariant === 'photo';
 

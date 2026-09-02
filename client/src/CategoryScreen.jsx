@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import './CategoryScreen.css';
 import { useCity } from './city-context.js';
+import { useCityData } from './city-data-context.js';
 import { getCategoryConfig } from './categoryConfig.js';
 import EntryCard from './EntryCard.jsx';
 import { haversineDistanceKm, formatDistanceKm } from './geo.js';
@@ -142,11 +143,10 @@ function loadScrollY(key) {
 function CategoryScreen() {
   const { slug } = useParams();
   const { city, loading: cityLoading } = useCity();
+  const { cityData } = useCityData();
   const config = getCategoryConfig(slug);
   const key = city ? `${city.id}:${slug}` : null;
   const currencySymbol = city?.country?.currencySymbol || '$';
-
-  const [items, setItems] = useState(null);
   // Read once, on this component instance's first render only (the
   // useState calls below only ever use their initial argument on that
   // same first render) - captures whatever sort/filter selection was
@@ -190,7 +190,6 @@ function CategoryScreen() {
   // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
   if (key !== loadedKey) {
     setLoadedKey(key);
-    setItems(null);
     if (hasSettledKey) {
       setSortBy(config.sortOptions?.[0]?.value ?? null);
       setSelectedTypes(new Set());
@@ -201,21 +200,23 @@ function CategoryScreen() {
     setHasSettledKey(true);
   }
 
-  useEffect(() => {
-    if (!city) return;
-    // Grouped categories (Activities) fetch ActivityType rows - each one
-    // already carries its provider Entries (see GET
-    // /api/cities/:cityId/activity-types) so activityTypeHref can decide
-    // per-card whether to link to ActivityTypeDetail or straight to a
-    // single provider without a second round-trip.
-    const url = config.groupedByType
-      ? `${import.meta.env.VITE_API_URL}/api/cities/${city.id}/activity-types`
-      : `${import.meta.env.VITE_API_URL}/api/cities/${city.id}/entries?category=${slug}`;
-    fetch(url)
-      .then((res) => res.json())
-      .then(setItems)
-      .catch((err) => console.error('Failed to fetch category items:', err));
-  }, [city, slug, config.groupedByType]);
+  // Derived from the shared per-city cache (see CityDataProvider.jsx)
+  // instead of firing its own fetch every time a category is visited.
+  // Grouped categories (Activities) read cityData.activityTypes - each one
+  // already carries its provider Entries (see GET
+  // /api/cities/:cityId/activity-types) so activityTypeHref can decide
+  // per-card whether to link to ActivityTypeDetail or straight to a
+  // single provider. Everything else filters cityData.entries down to
+  // this category client-side. null (not cityData.entries/[]) until
+  // cityData has loaded for the current city at all, so the loading
+  // spinner below still shows during that first fetch rather than briefly
+  // rendering an empty list.
+  const items = useMemo(() => {
+    if (!cityData) return null;
+    return config.groupedByType
+      ? cityData.activityTypes
+      : cityData.entries.filter((entry) => entry.category.slug === slug);
+  }, [cityData, slug, config.groupedByType]);
 
   // Persists the current sort/filter selection for this exact city+category
   // (see loadSavedPrefs above) every time it changes, so it can be restored
