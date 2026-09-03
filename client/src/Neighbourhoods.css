@@ -76,6 +76,7 @@
    Plain <button> element (see Neighbourhoods.jsx) so it's keyboard/tap
    accessible without extra ARIA wiring. */
 .neighbourhood-pin {
+  position: relative;
   width: 26px;
   height: 26px;
   border: none;
@@ -83,6 +84,34 @@
   cursor: pointer;
   background: transparent;
   transform: translateY(0);
+}
+
+/* Name label - added 2026-09-03 so a pin identifies itself before it's
+   tapped, not just after (previously the name only showed in the bottom
+   sheet, which meant tapping the wrong pin first was the only way to find
+   out what it was). Positioned to float above the pin shape (bottom: 100%)
+   since below is where the pin's tip/anchor point already is. A plain
+   child of the pin <button> rather than a separate element, so tapping the
+   label itself still selects the pin - no pointer-events juggling needed. */
+.neighbourhood-pin-label {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 4px;
+  padding: 3px 8px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(20, 30, 25, 0.25);
+}
+
+.neighbourhood-pin.active .neighbourhood-pin-label {
+  background: var(--g-600);
+  color: var(--card);
 }
 
 .neighbourhood-pin::before {

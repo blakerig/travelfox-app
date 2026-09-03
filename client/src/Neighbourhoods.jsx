@@ -126,6 +126,18 @@ function Neighbourhoods() {
       el.setAttribute('aria-label', n.name);
       el.addEventListener('click', () => setSelectedId(n.id));
 
+      // Name label, always visible rather than only on tap - added
+      // 2026-09-03 so the user can tell what a pin is before tapping it,
+      // not just after. Appended inside the same <button> (not a sibling
+      // element/separate marker) so it shares the pin's click target and
+      // aria-label rather than needing its own; positioned in CSS to float
+      // above the pin shape without disturbing the marker's own anchor
+      // point (still the pin tip, per anchor: 'bottom' below).
+      const label = document.createElement('span');
+      label.className = 'neighbourhood-pin-label';
+      label.textContent = n.name;
+      el.appendChild(label);
+
       const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([n.longitude, n.latitude])
         .addTo(map);
