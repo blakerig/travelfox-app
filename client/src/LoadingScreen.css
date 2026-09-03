@@ -14,13 +14,11 @@
   box-sizing: border-box;
 }
 
-.loading-spinner {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 3px solid rgba(26, 77, 46, 0.15);
-  border-top-color: var(--g-600, #2e6b45);
-  animation: loading-spin 0.8s linear infinite;
+.loading-logo {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  animation: loading-pulse 1.6s ease-in-out infinite;
 }
 
 .loading-title {
@@ -39,8 +37,20 @@
   line-height: 1.4;
 }
 
-@keyframes loading-spin {
-  to {
-    transform: rotate(360deg);
+@keyframes loading-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.75;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-logo {
+    animation: none;
   }
 }

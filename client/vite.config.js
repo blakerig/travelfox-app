@@ -11,10 +11,10 @@ export default defineConfig({
         enabled: true,
       },
       manifest: {
-        name: 'Travel App',
-        short_name: 'TravelApp',
+        name: 'TravelFox',
+        short_name: 'TravelFox',
         description: 'Discover restaurants and activities in cities.',
-        theme_color: '#1e293b',
+        theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
         icons: [
@@ -30,7 +30,20 @@ export default defineConfig({
             type: 'image/png',
             purpose: 'any',
           },
-        ],      },
+          {
+            src: 'pwa-icon-maskable-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: 'pwa-icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
     }),
   ],
 })

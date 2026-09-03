@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import travelFoxLogo from './assets/travelfox-logo.png';
 import './LoadingScreen.css';
 
 // Shown by App.jsx while CityProvider's initial /api/cities fetch is in
@@ -23,7 +24,13 @@ function LoadingScreen() {
 
   return (
     <div className="loading-screen">
-      <div className="loading-spinner" aria-hidden="true" />
+      <img
+        src={travelFoxLogo}
+        alt="TravelFox"
+        className="loading-logo"
+        width="88"
+        height="88"
+      />
       <p className="loading-title">TravelFox</p>
       {showSlowNotice && (
         <p className="loading-notice">
