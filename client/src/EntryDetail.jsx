@@ -10,6 +10,7 @@ import { useCityData } from './city-data-context.js';
 import photoPlaceholder from './assets/entry-photo-placeholder.svg';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import { isOpenNow } from './openingHours.js';
+import EntryLocationMap from './EntryLocationMap.jsx';
 
 // Prefixes a bare domain (e.g. "restaurant.com", typed without a scheme -
 // see the hint on EntryEditor.jsx's Website field, which doesn't enforce
@@ -19,6 +20,31 @@ import { isOpenNow } from './openingHours.js';
 // form.
 function normalizeWebsiteUrl(url) {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+// Builds a "get directions here" link that opens the device's own maps
+// app (the installed app if present, else the web version) with live
+// turn-by-turn directions from wherever the user currently is. This is a
+// plain URL - no API key, no billing account, no vendor lock-in - so it's
+// not the same kind of Google dependency this project has otherwise
+// steered away from (Places API, Cloud Storage; see claude/todo.md). See
+// the "Directions to an Entry" item there for the fuller options
+// considered before landing on this as the first, cheapest part.
+//
+// Prefers the entry's own coordinates when set (more precise - lands on
+// the actual building rather than an interpolated point along the
+// street), falling back to the free-text address for entries that don't
+// have lat/long entered yet (see claude/todo.md's lat/long-lookup item -
+// entering coordinates is still a manual, occasionally-skipped step).
+// Returns null when neither is available, same "just omit it" pattern as
+// openStatus above.
+function getDirectionsUrl(entry) {
+  const destination =
+    entry.latitude != null && entry.longitude != null
+      ? `${entry.latitude},${entry.longitude}`
+      : entry.address;
+  if (!destination) return null;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }
 
 // Full-entry view, reached by tapping a card on CategoryScreen. Renders the
@@ -109,6 +135,7 @@ function EntryDetail() {
   // text, or no timezone set for this city yet) means "don't show a
   // status" - handled below by simply not rendering the badge.
   const openStatus = entry ? isOpenNow(entry.openingTimes, city?.timezone) : null;
+  const directionsUrl = entry ? getDirectionsUrl(entry) : null;
 
   return (
     <div className="entry-detail">
@@ -149,17 +176,44 @@ function EntryDetail() {
             </div>
           )}
 
-          {/* Contact block (2026-09-02) - phone/website/opening times, each
-              shown only if set. Deliberately separate from entry-detail-meta
-              above rather than folded into it: those are short inline
-              facts, these are each a labeled, often-clickable row (tap to
+          {/* Contact block (2026-09-02, extended 2026-09-04 twice) - a
+              small location map, then directions/phone/website/opening
+              times, each shown only if set/possible. Deliberately separate
+              from entry-detail-meta above rather than folded into it: those
+              are short inline facts, this is a mix of a visual (the map)
+              and labeled, often-clickable rows (get directions, tap to
               call, tap to open the site), so they need their own layout.
               Not gated by cardVariant/showMetaRow the way the meta row is -
               these fields are free to appear on any category's detail
-              screen once populated (see Entry.phone/website/openingTimes in
-              schema.prisma), even though only Eating Out enters them today. */}
-          {(entry.phone || entry.website || entry.openingTimes) && (
+              screen once populated (see Entry.phone/website/openingTimes/
+              latitude/longitude/address in schema.prisma), even though only
+              Eating Out enters phone/website/openingTimes today. Directions
+              (text link) works for any entry with either coordinates or an
+              address, see getDirectionsUrl above; the map itself only
+              renders when coordinates are actually set, since there's
+              nothing to plot a pin from a free-text address alone (see
+              EntryLocationMap.jsx) - the text Directions link still covers
+              those entries via the address fallback even without the map. */}
+          {(entry.phone || entry.website || entry.openingTimes || directionsUrl) && (
             <div className="entry-detail-contact">
+              {entry.latitude != null && entry.longitude != null && (
+                <EntryLocationMap
+                  latitude={entry.latitude}
+                  longitude={entry.longitude}
+                  label={entry.name}
+                />
+              )}
+              {directionsUrl && (
+                <a
+                  href={directionsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="entry-detail-contact-row"
+                >
+                  <span className="entry-detail-contact-label">Directions</span>
+                  <span className="entry-detail-contact-value">Open in Maps</span>
+                </a>
+              )}
               {entry.phone && (
                 <a href={`tel:${entry.phone}`} className="entry-detail-contact-row">
                   <span className="entry-detail-contact-label">Call</span>

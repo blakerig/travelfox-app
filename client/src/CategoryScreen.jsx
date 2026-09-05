@@ -6,6 +6,7 @@ import { useCityData } from './city-data-context.js';
 import { getCategoryConfig } from './categoryConfig.js';
 import EntryCard from './EntryCard.jsx';
 import { haversineDistanceKm, formatDistanceKm } from './geo.js';
+import { fetchWalkingDistances } from './walkingDistance.js';
 import { useUserLocation } from './useUserLocation.js';
 import { activityTypeHref } from './activityTypeHref.js';
 import { isOpenNow } from './openingHours.js';
@@ -15,6 +16,20 @@ import { isOpenNow } from './openingHours.js';
 // pattern cuisine/price chips use, since a radius is a cumulative cutoff
 // ("within 2km") rather than a set of independent options.
 const RADIUS_OPTIONS_KM = [0.5, 1, 2, 5];
+
+// Generous straight-line pre-filter cap before ever calling the real
+// walking-distance API - a first, cheap, dependency-free narrowing pass
+// (see the "Suggested approach" note in claude/todo.md), not the final
+// filter. Deliberately well above the largest radius chip (5km) rather
+// than matching it: real walking distance can be meaningfully longer than
+// straight-line (a river, a one-way system - the exact problem this
+// feature exists to fix), so something just past 5km in a straight line
+// could still turn out to be within 5km on foot in an unusual street
+// layout, and this cap should not be the thing that silently excludes it
+// before the real API even gets a chance to answer. Also caps request
+// size regardless of city size, independent of MAX_MATRIX_DESTINATIONS on
+// the server.
+const WALKING_DISTANCE_PREFILTER_KM = 8;
 
 // Sorting is done client-side for now - lists are small in v1 and this
 // avoids adding server-side sort-param parsing before it's actually needed.
@@ -60,11 +75,25 @@ function sortItems(items, sortBy) {
 // "Catalan", either matches) and within the entry (an entry tagged both
 // only needs one to be selected).
 //
-// Distance uses straight-line (haversine) distance from `origin` (the
-// user's geolocated position, see useUserLocation.js) - a coarse, honestly
-// approximate cutoff, not real walking distance. See geo.js and the
-// 'distance' note in categoryConfig.js for why this is a filter only, not
-// also a sort.
+// Distance prefers real walking distance (`walkingDistances`, a Map of
+// entry id -> { distanceMeters, durationSeconds } from the ORS Matrix API
+// via walkingDistance.js/POST /api/walking-distances - see "Real walking
+// distance/time" in claude/todo.md) when it's available, falling back to
+// straight-line (haversine) distance from `origin` (the user's geolocated
+// position, see useUserLocation.js) when it isn't - still loading, the API
+// call failed, or an entry simply wasn't in the pre-filtered candidate set
+// sent to it (see WALKING_DISTANCE_PREFILTER_KM above). Passing
+// `walkingDistances` as null (rather than omitting it) is how the caller
+// says "not ready, use straight-line" - see CategoryScreen's
+// filteredItems useMemo, which only passes the real Map once its fetch has
+// actually succeeded. An entry missing from the Map, or with a null
+// distanceMeters (ORS couldn't route to it on foot), never matches an
+// active radius filter - same as any other faceted filter excluding data
+// it doesn't have, not a guess. See geo.js and the 'distance' note in
+// categoryConfig.js for why straight-line is a filter only in the first
+// place, never a sort - that reasoning still applies to real distance too,
+// not because real distance is imprecise, but because a "Nearest" sort is
+// a separate, deliberately-not-built-yet UI decision (see claude/todo.md).
 //
 // 'openNow' (2026-09-02, Eating Out only) works the same way as the other
 // dimensions - an independent AND'd-in condition - but unlike
@@ -78,19 +107,31 @@ function sortItems(items, sortBy) {
 // A grouped category (Activities) never has any dimension active - no UI
 // drives filterOptions there (see categoryConfig.js) - so this returns
 // early before touching any ActivityType-shaped item.
-function filterItems(items, { types, priceLevels, radiusKm, origin, openNowOnly, timezone }) {
+function filterItems(items, { types, priceLevels, radiusKm, origin, openNowOnly, timezone, walkingDistances }) {
   if (types.size === 0 && priceLevels.size === 0 && radiusKm == null && !openNowOnly) return items;
   return items.filter((entry) => {
     const typeOk = types.size === 0 || (entry.types ?? []).some((t) => types.has(t));
     const priceOk =
       priceLevels.size === 0 || (entry.priceLevel != null && priceLevels.has(entry.priceLevel));
-    const distanceOk =
-      radiusKm == null ||
-      (origin &&
-        entry.latitude != null &&
-        entry.longitude != null &&
-        haversineDistanceKm(origin.latitude, origin.longitude, entry.latitude, entry.longitude) <=
-          radiusKm);
+    let distanceOk;
+    if (radiusKm == null) {
+      distanceOk = true;
+    } else if (walkingDistances) {
+      // Real walking distance is ready - an entry not in the Map (outside
+      // the pre-filtered candidate set) or with a null distanceMeters (ORS
+      // couldn't route to it on foot) simply doesn't match, same as any
+      // other filter excluding data it doesn't have.
+      const wd = walkingDistances.get(entry.id);
+      distanceOk = wd != null && wd.distanceMeters != null && wd.distanceMeters <= radiusKm * 1000;
+    } else {
+      distanceOk = Boolean(
+        origin &&
+          entry.latitude != null &&
+          entry.longitude != null &&
+          haversineDistanceKm(origin.latitude, origin.longitude, entry.latitude, entry.longitude) <=
+            radiusKm
+      );
+    }
     // An entry with no parseable opening-hours text, or whose city has no
     // timezone set, gets isOpenNow === null - treated as "doesn't match"
     // while the filter is active, same as priceOk/distanceOk excluding an
@@ -202,6 +243,22 @@ function CategoryScreen() {
   // Tracks which (city, slug) pair the state above currently belongs to.
   const [loadedKey, setLoadedKey] = useState(null);
 
+  // Real walking distance/duration for nearby candidates, fetched once
+  // location is granted - see fetchWalkingDistances in walkingDistance.js
+  // and POST /api/walking-distances on the server ("Real walking
+  // distance/time" in claude/todo.md). walkingDistances is a Map of entry
+  // id -> { distanceMeters, durationSeconds }, or null when not ready -
+  // filterItems above already treats null the same as "use straight-line",
+  // so nothing downstream needs to know why it's null (never fetched,
+  // still loading, or the fetch failed - see walkingDistancesStatus for
+  // that distinction, used only for the hint text below).
+  const [walkingDistances, setWalkingDistances] = useState(null);
+  const [walkingDistancesStatus, setWalkingDistancesStatus] = useState('idle'); // 'idle' | 'loading' | 'ready' | 'error'
+  // Remembers the (key, origin) pair the last fetch was for, so a
+  // re-render that doesn't actually change either doesn't re-fire the
+  // effect below and re-request the same data.
+  const walkingFetchKeyRef = useRef(null);
+
   // Reset items/sort/filters back to this category's defaults during
   // render when we've switched to a different city/category, rather than in
   // an effect - see
@@ -215,6 +272,16 @@ function CategoryScreen() {
       setSelectedRadiusKm(null);
       setSelectedOpenNowOnly(false);
     }
+    // Cached derived data tied to `key`, not a user preference - unlike
+    // the sort/filter selections above (deliberately preserved across the
+    // very first settle so a saved selection can survive a fresh mount),
+    // this resets unconditionally on every key change, since stale
+    // distances from the previous city/category would otherwise sit
+    // around and could get matched against by a coincidental id match.
+    setWalkingDistances(null);
+    setWalkingDistancesStatus('idle');
+    walkingFetchKeyRef.current = null;
+
     setFilterPanelOpen(false);
     setHasSettledKey(true);
   }
@@ -312,6 +379,66 @@ function CategoryScreen() {
   );
   const showDistanceFilter = Boolean(config.filterOptions?.includes('distance')) && hasCoordinateData;
 
+  // Fetches real walking distance/duration for nearby candidates once
+  // location is granted, for categories that actually offer the distance
+  // filter. A denied/unavailable/idle location, or this category not
+  // offering the filter at all, simply never fires this - walkingDistances
+  // then stays null forever and filterItems already treats that as "use
+  // straight-line" (see its doc comment above), so nothing else needs a
+  // special case for that.
+  useEffect(() => {
+    if (!showDistanceFilter || locationStatus !== 'granted' || !userCoords || !items) return;
+
+    // Cheap straight-line narrowing pass before ever calling the real API -
+    // see WALKING_DISTANCE_PREFILTER_KM's comment above for why this is
+    // deliberately looser than the largest radius chip.
+    const candidates = items.filter(
+      (item) =>
+        item.latitude != null &&
+        item.longitude != null &&
+        haversineDistanceKm(
+          userCoords.latitude,
+          userCoords.longitude,
+          item.latitude,
+          item.longitude
+        ) <= WALKING_DISTANCE_PREFILTER_KM
+    );
+    if (candidates.length === 0) return;
+
+    // Only the city/category key and the origin coordinates are part of
+    // "what distances do we need" - guards against re-fetching on a
+    // render where neither changed (e.g. `items` getting a new array
+    // identity from an unrelated cache update).
+    const fetchKey = `${key}:${userCoords.latitude.toFixed(4)},${userCoords.longitude.toFixed(4)}`;
+    if (walkingFetchKeyRef.current === fetchKey) return;
+    walkingFetchKeyRef.current = fetchKey;
+
+    let cancelled = false;
+    setWalkingDistancesStatus('loading');
+    fetchWalkingDistances(import.meta.env.VITE_API_URL, userCoords, candidates)
+      .then((map) => {
+        if (cancelled) return;
+        setWalkingDistances(map);
+        setWalkingDistancesStatus('ready');
+      })
+      .catch((err) => {
+        // Falls back to the straight-line filter it already has, honestly
+        // re-labeled as straight-line again (see the hint text below) -
+        // must never silently show straight-line numbers under a "real
+        // walking distance" label, which would reintroduce the exact
+        // misleading-results problem this feature exists to fix.
+        if (cancelled) return;
+        console.error('Walking-distance lookup failed, falling back to straight-line:', err);
+        walkingFetchKeyRef.current = null;
+        setWalkingDistances(null);
+        setWalkingDistancesStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showDistanceFilter, locationStatus, userCoords, items, key]);
+
   // Only offered when the city has a timezone set (see categoryConfig.js's
   // 'openNow' doc comment) - without one, isOpenNow() would return null for
   // every entry and the filter would just always show zero results, a
@@ -343,6 +470,11 @@ function CategoryScreen() {
         origin: userCoords,
         openNowOnly: selectedOpenNowOnly,
         timezone: city?.timezone,
+        // Only handed to filterItems once the fetch has actually
+        // succeeded - 'loading'/'error'/'idle' all pass null here, which
+        // filterItems treats the same as "not ready, use straight-line"
+        // (see its doc comment above).
+        walkingDistances: walkingDistancesStatus === 'ready' ? walkingDistances : null,
       }),
     [
       items,
@@ -352,6 +484,8 @@ function CategoryScreen() {
       userCoords,
       selectedOpenNowOnly,
       city?.timezone,
+      walkingDistances,
+      walkingDistancesStatus,
     ]
   );
   const sortedItems = useMemo(() => sortItems(filteredItems, sortBy), [filteredItems, sortBy]);
@@ -509,9 +643,23 @@ function CategoryScreen() {
                       </button>
                     ))}
                   </div>
-                  <p className="category-screen-filter-hint">
-                    Straight-line distance — the actual walk may be longer.
-                  </p>
+                  {walkingDistancesStatus === 'loading' && (
+                    <p className="category-screen-filter-hint">Getting real walking distances…</p>
+                  )}
+                  {walkingDistancesStatus === 'ready' && (
+                    <p className="category-screen-filter-hint">Real walking distance.</p>
+                  )}
+                  {walkingDistancesStatus === 'error' && (
+                    <p className="category-screen-filter-hint">
+                      Couldn&apos;t get walking distances — showing straight-line instead (the
+                      actual walk may be longer).
+                    </p>
+                  )}
+                  {(walkingDistancesStatus === 'idle') && (
+                    <p className="category-screen-filter-hint">
+                      Straight-line distance — the actual walk may be longer.
+                    </p>
+                  )}
                 </>
               )}
             </div>

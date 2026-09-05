@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import { markdownComponents } from './markdownComponents.jsx';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
+import { geocodeAddress } from './geocode.js';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
 import './EntryEditor.css';
@@ -93,6 +94,22 @@ function EntryEditor() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState(null);
 
+  // Address/coordinates (2026-09-05) - the first location-ish fields
+  // exposed in this editor; latitude/longitude used to be Prisma-Studio-
+  // only (see the file comment at the top). Kept as plain strings while
+  // editing, same convention as every other field here, parsed at save
+  // time. geocodeStatus/geocodeSuggestion drive the lookup UI below -
+  // 'idle' | 'loading' | 'auto-filled' | 'suggestion' | 'not-found' |
+  // 'error'. geocodeSuggestion only holds a value in the 'suggestion'
+  // state (see handleAddressLookup - coordinates that already had a value
+  // before a lookup are never overwritten silently, so a fresh result
+  // shows as an accept/dismiss suggestion instead of replacing them).
+  const [address, setAddress] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+  const [geocodeStatus, setGeocodeStatus] = useState('idle');
+  const [geocodeSuggestion, setGeocodeSuggestion] = useState(null);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -118,6 +135,11 @@ function EntryEditor() {
     setNotes('');
     setPhotoUrl('');
     setPhotoError(null);
+    setAddress('');
+    setLatitude('');
+    setLongitude('');
+    setGeocodeStatus('idle');
+    setGeocodeSuggestion(null);
   }
 
   // Edit mode: load the existing entry's current values into the form -
@@ -145,6 +167,11 @@ function EntryEditor() {
       setDescription(data.description ?? '');
       setNotes(data.notes ?? '');
       setPhotoUrl(data.photoUrl ?? '');
+      setAddress(data.address ?? '');
+      setLatitude(data.latitude != null ? String(data.latitude) : '');
+      setLongitude(data.longitude != null ? String(data.longitude) : '');
+      setGeocodeStatus('idle');
+      setGeocodeSuggestion(null);
     }
 
     const cached = cityData?.entries.find((e) => String(e.id) === entryId);
@@ -217,6 +244,62 @@ function EntryEditor() {
       .finally(() => setUploadingPhoto(false));
   }
 
+  // Looks up latitude/longitude for the current address via GET
+  // /api/geocode (OpenStreetMap's Nominatim, proxied server-side - see
+  // that endpoint's comment in server/index.js). Combines name + address +
+  // city in the query rather than address alone - Nominatim often indexes
+  // named businesses directly, which tends to land on the actual building
+  // rather than interpolating along the street the way a bare address
+  // lookup can (see the "Suggested approach" note in claude/todo.md).
+  //
+  // Never silently overwrites coordinates that already have a value -
+  // those might already be hand-verified (or looked up and checked once
+  // already), so a fresh result there becomes a dismissable suggestion
+  // instead (see the JSX below) rather than replacing them outright. Only
+  // auto-fills directly when the fields were empty to begin with, i.e.
+  // there was nothing to lose.
+  function handleAddressLookup() {
+    if (!address.trim()) return;
+    const query = [name, address, city?.name].filter((part) => part && part.trim()).join(', ');
+    const hadCoords = latitude.trim() !== '' || longitude.trim() !== '';
+
+    setGeocodeStatus('loading');
+    setGeocodeSuggestion(null);
+
+    geocodeAddress(import.meta.env.VITE_API_URL, query)
+      .then((result) => {
+        if (!result) {
+          setGeocodeStatus('not-found');
+          return;
+        }
+        if (hadCoords) {
+          setGeocodeSuggestion(result);
+          setGeocodeStatus('suggestion');
+        } else {
+          setLatitude(String(result.latitude));
+          setLongitude(String(result.longitude));
+          setGeocodeStatus('auto-filled');
+        }
+      })
+      .catch((err) => {
+        console.error('Geocoding lookup failed:', err);
+        setGeocodeStatus('error');
+      });
+  }
+
+  function acceptGeocodeSuggestion() {
+    if (!geocodeSuggestion) return;
+    setLatitude(String(geocodeSuggestion.latitude));
+    setLongitude(String(geocodeSuggestion.longitude));
+    setGeocodeStatus('auto-filled');
+    setGeocodeSuggestion(null);
+  }
+
+  function dismissGeocodeSuggestion() {
+    setGeocodeSuggestion(null);
+    setGeocodeStatus('idle');
+  }
+
   function handleSave(e) {
     e.preventDefault();
     if (!name.trim()) {
@@ -243,6 +326,9 @@ function EntryEditor() {
             photoUrl,
             notes,
             activityTypeId,
+            address: address.trim() || null,
+            latitude: latitude.trim() === '' ? null : latitude.trim(),
+            longitude: longitude.trim() === '' ? null : longitude.trim(),
           }),
         })
       : fetch(`${import.meta.env.VITE_API_URL}/api/entries/${entryId}`, {
@@ -258,6 +344,9 @@ function EntryEditor() {
             description,
             photoUrl,
             notes,
+            address: address.trim() || null,
+            latitude: latitude.trim() === '' ? null : latitude.trim(),
+            longitude: longitude.trim() === '' ? null : longitude.trim(),
           }),
         });
 
@@ -367,6 +456,85 @@ function EntryEditor() {
               placeholder="e.g. https://restaurant.com"
             />
           </label>
+
+          <label className="entry-editor-field">
+            <span className="entry-editor-label">Address (optional)</span>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              onBlur={handleAddressLookup}
+              className="entry-editor-input"
+              placeholder="e.g. Carrer de Sant Carles 4, Barcelona"
+            />
+          </label>
+
+          <div className="entry-editor-field">
+            <span className="entry-editor-label">
+              Coordinates (optional - looked up automatically from the address above when you
+              leave the field; always worth a quick check, it isn&apos;t always exact)
+            </span>
+            <div className="entry-editor-coords-row">
+              <input
+                type="number"
+                step="any"
+                value={latitude}
+                onChange={(e) => setLatitude(e.target.value)}
+                className="entry-editor-input entry-editor-coord-input"
+                placeholder="Latitude"
+              />
+              <input
+                type="number"
+                step="any"
+                value={longitude}
+                onChange={(e) => setLongitude(e.target.value)}
+                className="entry-editor-input entry-editor-coord-input"
+                placeholder="Longitude"
+              />
+              <button
+                type="button"
+                className="entry-editor-geocode-button"
+                onClick={handleAddressLookup}
+                disabled={!address.trim() || geocodeStatus === 'loading'}
+              >
+                Look up
+              </button>
+            </div>
+
+            {geocodeStatus === 'loading' && (
+              <p className="entry-editor-hint">Looking up coordinates…</p>
+            )}
+            {geocodeStatus === 'auto-filled' && (
+              <p className="entry-editor-hint">
+                Looked up automatically from the address - please verify (e.g. against the map on
+                the entry&apos;s detail screen once saved).
+              </p>
+            )}
+            {geocodeStatus === 'not-found' && (
+              <p className="entry-editor-hint">
+                Couldn&apos;t find coordinates for that address - enter them manually, or adjust
+                the address and try again.
+              </p>
+            )}
+            {geocodeStatus === 'error' && (
+              <p className="entry-editor-hint">
+                Coordinate lookup failed - try again, or enter coordinates manually.
+              </p>
+            )}
+            {geocodeStatus === 'suggestion' && geocodeSuggestion && (
+              <div className="entry-editor-geocode-suggestion">
+                <span>
+                  Found: {geocodeSuggestion.latitude.toFixed(5)}, {geocodeSuggestion.longitude.toFixed(5)}
+                </span>
+                <button type="button" onClick={acceptGeocodeSuggestion}>
+                  Use this
+                </button>
+                <button type="button" onClick={dismissGeocodeSuggestion}>
+                  Dismiss
+                </button>
+              </div>
+            )}
+          </div>
 
           <label className="entry-editor-field">
             <span className="entry-editor-label">

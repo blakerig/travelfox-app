@@ -164,6 +164,12 @@ model Entry {
   // `description` when blank (see client/src/EntryCard.jsx).
   summary        String?
   description    String?
+  // address/latitude/longitude: editable from EntryEditor.jsx (2026-09-05)
+  // - latitude/longitude can be looked up automatically from the address
+  // via GET /api/geocode (OpenStreetMap Nominatim), but that's a starting
+  // point to verify, not guaranteed precise - see claude/todo.md's
+  // "Automate lat/long lookup" item. priceLevel/rating (below) are still
+  // Prisma-Studio-only.
   address        String?
   latitude       Float?
   longitude      Float?

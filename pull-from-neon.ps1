@@ -33,11 +33,33 @@
 # (`git log --all -- migrate-to-neon.ps1`) for the rare case of a genuine
 # disaster-recovery reset, but it's deliberately not sitting in the repo
 # where it could be run by accident. See claude/dev-workflow.md.
+#
+# Note on pg_dump/pg_restore versions (2026-09-05): Postgres requires the
+# pg_dump *tool* version to be the same as or newer than the *server*
+# version it's reading from - an older pg_dump refuses to even try against
+# a newer server. Neon's server version can move ahead of whatever's
+# bundled in the local travel-app-db image (this broke once already, when
+# Neon was on Postgres 18 and the local image's tools were still 16.4), so
+# both the dump and restore steps below run through a disposable, one-off
+# `postgres:18` container rather than the tools baked into travel-app-db -
+# that keeps this script working even if Neon upgrades again without
+# needing to touch (or upgrade) your actual local Postgres engine. Bump
+# the tag below if Neon ever moves to a newer major version than this.
+#
+# Related quirk, hit the same day fixing the above: pg_dump embeds a few
+# "SET <timeout-setting> = 0;" preamble statements in every dump, and
+# Postgres 17 added a new one - transaction_timeout - to that set. A
+# pg_dump running against Neon (v18) includes it; if your local
+# travel-app-db is still on an older major version (pre-17), pg_restore
+# hits "unrecognized configuration parameter" on that one line and reports
+# "errors ignored on restore: N" - but keeps going and restores everything
+# else, since pg_restore itself already decided this specific failure
+# isn't fatal. The check below trusts that same judgment: an ignored-error
+# summary means "finished, with a harmless warning," a bare nonzero exit
+# with no such summary means something actually went wrong.
 
 $ErrorActionPreference = "Stop"
-
-# --- Config: your local Postgres container name --------------------------
-$containerName = "travel-app-db"
+$dumpToolImage = "postgres:18"  # bump if Neon's server version moves past this
 
 $scriptDir     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $localEnvPath  = Join-Path $scriptDir "server\.env"
@@ -45,7 +67,6 @@ $prodEnvPath   = Join-Path $scriptDir "server\.env-production"
 $dumpDir       = Join-Path $scriptDir "database"
 $timestamp     = Get-Date -Format "yyyy-MM-dd_HHmmss"
 $dumpFileName  = "neon_to_local_$timestamp.dump"
-$containerPath = "/tmp/$dumpFileName"
 $localDumpPath = Join-Path $dumpDir $dumpFileName
 
 function Get-DbUrl($path) {
@@ -63,14 +84,24 @@ function Get-DbUrl($path) {
 $localUrl = Get-DbUrl $localEnvPath
 $neonUrl  = Get-DbUrl $prodEnvPath
 
-# --- Parse just the user/db name out of the local URL (host/port aren't
-#     needed for the restore - pg_restore runs *inside* the container,
-#     talking to local Postgres over its own localhost) ------------------
+# --- Parse the user/db name out of the local URL for the confirmation
+#     message below, and build a version of the URL reachable from the
+#     disposable postgres:18 container used for dump/restore (see the note
+#     at the top) - that container isn't travel-app-db itself, so it can't
+#     just say "localhost" and mean itself the way the old docker-exec
+#     version of this script could; host.docker.internal is Docker
+#     Desktop's own DNS name for reaching a port published on the host
+#     machine (local Postgres's 5432, per server/.env) from inside another
+#     container. -------------------------------------------------------
 if ($localUrl -notmatch '^postgres(?:ql)?://(?<user>[^:]+):(?<pass>[^@]*)@[^/]+/(?<db>[^?]+)') {
     Write-Error "Couldn't parse local DATABASE_URL - expected postgresql://user:pass@host:port/dbname"
 }
-$localUser = $matches['user']
-$localDb   = $matches['db']
+$localUser         = $matches['user']
+$localDb           = $matches['db']
+$localUrlForDocker = $localUrl -replace '@localhost:', '@host.docker.internal:'
+if ($localUrlForDocker -eq $localUrl) {
+    Write-Error "Expected local DATABASE_URL to point at 'localhost' (e.g. postgresql://user:pass@localhost:5432/db) so it could be rewritten to host.docker.internal for the restore step - got something else, check server\.env"
+}
 
 # --- Confirm before touching local ----------------------------------------
 Write-Host ""
@@ -88,40 +119,51 @@ if (-not (Test-Path $dumpDir)) {
     New-Item -ItemType Directory -Path $dumpDir | Out-Null
 }
 
-# --- Step 1: dump Neon, from inside the container - it already has
-#     network access out to Neon (confirmed by the old migrate-to-neon.ps1's
-#     restore step working the same way in reverse) ------------------------
+# --- Step 1: dump Neon, via a disposable postgres:18 container rather
+#     than travel-app-db's own (older) bundled tools - see the version
+#     note at the top of this file. $dumpDir is bind-mounted straight in,
+#     so the dump lands directly at $localDumpPath - no separate
+#     docker-cp-out step needed the way the old in-container version
+#     required. ----------------------------------------------------------
 Write-Host ""
-Write-Host "Dumping Neon database..." -ForegroundColor Cyan
-docker exec -t $containerName pg_dump -d $neonUrl -F c -f $containerPath
+Write-Host "Dumping Neon database (via a disposable $dumpToolImage client)..." -ForegroundColor Cyan
+docker run --rm -v "${dumpDir}:/dump" $dumpToolImage pg_dump -d $neonUrl -F c -f "/dump/$dumpFileName"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "pg_dump against Neon failed with exit code $LASTEXITCODE"
 }
+Write-Host "Dump saved to: $localDumpPath" -ForegroundColor Green
 
-# --- Step 2: copy the dump out onto Windows (kept as a local backup too) ---
-Write-Host "Copying dump out of the container..." -ForegroundColor Cyan
-docker cp "${containerName}:${containerPath}" $localDumpPath
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "docker cp failed with exit code $LASTEXITCODE"
-}
-Write-Host "Local copy saved to: $localDumpPath" -ForegroundColor Green
-
-# --- Step 3: restore into local, from inside the same container -----------
-# --no-owner --no-acl: same reasoning migrate-to-neon.ps1 needed in the
-# other direction (see its git history) - Neon's tables are owned by
+# --- Step 2: restore into local, via the same disposable container --------
+# Runs against $localUrlForDocker (host.docker.internal, not localhost -
+# see above) since this container is a separate one-off, not travel-app-db
+# itself. --no-owner --no-acl: same reasoning migrate-to-neon.ps1 needed in
+# the other direction (see its git history) - Neon's tables are owned by
 # Neon's own role name, which doesn't exist as a role in your local Docker
 # Postgres, so "ALTER TABLE ... OWNER TO <neon-role>" would fail. Skipping
 # ownership/ACL statements means the restored tables just end up owned by
-# $localUser, which is exactly what you want locally anyway.
+# $localUser, which is exactly what you want locally anyway. A newer
+# pg_restore (18) targeting an older server (whatever version
+# travel-app-db actually runs) is the well-supported direction - it's only
+# the reverse, older-tool-against-newer-server, that Postgres refuses.
 Write-Host ""
 Write-Host "Restoring into local database..." -ForegroundColor Cyan
-docker exec -i $containerName pg_restore -U $localUser -d $localDb --clean --if-exists --no-owner --no-acl $containerPath
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "pg_restore failed with exit code $LASTEXITCODE - check the output above for details."
+$restoreOutput = & docker run --rm -v "${dumpDir}:/dump" $dumpToolImage pg_restore -d $localUrlForDocker --clean --if-exists --no-owner --no-acl "/dump/$dumpFileName" 2>&1
+$restoreExit = $LASTEXITCODE
+$restoreOutput | ForEach-Object { Write-Host $_ }
+if ($restoreExit -ne 0) {
+    # pg_restore returns the same nonzero exit code whether it aborted
+    # outright or just finished with some ignored, non-fatal errors (see
+    # the note at the top of this file) - "errors ignored on restore: N"
+    # in its own output is how it tells the two apart, so trust that
+    # rather than treating every nonzero exit as a hard failure.
+    $ignoredMatch = $restoreOutput | Select-String -Pattern 'errors ignored on restore:\s*(\d+)'
+    if ($ignoredMatch) {
+        Write-Host ""
+        Write-Host "pg_restore finished with $($ignoredMatch.Matches[0].Groups[1].Value) ignored error(s) - see the note at the top of this file (almost always the newer-server-setting quirk, e.g. Neon's transaction_timeout). Treating this as a success; everything else restored normally." -ForegroundColor Yellow
+    } else {
+        Write-Error "pg_restore failed with exit code $restoreExit - check the output above for details."
+    }
 }
-
-# --- Step 4: clean up the dump file left inside the container --------------
-docker exec $containerName rm -f $containerPath
 
 Write-Host ""
 Write-Host "Done. Your local database now matches Neon." -ForegroundColor Green

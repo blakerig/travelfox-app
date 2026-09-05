@@ -1,0 +1,66 @@
+/* Small glance-map on the entry-detail screen - see the file comment in
+   EntryLocationMap.jsx for what this is/isn't. Local tokens match the
+   same oklch values used in EntryDetail.css/Neighbourhoods.css so this
+   reads as part of the same design system without depending on being
+   nested inside either of those scopes. */
+.entry-location-map {
+  --card: oklch(99% 0.004 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --muted: oklch(48% 0.02 150);
+  --g-500: oklch(58% 0.14 150);
+
+  position: relative;
+  width: 100%;
+  height: 160px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  /* MapLibre renders its canvas at 0x0 until it can read a real size from
+     this container, so it needs an explicit height above rather than
+     relying on aspect-ratio/flex to size it after the fact. */
+  margin-bottom: 16px;
+  background: var(--card);
+}
+
+/* Pin shape: the same rounded-square-rotated-45deg trick as
+   .neighbourhood-pin in Neighbourhoods.css, just without the interactive/
+   active states (no click handler, no label) since this map has exactly
+   one fixed pin and isn't tappable. */
+.entry-location-pin {
+  width: 22px;
+  height: 22px;
+}
+
+.entry-location-pin::before {
+  content: '';
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: 0 auto;
+  background: var(--g-500);
+  border: 2.5px solid var(--card);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 1px 4px rgba(20, 30, 25, 0.35);
+}
+
+/* Same attribution restyle as Neighbourhoods.css - required content
+   (MapTiler's license terms, not a UI default - see the comment in
+   EntryLocationMap.jsx), just made to look like it belongs to this app's
+   card language instead of MapLibre's stock grey box. */
+.entry-location-map .maplibregl-ctrl-attrib {
+  background: var(--card);
+  border-radius: 8px;
+  font-size: 9.5px;
+  color: var(--muted);
+  box-shadow: 0 1px 4px rgba(20, 30, 25, 0.15);
+}
+
+.entry-location-map .maplibregl-ctrl-attrib a {
+  color: var(--muted);
+}
+
+.entry-location-map .maplibregl-ctrl-attrib-button {
+  background-color: var(--card);
+  box-shadow: 0 1px 4px rgba(20, 30, 25, 0.15);
+}

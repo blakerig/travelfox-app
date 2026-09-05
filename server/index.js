@@ -64,6 +64,198 @@ app.post('/api/upload', upload.single('photo'), (req, res) => {
   stream.end(req.file.buffer);
 });
 
+// Real walking distance/duration for a set of candidate entries, via
+// OpenRouteService's Matrix API (foot-walking profile) - see "Real walking
+// distance/time (routing API)" in claude/todo.md. Kept server-side, same
+// reasoning as /api/upload's Cloudinary secret above: the ORS key never
+// reaches the browser. Unlike VITE_MAPTILER_KEY (safe client-side because
+// it's restricted by allowed HTTP origin), ORS keys aren't scoped that
+// way, so this proxies one Matrix call per request instead. The client
+// pre-filters candidates by cheap straight-line distance first (see
+// CategoryScreen.jsx) and sends only those - this endpoint caps the
+// request further regardless, as a sane ceiling independent of city size.
+// Uses Node's built-in fetch (stable since Node 18) rather than adding a
+// new dependency (axios/node-fetch) for one outbound call.
+//
+// Request: { origin: { latitude, longitude }, destinations: [{ id, latitude, longitude }, ...] }
+// Response: { results: [{ id, distanceMeters, durationSeconds }, ...] }
+//   - distanceMeters/durationSeconds are null for a destination ORS
+//     couldn't route to on foot at all (unreachable, or outside its
+//     search radius) - passed through as null rather than guessed at,
+//     same "don't claim precision you don't have" principle used
+//     throughout this app (see openingHours.js, the straight-line filter
+//     this replaces, etc.) - the client treats null the same as "doesn't
+//     match" a radius filter, never as zero distance.
+// Failure (missing key, ORS error, network error): a non-2xx response
+// with { error }. The client falls back to the straight-line filter it
+// already has, honestly re-labeled as straight-line again - it must NOT
+// silently show straight-line numbers under a "walking distance" label,
+// which would reintroduce the exact misleading-results problem this
+// endpoint exists to fix (see the "Suggested approach" note in
+// claude/todo.md).
+const MAX_MATRIX_DESTINATIONS = 50; // well under ORS's ~3,500-routes-per-request cap - just a sane ceiling for this app's current city sizes
+app.post('/api/walking-distances', async (req, res) => {
+  const { origin, destinations } = req.body ?? {};
+  if (
+    !origin ||
+    typeof origin.latitude !== 'number' ||
+    typeof origin.longitude !== 'number' ||
+    !Array.isArray(destinations) ||
+    destinations.length === 0
+  ) {
+    return res
+      .status(400)
+      .json({ error: 'origin (latitude, longitude) and a non-empty destinations array are required' });
+  }
+  if (!process.env.ORS_API_KEY) {
+    return res.status(503).json({ error: 'Walking-distance lookup is not configured (missing ORS_API_KEY)' });
+  }
+
+  const trimmed = destinations
+    .filter(
+      (d) => d && typeof d.latitude === 'number' && typeof d.longitude === 'number' && d.id != null
+    )
+    .slice(0, MAX_MATRIX_DESTINATIONS);
+  if (trimmed.length === 0) {
+    return res.status(400).json({ error: 'No valid destinations with coordinates' });
+  }
+
+  // ORS's Matrix API takes one combined locations array (lon/lat pairs,
+  // opposite order from how this app stores latitude/longitude) plus
+  // index lists for which are sources vs destinations - index 0 is the
+  // origin here, 1..n are the candidates in `trimmed`'s order.
+  const locations = [
+    [origin.longitude, origin.latitude],
+    ...trimmed.map((d) => [d.longitude, d.latitude]),
+  ];
+  const destinationIndices = trimmed.map((_, i) => i + 1);
+
+  try {
+    const orsRes = await fetch('https://api.openrouteservice.org/v2/matrix/foot-walking', {
+      method: 'POST',
+      headers: {
+        Authorization: process.env.ORS_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        locations,
+        sources: [0],
+        destinations: destinationIndices,
+        metrics: ['distance', 'duration'],
+        units: 'm',
+      }),
+    });
+
+    if (!orsRes.ok) {
+      const body = await orsRes.text();
+      console.error('OpenRouteService Matrix request failed:', orsRes.status, body);
+      return res.status(502).json({ error: 'Walking-distance lookup failed' });
+    }
+
+    const data = await orsRes.json();
+    const distances = data.distances?.[0] ?? [];
+    const durations = data.durations?.[0] ?? [];
+
+    const results = trimmed.map((d, i) => ({
+      id: d.id,
+      distanceMeters: distances[i] ?? null,
+      durationSeconds: durations[i] ?? null,
+    }));
+
+    res.json({ results });
+  } catch (err) {
+    console.error('OpenRouteService Matrix request errored:', err);
+    res.status(502).json({ error: 'Walking-distance lookup failed' });
+  }
+});
+
+// Geocoding for the entry editor's address field (2026-09-05) - see
+// "Automate lat/long lookup" in claude/todo.md, built here as a live
+// in-form lookup rather than a batch script. Kept server-side for a
+// different reason than /api/upload's Cloudinary secret or
+// /api/walking-distances' ORS key above: this one *does* need a secret
+// (LOCATIONIQ_API_KEY below) - it just also happens to be true that
+// browsers block JS from setting a custom User-Agent, which is what
+// originally justified doing this server-side. Both reasons hold now.
+//
+// Was a direct call to Nominatim (OpenStreetMap's own free search, no key
+// required) until 2026-09-05, when a real address came back "not found"
+// and turned out to actually be Nominatim's edge/bot-mitigation layer
+// rejecting the request outright (plain-text "Access denied" body) -
+// confirmed by re-running the exact same query with only the User-Agent
+// changed to something browser-shaped, which went through fine. Nominatim's
+// own usage policy asks for a server-side request carrying an identifying
+// User-Agent (what the removed GEOCODE_CONTACT env var fed into), which is
+// exactly what makes it look like a bot to their CDN - the policy and the
+// bot mitigation pull in opposite directions, and spoofing a browser UA to
+// get past it felt like the wrong way to "fix" this, especially server-side
+// where it'd be doing that on every lookup rather than a one-off.
+//
+// LocationIQ runs the same Nominatim search over the same OSM data, but as
+// an actual API product meant for server-side/programmatic traffic (free
+// tier, ~5k requests/day) - same OSM-based approach the project already
+// leans on (see the photo-hosting and lat/long items in claude/todo.md),
+// just through a front door built for this instead of the community's
+// public instance. Sign up at https://locationiq.com, paste the key into
+// LOCATIONIQ_API_KEY in server/.env.
+//
+// Query: GET /api/geocode?q=<free text - ideally name + address + city,
+//   which tends to land on the actual building/POI more often than the
+//   address alone - see the "Suggested approach" reasoning in
+//   claude/todo.md for why address-only geocoding can interpolate along a
+//   street rather than hit the real entrance>
+// Response: { found: true, latitude, longitude, displayName } on a match,
+//   or { found: false } when LocationIQ has nothing for the query - a real
+//   "nothing there" answer, not an error, same "don't guess" principle
+//   used throughout this app for opening hours/distance.
+// Failure (network error, missing/invalid key, LocationIQ error): non-2xx
+//   with { error }.
+const LOCATIONIQ_API_KEY = process.env.LOCATIONIQ_API_KEY;
+app.get('/api/geocode', async (req, res) => {
+  const q = (req.query.q ?? '').toString().trim();
+  if (!q) {
+    return res.status(400).json({ error: 'Query parameter "q" is required' });
+  }
+  if (!LOCATIONIQ_API_KEY) {
+    console.error('Geocode lookup requested but LOCATIONIQ_API_KEY is not configured (see server/.env)');
+    return res.status(502).json({ error: 'Geocoding is not configured on the server' });
+  }
+
+  try {
+    const url = `https://us1.locationiq.com/v1/search?key=${LOCATIONIQ_API_KEY}&format=json&limit=1&q=${encodeURIComponent(q)}`;
+    const locationIqRes = await fetch(url);
+
+    if (locationIqRes.status === 404) {
+      // LocationIQ answers a genuine no-match with 404 + a JSON
+      // { error: 'Unable to geocode' } body, unlike Nominatim's 200 + [] -
+      // this is that same "nothing there" case, not a failure.
+      return res.json({ found: false });
+    }
+
+    if (!locationIqRes.ok) {
+      const body = await locationIqRes.text();
+      console.error('LocationIQ geocode request failed:', locationIqRes.status, body);
+      return res.status(502).json({ error: 'Geocoding lookup failed' });
+    }
+
+    const results = await locationIqRes.json();
+    if (!Array.isArray(results) || results.length === 0) {
+      return res.json({ found: false });
+    }
+
+    const best = results[0];
+    res.json({
+      found: true,
+      latitude: parseFloat(best.lat),
+      longitude: parseFloat(best.lon),
+      displayName: best.display_name,
+    });
+  } catch (err) {
+    console.error('LocationIQ geocode request errored:', err);
+    res.status(502).json({ error: 'Geocoding lookup failed' });
+  }
+});
+
 app.get('/api/cities', async (req, res) => {
   // include country so the client has currencyName/currencySymbol (and
   // country name) without a second round-trip - see Country model in
@@ -146,13 +338,22 @@ app.get('/api/entries/:id', async (req, res) => {
 // doesn't get called until the user actually hits Save there, so there's no
 // window where a half-empty stub entry exists in the database.
 app.post('/api/entries', async (req, res) => {
-  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, notes, activityTypeId } = req.body;
+  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, notes, activityTypeId, address, latitude, longitude } = req.body;
 
   if (!cityId || !categoryId) {
     return res.status(400).json({ error: 'cityId and categoryId are required' });
   }
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name cannot be empty' });
+  }
+  // latitude/longitude are independent nullable Floats in the schema, but
+  // one without the other isn't a usable coordinate - reject rather than
+  // silently storing a half pair (see EntryEditor.jsx's address/coordinate
+  // fields, added 2026-09-05 alongside the geocode-lookup feature above).
+  const hasLat = latitude !== undefined && latitude !== null && latitude !== '';
+  const hasLng = longitude !== undefined && longitude !== null && longitude !== '';
+  if (hasLat !== hasLng) {
+    return res.status(400).json({ error: 'latitude and longitude must be provided together' });
   }
 
   try {
@@ -167,6 +368,9 @@ app.post('/api/entries', async (req, res) => {
         openingTimes: openingTimes || null,
         photoUrl: photoUrl || null,
         notes: notes || null,
+        address: address || null,
+        latitude: hasLat ? Number(latitude) : null,
+        longitude: hasLng ? Number(longitude) : null,
         city: { connect: { id: Number(cityId) } },
         category: { connect: { id: Number(categoryId) } },
         // Optional - only sent by EntryEditor.jsx when "+ Add provider" was
@@ -186,13 +390,16 @@ app.post('/api/entries', async (req, res) => {
   }
 });
 
-// Text-only edit for an existing entry (name/summary/description). Scoped
-// deliberately to these three String fields for now - editing city,
-// category, location, price, or rating still goes through Prisma Studio.
-// See project notes if/when this needs to grow into a full editor.
+// Edit for an existing entry. Originally text-only (name/summary/
+// description, etc.) with city/category/location/price/rating deliberately
+// left to Prisma Studio - address/latitude/longitude joined the editable
+// set 2026-09-05 alongside the address-to-coordinates geocode-lookup
+// feature (see EntryEditor.jsx and GET /api/geocode above); city/category/
+// price/rating still go through Prisma Studio. See project notes if/when
+// this needs to grow into a full editor.
 app.patch('/api/entries/:id', async (req, res) => {
   const id = Number(req.params.id);
-  const { name, summary, description, types, phone, website, openingTimes, photoUrl, notes } = req.body;
+  const { name, summary, description, types, phone, website, openingTimes, photoUrl, notes, address, latitude, longitude } = req.body;
 
   const data = {};
   if (name !== undefined) {
@@ -209,6 +416,17 @@ app.patch('/api/entries/:id', async (req, res) => {
   if (openingTimes !== undefined) data.openingTimes = openingTimes === '' ? null : openingTimes;
   if (photoUrl !== undefined) data.photoUrl = photoUrl === '' ? null : photoUrl;
   if (notes !== undefined) data.notes = notes === '' ? null : notes;
+  if (address !== undefined) data.address = address === '' ? null : address;
+  // Same "must be provided together" rule as POST /api/entries above.
+  if (latitude !== undefined || longitude !== undefined) {
+    const hasLat = latitude !== undefined && latitude !== null && latitude !== '';
+    const hasLng = longitude !== undefined && longitude !== null && longitude !== '';
+    if (hasLat !== hasLng) {
+      return res.status(400).json({ error: 'latitude and longitude must be provided together' });
+    }
+    data.latitude = hasLat ? Number(latitude) : null;
+    data.longitude = hasLng ? Number(longitude) : null;
+  }
 
   try {
     const entry = await prisma.entry.update({
