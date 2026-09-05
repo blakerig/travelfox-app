@@ -3,11 +3,16 @@
    same oklch values used in EntryDetail.css/Neighbourhoods.css so this
    reads as part of the same design system without depending on being
    nested inside either of those scopes. */
-.entry-location-map {
+.entry-location-map-frame {
   --card: oklch(99% 0.004 150);
   --line: oklch(70% 0.02 150 / 0.3);
   --muted: oklch(48% 0.02 150);
   --g-500: oklch(58% 0.14 150);
+  /* Distinct hue from --g-500 on purpose - the "you are here" dot needs
+     to read as a different kind of marker from the entry's own pin at a
+     glance, same convention most map UIs use (a blue "you" dot vs. a
+     colored place pin). */
+  --user-blue: oklch(58% 0.19 255);
 
   position: relative;
   width: 100%;
@@ -15,17 +20,22 @@
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid var(--line);
-  /* MapLibre renders its canvas at 0x0 until it can read a real size from
-     this container, so it needs an explicit height above rather than
-     relying on aspect-ratio/flex to size it after the fact. */
   margin-bottom: 16px;
   background: var(--card);
+}
+
+.entry-location-map {
+  width: 100%;
+  height: 100%;
+  /* MapLibre renders its canvas at 0x0 until it can read a real size from
+     this container, so it needs an explicit height above (via the frame)
+     rather than relying on aspect-ratio/flex to size it after the fact. */
 }
 
 /* Pin shape: the same rounded-square-rotated-45deg trick as
    .neighbourhood-pin in Neighbourhoods.css, just without the interactive/
    active states (no click handler, no label) since this map has exactly
-   one fixed pin and isn't tappable. */
+   one fixed entry pin and isn't tappable. */
 .entry-location-pin {
   width: 22px;
   height: 22px;
@@ -44,11 +54,66 @@
   box-shadow: 0 1px 4px rgba(20, 30, 25, 0.35);
 }
 
+/* "You are here" marker - a plain dot rather than the entry's teardrop
+   pin shape, deliberately (see the --user-blue comment above): it needs
+   to be unmistakably a different kind of point on first glance, not just
+   a different color of the same shape. */
+.entry-location-user-pin {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--user-blue);
+  border: 2.5px solid var(--card);
+  box-shadow: 0 1px 4px rgba(20, 30, 25, 0.35);
+}
+
+/* "Show my location" control - bottom-left, mirroring the attribution
+   control's compact bottom-right placement so neither crowds the other.
+   Covers the not-asked/loading/declined/too-far states; hidden entirely
+   once a usable "you are here" pin is on the map (see EntryLocationMap.jsx). */
+.entry-location-locate {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 1;
+}
+
+.entry-location-locate-btn {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--user-blue);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 10px;
+  box-shadow: 0 1px 4px rgba(20, 30, 25, 0.15);
+  cursor: pointer;
+}
+
+.entry-location-locate-btn:hover {
+  background: oklch(96% 0.01 150);
+}
+
+/* Loading/declined/too-far messages - same pill shape as the button so
+   the control doesn't visibly jump between states, but not a button
+   (nothing to tap once declined or already resolved as too far). */
+.entry-location-locate-status {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 10px;
+  box-shadow: 0 1px 4px rgba(20, 30, 25, 0.15);
+}
+
 /* Same attribution restyle as Neighbourhoods.css - required content
    (MapTiler's license terms, not a UI default - see the comment in
    EntryLocationMap.jsx), just made to look like it belongs to this app's
    card language instead of MapLibre's stock grey box. */
-.entry-location-map .maplibregl-ctrl-attrib {
+.entry-location-map-frame .maplibregl-ctrl-attrib {
   background: var(--card);
   border-radius: 8px;
   font-size: 9.5px;
@@ -56,11 +121,11 @@
   box-shadow: 0 1px 4px rgba(20, 30, 25, 0.15);
 }
 
-.entry-location-map .maplibregl-ctrl-attrib a {
+.entry-location-map-frame .maplibregl-ctrl-attrib a {
   color: var(--muted);
 }
 
-.entry-location-map .maplibregl-ctrl-attrib-button {
+.entry-location-map-frame .maplibregl-ctrl-attrib-button {
   background-color: var(--card);
   box-shadow: 0 1px 4px rgba(20, 30, 25, 0.15);
 }
