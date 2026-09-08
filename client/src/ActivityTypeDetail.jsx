@@ -7,6 +7,7 @@ import './ActivityTypeDetail.css';
 import { getCategoryConfig } from './categoryConfig.js';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
+import { useAuth } from './auth-context.js';
 import EntryCard from './EntryCard.jsx';
 
 // Detail screen for one ActivityType (e.g. "Laser Tag", "Padel") - reached
@@ -33,6 +34,7 @@ function ActivityTypeDetail() {
   const config = getCategoryConfig(slug);
   const { city } = useCity();
   const { cityData, cityDataReady } = useCityData();
+  const { isAuthenticated } = useAuth();
   const currencySymbol = city?.country?.currencySymbol || '$';
 
   // Read straight out of the current city's cache first (see
@@ -86,7 +88,7 @@ function ActivityTypeDetail() {
         <Link to={`/category/${slug}`} className="activity-type-detail-back" aria-label="Back">
           &larr;
         </Link>
-        {activityType && (
+        {activityType && isAuthenticated && (
           <Link
             to={`/category/${slug}/entry/new/edit?activityTypeId=${activityType.id}`}
             className="activity-type-detail-add"

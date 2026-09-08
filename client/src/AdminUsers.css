@@ -1,0 +1,146 @@
+.admin-users {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: 32px;
+}
+
+.admin-users-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 8px;
+}
+
+.admin-users-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.admin-users-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.admin-users-status {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.admin-users-link {
+  color: var(--g-600);
+  font-weight: 600;
+}
+
+.admin-users-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-users-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.admin-users-email {
+  font-size: 14px;
+}
+
+.admin-users-role {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.admin-users-form {
+  margin: 20px 20px 0;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-users-form-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.admin-users-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-users-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.admin-users-input {
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.admin-users-error {
+  font-size: 13px;
+  color: oklch(50% 0.18 25);
+  background: oklch(96% 0.03 25);
+  border: 1px solid oklch(80% 0.08 25);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0 20px;
+}
+
+.admin-users-submit {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--g-600);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.admin-users-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

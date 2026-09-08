@@ -18,6 +18,38 @@ generator client {
 // each City repeating (and risking drift on) the same currencyName/
 // currencySymbol. Also replaces the old free-text City.country String,
 // which had no consistency guarantee across rows (e.g. "Spain" vs "spain").
+// Roles for team accounts - Admin manages users and has full Editor
+// capabilities; Editor can edit and publish any entry; Creator can create
+// and edit entries but can never set status to PUBLISHED (enforced
+// server-side, not just hidden in the UI). See claude/todo.md.
+enum Role {
+  ADMIN
+  EDITOR
+  CREATOR
+}
+
+// Entry.status below - Draft is the safe default (new entries start
+// invisible on the public site); Awaiting Review is optional (a creator
+// can flag a draft as ready, but editors/admins can publish straight from
+// Draft too - review isn't a hard gate for them). Only PUBLISHED entries
+// are ever returned to an unauthenticated request.
+enum EntryStatus {
+  DRAFT
+  AWAITING_REVIEW
+  PUBLISHED
+}
+
+// A team account (admin/editor/creator), not a consumer user account -
+// see claude/todo.md's "User accounts / login" items for the separate
+// (and deliberately deferred) consumer-facing login discussion.
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime @default(now())
+}
+
 model Country {
   id             Int     @id @default(autoincrement())
   name           String  @unique
@@ -268,6 +300,14 @@ model Entry {
   // claude/todo.md/dev-workflow.md), not a hard privacy boundary.
   notes          String?
   rating         Float?
+  // Publish workflow (added 2026-09-08) - DRAFT is the real DB-level
+  // default so any code path that forgets to set this explicitly fails
+  // safe (invisible) rather than silently going live. The migration that
+  // introduces this column backfills every pre-existing row to PUBLISHED
+  // in the same step - see that migration's .sql for the one-time UPDATE.
+  // Server-side enforced, not just hidden in the client: POST/PATCH
+  // /api/entries rejects a CREATOR trying to set this to PUBLISHED.
+  status         EntryStatus   @default(DRAFT)
   city           City          @relation(fields: [cityId], references: [id])
   cityId         Int
   category       Category      @relation(fields: [categoryId], references: [id])

@@ -7,6 +7,7 @@ const { PrismaClient } = require('@prisma/client');
 
 const app = express();
 const prisma = new PrismaClient();
+const { hashPassword, verifyPassword, signToken, optionalAuth, requireAuth, requireRole } = require('./auth');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -40,13 +41,72 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Best-effort auth: attaches req.user when a valid team-account token is
+// present, but never blocks the request - lets the same GET endpoints
+// serve both the public site (req.user undefined) and the team's own
+// editing UI (req.user set). See claude/todo.md's "Draft visibility"
+// decision.
+app.use(optionalAuth);
+
+// Login for team accounts (admin/editor/creator) - not the consumer-
+// facing login discussed separately in claude/todo.md. Returns a JWT the
+// client sends back as `Authorization: Bearer <token>` on every
+// subsequent request.
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    // Same message either way - don't reveal whether the email exists.
+    return res.status(401).json({ error: 'Incorrect email or password' });
+  }
+  const token = signToken(user);
+  res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
+});
+
+// Create a team account - admin only. The very first admin can't be
+// created through this endpoint (nothing exists yet to grant it) - see
+// server/create-admin.js for that one-time bootstrap step.
+app.post('/api/users', requireAuth, requireRole('ADMIN'), async (req, res) => {
+  const { email, password, role } = req.body;
+  if (!email || !password || !role) {
+    return res.status(400).json({ error: 'email, password, and role are required' });
+  }
+  if (!['ADMIN', 'EDITOR', 'CREATOR'].includes(role)) {
+    return res.status(400).json({ error: 'role must be ADMIN, EDITOR, or CREATOR' });
+  }
+  try {
+    const user = await prisma.user.create({
+      data: { email, passwordHash: await hashPassword(password), role },
+    });
+    res.status(201).json({ id: user.id, email: user.email, role: user.role, createdAt: user.createdAt });
+  } catch (err) {
+    if (err.code === 'P2002') {
+      return res.status(409).json({ error: 'A user with that email already exists' });
+    }
+    console.error('Failed to create user:', err);
+    res.status(500).json({ error: 'Failed to create user' });
+  }
+});
+
+// List team accounts - admin only, for the admin user-management screen.
+app.get('/api/users', requireAuth, requireRole('ADMIN'), async (req, res) => {
+  const users = await prisma.user.findMany({
+    select: { id: true, email: true, role: true, createdAt: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  res.json(users);
+});
+
 // Uploads a single image to Cloudinary and returns its URL. Decoupled from
 // the entry create/update endpoints on purpose: the client uploads the file
 // here first, gets back a URL, then sends that URL as a normal string field
 // (`photoUrl`) alongside name/summary/etc - the entry endpoints never see
 // raw file data. See claude/todo.md for the hosting-provider decision
 // (2026-08-29: Cloudinary, free tier).
-app.post('/api/upload', upload.single('photo'), (req, res) => {
+app.post('/api/upload', requireAuth, upload.single('photo'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
@@ -270,7 +330,7 @@ app.get('/api/cities', async (req, res) => {
 // same reasoning as the entries PATCH above - name/latitude/longitude/
 // countryId still go through Studio, since there's no in-app UI for those
 // yet either. Extend this (and the client form) if that changes.
-app.patch('/api/cities/:id', async (req, res) => {
+app.patch('/api/cities/:id', requireAuth, requireRole('EDITOR', 'ADMIN'), async (req, res) => {
   const id = Number(req.params.id);
   const { photoUrl } = req.body;
 
@@ -303,6 +363,12 @@ app.get('/api/cities/:cityId/entries', async (req, res) => {
   if (category) {
     where.category = { slug: category };
   }
+  // Anonymous (public-site) callers only ever see published content;
+  // any logged-in team role sees every status - see claude/todo.md's
+  // "Draft visibility" decision.
+  if (!req.user) {
+    where.status = 'PUBLISHED';
+  }
 
   const entries = await prisma.entry.findMany({
     where,
@@ -326,7 +392,10 @@ app.get('/api/entries/:id', async (req, res) => {
     // for every entry outside Activities.
     include: { category: true, activityType: true },
   });
-  if (!entry) {
+  // Treat a non-published entry as not-found for anonymous callers, same
+  // as a genuinely missing id - never leak draft/awaiting-review content
+  // via a guessed/bookmarked url. Logged-in team roles see every status.
+  if (!entry || (entry.status !== 'PUBLISHED' && !req.user)) {
     return res.status(404).json({ error: 'Entry not found' });
   }
   res.json(entry);
@@ -337,8 +406,8 @@ app.get('/api/entries/:id', async (req, res) => {
 // name/summary/description come later via the editor form - this endpoint
 // doesn't get called until the user actually hits Save there, so there's no
 // window where a half-empty stub entry exists in the database.
-app.post('/api/entries', async (req, res) => {
-  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, notes, activityTypeId, address, latitude, longitude } = req.body;
+app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
+  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, notes, activityTypeId, address, latitude, longitude, status } = req.body;
 
   if (!cityId || !categoryId) {
     return res.status(400).json({ error: 'cityId and categoryId are required' });
@@ -356,10 +425,28 @@ app.post('/api/entries', async (req, res) => {
     return res.status(400).json({ error: 'latitude and longitude must be provided together' });
   }
 
+  // A creator can only ever produce Draft/Awaiting Review content - status
+  // is never trusted from the client for that role, whatever's sent.
+  // Editor/admin can set any status, including publishing directly (no
+  // forced review step - see claude/todo.md's "Editors can skip review"
+  // decision).
+  const ALLOWED_STATUSES = ['DRAFT', 'AWAITING_REVIEW', 'PUBLISHED'];
+  let resolvedStatus = 'DRAFT';
+  if (status !== undefined) {
+    if (!ALLOWED_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    if (req.user.role === 'CREATOR' && status === 'PUBLISHED') {
+      return res.status(403).json({ error: 'Creators cannot publish entries' });
+    }
+    resolvedStatus = status;
+  }
+
   try {
     const entry = await prisma.entry.create({
       data: {
         name,
+        status: resolvedStatus,
         summary: summary || null,
         description: description || null,
         types: Array.isArray(types) ? types : [],
@@ -398,9 +485,9 @@ app.post('/api/entries', async (req, res) => {
 // feature (see EntryEditor.jsx and GET /api/geocode above); city/category/
 // price/rating still go through Prisma Studio. See project notes if/when
 // this needs to grow into a full editor.
-app.patch('/api/entries/:id', async (req, res) => {
+app.patch('/api/entries/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, notes, address, latitude, longitude } = req.body;
+  const { name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, notes, address, latitude, longitude, status } = req.body;
 
   const data = {};
   if (name !== undefined) {
@@ -419,6 +506,16 @@ app.patch('/api/entries/:id', async (req, res) => {
   if (priceInfo !== undefined) data.priceInfo = priceInfo === '' ? null : priceInfo;
   if (notes !== undefined) data.notes = notes === '' ? null : notes;
   if (address !== undefined) data.address = address === '' ? null : address;
+  if (status !== undefined) {
+    const ALLOWED_STATUSES = ['DRAFT', 'AWAITING_REVIEW', 'PUBLISHED'];
+    if (!ALLOWED_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    if (req.user.role === 'CREATOR' && status === 'PUBLISHED') {
+      return res.status(403).json({ error: 'Creators cannot publish entries' });
+    }
+    data.status = status;
+  }
   // Same "must be provided together" rule as POST /api/entries above.
   if (latitude !== undefined || longitude !== undefined) {
     const hasLat = latitude !== undefined && latitude !== null && latitude !== '';
@@ -458,7 +555,10 @@ app.get('/api/cities/:cityId/activity-types', async (req, res) => {
   const activityTypes = await prisma.activityType.findMany({
     where: { cityId },
     include: {
-      entries: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
+      entries: {
+        where: req.user ? {} : { status: 'PUBLISHED' },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      },
     },
     orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
   });
@@ -474,7 +574,10 @@ app.get('/api/activity-types/:id', async (req, res) => {
   const activityType = await prisma.activityType.findUnique({
     where: { id },
     include: {
-      entries: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
+      entries: {
+        where: req.user ? {} : { status: 'PUBLISHED' },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      },
     },
   });
   if (!activityType) {
@@ -494,7 +597,7 @@ app.get('/api/categories', async (req, res) => {
 app.get('/api/cities/:cityId/home-categories', async (req, res) => {
   const cityId = Number(req.params.cityId);
   const categories = await prisma.category.findMany({
-    where: { entries: { some: { cityId } } },
+    where: { entries: { some: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) } } },
   });
 
   // Activities also counts as having content if this city has at least one
@@ -603,7 +706,7 @@ app.get('/api/cities/:cityId/search', async (req, res) => {
 
   const [entries, activityTypes] = await Promise.all([
     prisma.entry.findMany({
-      where: { cityId },
+      where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
       include: { category: true },
     }),
     prisma.activityType.findMany({
@@ -612,7 +715,12 @@ app.get('/api/cities/:cityId/search', async (req, res) => {
       // a "N providers" count on the group card (see EntryCard.jsx's
       // 'group' variant), without pulling every provider field along for
       // the ride.
-      include: { entries: { select: { id: true } } },
+      include: {
+        entries: {
+          where: req.user ? {} : { status: 'PUBLISHED' },
+          select: { id: true },
+        },
+      },
     }),
   ]);
 

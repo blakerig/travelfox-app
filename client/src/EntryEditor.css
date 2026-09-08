@@ -165,6 +165,15 @@
   margin: 0;
 }
 
+.entry-editor-status-readonly {
+  font-size: 14.5px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
 .entry-editor-error {
   font-size: 13px;
   color: oklch(50% 0.18 25);

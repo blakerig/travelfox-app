@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCity } from './city-context.js';
 import { CityDataContext } from './city-data-context.js';
+import { authHeaders } from './auth.js';
 
 // How long a cached city bundle is trusted before a background refresh is
 // worth kicking off again for it - see the visibilitychange effect below.
@@ -40,10 +41,15 @@ function writeCachedBundle(cityId, bundle) {
 // whole point here is one fetch per city, not one per category.
 async function fetchCityBundle(cityId) {
   const base = import.meta.env.VITE_API_URL;
+  // Sends the team-account token (when logged in) so a staff member sees
+  // every entry status, not just published - see the status filtering in
+  // server/index.js and claude/todo.md's "Draft visibility" decision.
+  // Harmless no-op header set for an anonymous/public visitor.
+  const headers = authHeaders();
   const [entries, activityTypes, homeCategories, neighbourhoods] = await Promise.all([
-    fetch(`${base}/api/cities/${cityId}/entries`).then((res) => res.json()),
-    fetch(`${base}/api/cities/${cityId}/activity-types`).then((res) => res.json()),
-    fetch(`${base}/api/cities/${cityId}/home-categories`).then((res) => res.json()),
+    fetch(`${base}/api/cities/${cityId}/entries`, { headers }).then((res) => res.json()),
+    fetch(`${base}/api/cities/${cityId}/activity-types`, { headers }).then((res) => res.json()),
+    fetch(`${base}/api/cities/${cityId}/home-categories`, { headers }).then((res) => res.json()),
     fetch(`${base}/api/cities/${cityId}/neighbourhoods`).then((res) => res.json()),
   ]);
   return {

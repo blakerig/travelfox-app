@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import './CategoryScreen.css';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
+import { useAuth } from './auth-context.js';
 import { getCategoryConfig } from './categoryConfig.js';
 import EntryCard from './EntryCard.jsx';
 import { haversineDistanceKm, formatDistanceKm } from './geo.js';
@@ -199,6 +200,7 @@ function loadScrollY(key) {
 function CategoryScreen() {
   const { slug } = useParams();
   const { city, loading: cityLoading } = useCity();
+  const { isAuthenticated } = useAuth();
   const { cityData } = useCityData();
   const config = getCategoryConfig(slug);
   const key = city ? `${city.id}:${slug}` : null;
@@ -512,7 +514,10 @@ function CategoryScreen() {
             schema.prisma). Adding a new *provider* within an existing type
             is still done in-app, via "+ Add provider" on
             ActivityTypeDetail.jsx. */}
-        {!config.groupedByType && (
+        {/* Only a logged-in team member ever sees "+ Add" - not just
+            visually hidden, this is the only place the link is rendered
+            at all for a public visitor. See claude/todo.md. */}
+        {!config.groupedByType && isAuthenticated && (
           <Link to={`/category/${slug}/entry/new/edit`} className="category-screen-add">
             + Add
           </Link>
@@ -728,7 +733,7 @@ function CategoryScreen() {
                 showOpenStatus={config.cardShowOpenStatus ?? false}
                 timezone={city?.timezone}
                 expandable
-                editHref={`/category/${slug}/entry/${item.id}/edit`}
+                editHref={isAuthenticated ? `/category/${slug}/entry/${item.id}/edit` : undefined}
               />
             ) : (
               <Link

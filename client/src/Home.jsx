@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import './Home.css';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
+import { useAuth } from './auth-context.js';
 import CityPicker from './CityPicker.jsx';
 import heroPlaceholder from './assets/home-hero-placeholder.jpg';
 import { getCityPhotoUrl } from './cloudinaryUrl.js';
@@ -31,6 +32,8 @@ const CATEGORY_DISPLAY = [
 function Home() {
   const { city } = useCity();
   const { cityData } = useCityData();
+  const { user, isAuthenticated, logout } = useAuth();
+  const canEditCity = isAuthenticated && (user.role === 'EDITOR' || user.role === 'ADMIN');
   const location = useLocation();
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -66,7 +69,20 @@ function Home() {
           />
         )}
         <div className="home-hero-gradient" />
-        {city && (
+        {/* Only ever rendered for someone already logged in as staff - a
+            public visitor is never authenticated, so this never appears
+            for them. Not a discoverable "Log in" entry point on purpose,
+            see claude/todo.md's "Login entry point" discussion - staff
+            reach /admin directly. */}
+        {isAuthenticated && (
+          <button type="button" className="home-hero-logout" onClick={logout}>
+            Log out ({user.email})
+          </button>
+        )}
+        {/* Editor/admin only, matching CityEditor.jsx's own restriction -
+            no point showing a creator a link they'd just be redirected
+            away from. Never rendered at all for a public visitor. */}
+        {city && canEditCity && (
           <Link
             to={`/city/${city.id}/edit`}
             className="home-hero-edit"

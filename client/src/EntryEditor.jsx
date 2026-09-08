@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import { markdownComponents } from './markdownComponents.jsx';
@@ -7,6 +7,8 @@ import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import { geocodeAddress } from './geocode.js';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
+import { useAuth } from './auth-context.js';
+import { authHeaders } from './auth.js';
 import './EntryEditor.css';
 
 // Text-only editor for an entry: name, summary, types, phone, website,
@@ -46,6 +48,8 @@ function EntryEditor() {
   const isCreate = entryId === 'new';
   const { city, loading: cityLoading } = useCity();
   const { cityData, cityDataReady, ensureCategories, upsertEntry } = useCityData();
+  const { user, isAuthenticated } = useAuth();
+  const canPublish = isAuthenticated && (user.role === 'EDITOR' || user.role === 'ADMIN');
 
   // Create mode only, and only reached from ActivityTypeDetail's "+ Add
   // provider" link (?activityTypeId=<id> in the URL) - links this new
@@ -108,6 +112,11 @@ function EntryEditor() {
   // state (see handleAddressLookup - coordinates that already had a value
   // before a lookup are never overwritten silently, so a fresh result
   // shows as an accept/dismiss suggestion instead of replacing them).
+  // Publish workflow (2026-09-08) - see EntryStatus in schema.prisma.
+  // Creators can only ever save as Draft/Awaiting Review; the Published
+  // option only renders for editor/admin roles (canPublish above), and the
+  // server rejects it from a creator regardless of what the client sends.
+  const [status, setStatus] = useState('DRAFT');
   const [address, setAddress] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
@@ -138,6 +147,7 @@ function EntryEditor() {
     setDescription('');
     setDescTab('write');
     setNotes('');
+    setStatus('DRAFT');
     setPhotoUrl('');
     setPhotoError(null);
     setAddress('');
@@ -172,6 +182,7 @@ function EntryEditor() {
       setPriceInfo(data.priceInfo ?? '');
       setDescription(data.description ?? '');
       setNotes(data.notes ?? '');
+      setStatus(data.status ?? 'DRAFT');
       setPhotoUrl(data.photoUrl ?? '');
       setAddress(data.address ?? '');
       setLatitude(data.latitude != null ? String(data.latitude) : '');
@@ -187,7 +198,7 @@ function EntryEditor() {
     }
     if (!cityDataReady) return;
 
-    fetch(`${import.meta.env.VITE_API_URL}/api/entries/${entryId}`)
+    fetch(`${import.meta.env.VITE_API_URL}/api/entries/${entryId}`, { headers: authHeaders() })
       .then((res) => {
         if (res.status === 404) {
           setNotFound(true);
@@ -236,6 +247,7 @@ function EntryEditor() {
 
     fetch(`${import.meta.env.VITE_API_URL}/api/upload`, {
       method: 'POST',
+      headers: authHeaders(),
       body: formData,
     })
       .then((res) => {
@@ -318,11 +330,12 @@ function EntryEditor() {
     const request = isCreate
       ? fetch(`${import.meta.env.VITE_API_URL}/api/entries`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({
             cityId: city.id,
             categoryId,
             name,
+            status,
             summary,
             types: parseTypesInput(typesInput),
             phone,
@@ -340,9 +353,15 @@ function EntryEditor() {
         })
       : fetch(`${import.meta.env.VITE_API_URL}/api/entries/${entryId}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({
             name,
+            // Omitted (not just re-sent as PUBLISHED) when a creator is
+            // looking at an already-published entry they can't touch the
+            // status of - see the read-only display below. Sending it
+            // back unchanged would still trip the server's creator-can't-
+            // publish check and block the rest of the save too.
+            status: canPublish || status !== 'PUBLISHED' ? status : undefined,
             summary,
             types: parseTypesInput(typesInput),
             phone,
@@ -376,6 +395,14 @@ function EntryEditor() {
         setError('Could not save - check the server is running and try again.');
       })
       .finally(() => setSaving(false));
+  }
+
+  // Not just visually hidden - a logged-out visitor never sees this
+  // screen's markup at all, whatever url they land on it with. Placed
+  // after every hook above so hook-call order never changes between
+  // renders. See claude/todo.md.
+  if (!isAuthenticated) {
+    return <Navigate to="/admin" replace />;
   }
 
   const cancelTo = isCreate
@@ -415,6 +442,30 @@ function EntryEditor() {
               autoFocus={isCreate}
             />
           </label>
+
+          <div className="entry-editor-field">
+            <span className="entry-editor-label">Status</span>
+            {!canPublish && status === 'PUBLISHED' ? (
+              <div className="entry-editor-status-readonly">
+                Published — only an editor can change this.
+              </div>
+            ) : (
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="entry-editor-input"
+              >
+                <option value="DRAFT">Draft</option>
+                <option value="AWAITING_REVIEW">Awaiting Review</option>
+                {canPublish && <option value="PUBLISHED">Published</option>}
+              </select>
+            )}
+            <p className="entry-editor-hint">
+              {canPublish
+                ? 'Only Published entries show in the app.'
+                : 'Flag this as Awaiting Review once it\'s ready for an editor to look at - only an editor can publish it.'}
+            </p>
+          </div>
 
           <label className="entry-editor-field">
             <span className="entry-editor-label">Summary (optional - shown on the card)</span>

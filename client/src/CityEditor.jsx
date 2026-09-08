@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useCity } from './city-context.js';
+import { useAuth } from './auth-context.js';
+import { authHeaders } from './auth.js';
 import { getCityPhotoUrl } from './cloudinaryUrl.js';
 import './CityEditor.css';
 
@@ -19,6 +21,7 @@ function CityEditor() {
   const { cityId } = useParams();
   const navigate = useNavigate();
   const { cities, updateCity } = useCity();
+  const { user, isAuthenticated } = useAuth();
 
   const city = cities.find((c) => c.id === Number(cityId));
 
@@ -43,6 +46,7 @@ function CityEditor() {
 
     fetch(`${import.meta.env.VITE_API_URL}/api/upload`, {
       method: 'POST',
+      headers: authHeaders(),
       body: formData,
     })
       .then((res) => {
@@ -64,7 +68,7 @@ function CityEditor() {
 
     fetch(`${import.meta.env.VITE_API_URL}/api/cities/${cityId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ photoUrl }),
     })
       .then((res) => {
@@ -80,6 +84,17 @@ function CityEditor() {
         setError('Could not save - check the server is running and try again.');
       })
       .finally(() => setSaving(false));
+  }
+
+  // Not just visually hidden - creators never see this screen's markup
+  // at all (city settings are editor/admin only, see PATCH
+  // /api/cities/:id in server/index.js), and neither does anyone logged
+  // out. Placed after every hook above so hook order never changes.
+  if (!isAuthenticated) {
+    return <Navigate to="/admin" replace />;
+  }
+  if (user.role === 'CREATOR') {
+    return <Navigate to="/" replace />;
   }
 
   return (

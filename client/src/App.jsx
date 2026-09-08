@@ -1,4 +1,5 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
+import { AuthProvider } from './AuthProvider.jsx';
 import { CityProvider } from './CityProvider.jsx';
 import { useCity } from './city-context.js';
 import { CityDataProvider } from './CityDataProvider.jsx';
@@ -11,14 +12,18 @@ import ActivityTypeDetail from './ActivityTypeDetail.jsx';
 import CityEditor from './CityEditor.jsx';
 import Search from './Search.jsx';
 import Neighbourhoods from './Neighbourhoods.jsx';
+import AdminLogin from './AdminLogin.jsx';
+import AdminUsers from './AdminUsers.jsx';
 
 function App() {
   return (
-    <CityProvider>
-      <CityDataProvider>
-        <AppRoutes />
-      </CityDataProvider>
-    </CityProvider>
+    <AuthProvider>
+      <CityProvider>
+        <CityDataProvider>
+          <AppRoutes />
+        </CityDataProvider>
+      </CityProvider>
+    </AuthProvider>
   );
 }
 
@@ -67,6 +72,10 @@ function AppRoutes() {
         <Route path="/category/:slug/type/:typeId" element={<ActivityTypeDetail />} />
         <Route path="/category/:slug/entry/:entryId" element={<EntryDetail />} />
         <Route path="/category/:slug/entry/:entryId/edit" element={<EntryEditor />} />
+        {/* Team login - deliberately not linked from anywhere in the
+            public nav, see claude/todo.md's "Login entry point" discussion. */}
+        <Route path="/admin" element={<AdminLogin />} />
+        <Route path="/admin/users" element={<AdminUsers />} />
       </Routes>
 
       {/* Rendered a second time, as a sibling, only when there's a

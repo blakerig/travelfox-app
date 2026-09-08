@@ -7,6 +7,7 @@ import './EntryDetail.css';
 import { getCategoryConfig } from './categoryConfig.js';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
+import { useAuth } from './auth-context.js';
 import photoPlaceholder from './assets/entry-photo-placeholder.svg';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import { isOpenNow } from './openingHours.js';
@@ -72,6 +73,7 @@ function EntryDetail() {
   const config = getCategoryConfig(slug);
   const { city } = useCity();
   const { cityData, cityDataReady } = useCityData();
+  const { isAuthenticated } = useAuth();
   const currencySymbol = city?.country?.currencySymbol || '$';
 
   // Read straight out of the current city's cache first (see
@@ -143,7 +145,7 @@ function EntryDetail() {
         <Link to={backTo} className="entry-detail-back" aria-label="Back">
           &larr;
         </Link>
-        {entry && (
+        {entry && isAuthenticated && (
           <Link to={`/category/${slug}/entry/${entryId}/edit`} className="entry-detail-edit">
             Edit
           </Link>
