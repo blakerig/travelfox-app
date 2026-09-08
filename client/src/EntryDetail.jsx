@@ -194,7 +194,7 @@ function EntryDetail() {
               nothing to plot a pin from a free-text address alone (see
               EntryLocationMap.jsx) - the text Directions link still covers
               those entries via the address fallback even without the map. */}
-          {(entry.phone || entry.website || entry.openingTimes || directionsUrl) && (
+          {(entry.phone || entry.website || entry.openingTimes || entry.priceInfo || directionsUrl) && (
             <div className="entry-detail-contact">
               {entry.latitude != null && entry.longitude != null && (
                 <EntryLocationMap
@@ -230,6 +230,12 @@ function EntryDetail() {
                   <span className="entry-detail-contact-label">Website</span>
                   <span className="entry-detail-contact-value">{entry.website}</span>
                 </a>
+              )}
+              {entry.priceInfo && (
+                <div className="entry-detail-contact-row">
+                  <span className="entry-detail-contact-label">Price</span>
+                  <span className="entry-detail-contact-value">{entry.priceInfo}</span>
+                </div>
               )}
               {entry.openingTimes && (
                 <div className="entry-detail-contact-row">

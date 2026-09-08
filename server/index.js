@@ -338,7 +338,7 @@ app.get('/api/entries/:id', async (req, res) => {
 // doesn't get called until the user actually hits Save there, so there's no
 // window where a half-empty stub entry exists in the database.
 app.post('/api/entries', async (req, res) => {
-  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, notes, activityTypeId, address, latitude, longitude } = req.body;
+  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, notes, activityTypeId, address, latitude, longitude } = req.body;
 
   if (!cityId || !categoryId) {
     return res.status(400).json({ error: 'cityId and categoryId are required' });
@@ -367,6 +367,7 @@ app.post('/api/entries', async (req, res) => {
         website: website || null,
         openingTimes: openingTimes || null,
         photoUrl: photoUrl || null,
+        priceInfo: priceInfo || null,
         notes: notes || null,
         address: address || null,
         latitude: hasLat ? Number(latitude) : null,
@@ -399,7 +400,7 @@ app.post('/api/entries', async (req, res) => {
 // this needs to grow into a full editor.
 app.patch('/api/entries/:id', async (req, res) => {
   const id = Number(req.params.id);
-  const { name, summary, description, types, phone, website, openingTimes, photoUrl, notes, address, latitude, longitude } = req.body;
+  const { name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, notes, address, latitude, longitude } = req.body;
 
   const data = {};
   if (name !== undefined) {
@@ -415,6 +416,7 @@ app.patch('/api/entries/:id', async (req, res) => {
   if (website !== undefined) data.website = website === '' ? null : website;
   if (openingTimes !== undefined) data.openingTimes = openingTimes === '' ? null : openingTimes;
   if (photoUrl !== undefined) data.photoUrl = photoUrl === '' ? null : photoUrl;
+  if (priceInfo !== undefined) data.priceInfo = priceInfo === '' ? null : priceInfo;
   if (notes !== undefined) data.notes = notes === '' ? null : notes;
   if (address !== undefined) data.address = address === '' ? null : address;
   // Same "must be provided together" rule as POST /api/entries above.

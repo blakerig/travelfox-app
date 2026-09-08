@@ -10,7 +10,7 @@ import { useCityData } from './city-data-context.js';
 import './EntryEditor.css';
 
 // Text-only editor for an entry: name, summary, types, phone, website,
-// opening times, description, notes (plus a photo upload). Handles both
+// opening times, price info, description, notes (plus a photo upload). Handles both
 // editing an existing entry (/category/:slug/entry/:entryId/edit) and
 // creating a new one (/category/:slug/entry/new/edit - entryId === 'new',
 // reached via "+ Add" on CategoryScreen). Same form either way; creation
@@ -85,6 +85,10 @@ function EntryEditor() {
   const [phone, setPhone] = useState('');
   const [website, setWebsite] = useState('');
   const [openingTimes, setOpeningTimes] = useState('');
+  // See Entry.priceInfo in schema.prisma - deliberately a short
+  // "headline" price, not a full tariff table (see this field's hint
+  // text below for the same guidance surfaced to whoever's typing).
+  const [priceInfo, setPriceInfo] = useState('');
   const [description, setDescription] = useState('');
   const [descTab, setDescTab] = useState('write'); // 'write' | 'preview'
   // Internal-only - see Entry.notes in schema.prisma. Never read by any
@@ -130,6 +134,7 @@ function EntryEditor() {
     setPhone('');
     setWebsite('');
     setOpeningTimes('');
+    setPriceInfo('');
     setDescription('');
     setDescTab('write');
     setNotes('');
@@ -164,6 +169,7 @@ function EntryEditor() {
       setPhone(data.phone ?? '');
       setWebsite(data.website ?? '');
       setOpeningTimes(data.openingTimes ?? '');
+      setPriceInfo(data.priceInfo ?? '');
       setDescription(data.description ?? '');
       setNotes(data.notes ?? '');
       setPhotoUrl(data.photoUrl ?? '');
@@ -322,6 +328,7 @@ function EntryEditor() {
             phone,
             website,
             openingTimes,
+            priceInfo,
             description,
             photoUrl,
             notes,
@@ -341,6 +348,7 @@ function EntryEditor() {
             phone,
             website,
             openingTimes,
+            priceInfo,
             description,
             photoUrl,
             notes,
@@ -549,6 +557,22 @@ function EntryEditor() {
               onChange={(e) => setOpeningTimes(e.target.value)}
               className="entry-editor-textarea entry-editor-textarea-short"
               rows={2}
+            />
+          </label>
+
+          <label className="entry-editor-field">
+            <span className="entry-editor-label">
+              Price (optional - keep it short, e.g. &quot;€12, kids free&quot; or
+              &quot;Free&quot;. This is a headline price, not a full tariff table -
+              put a full breakdown in the description instead if you want one
+              on record)
+            </span>
+            <input
+              type="text"
+              value={priceInfo}
+              onChange={(e) => setPriceInfo(e.target.value)}
+              className="entry-editor-input"
+              placeholder="e.g. €12, kids free"
             />
           </label>
 

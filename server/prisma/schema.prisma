@@ -174,6 +174,21 @@ model Entry {
   latitude       Float?
   longitude      Float?
   priceLevel     Int?
+  // Free-text "headline" price line for entries that don't fit
+  // priceLevel's restaurant-style $/$$/$$$ scale - Sightseeing admission is
+  // the motivating case (2026-09-06): a single scale doesn't capture "how
+  // much", and a full adult/child/senior/student tariff table is both too
+  // long for a mobile screen and a maintenance burden to keep current. So
+  // this is deliberately a short, hand-curated summary rather than an
+  // exhaustive breakdown - e.g. "€12, kids free" or "Free" or "€15, less
+  // with the city pass" - prioritising the base price plus at most one
+  // notable exception. Anything more detailed than that belongs in
+  // `description` instead (e.g. under its own "Prices" heading), which
+  // already exists for arbitrarily long content. Editable via
+  // EntryEditor.jsx, unlike priceLevel/rating which stay Prisma-Studio-
+  // only - see that field's hint text for the same "keep it short"
+  // guidance surfaced to whoever's entering data.
+  priceInfo      String?
   // URL of the entry's photo, hosted on Cloudinary - null falls back to
   // the static placeholder image in EntryCard.jsx. See claude/todo.md for
   // the hosting-provider decision (2026-08-29: Cloudinary, free tier).
