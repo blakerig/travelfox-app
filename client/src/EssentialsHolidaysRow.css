@@ -1,0 +1,61 @@
+/* Same tokens as CategoryScreen.css, since this row renders inside the
+   Essentials CategoryScreen and needs to look native there. Redefined
+   locally rather than imported - same per-file convention as
+   ActivityTypeDetail.css/CategoryScreen.css. */
+.holidays-row {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(20, 30, 25, 0.06);
+  text-decoration: none;
+  color: inherit;
+}
+
+.holidays-row-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: oklch(93% 0.045 150);
+  color: var(--g-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.holidays-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.holidays-row-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.holidays-row-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.holidays-row-chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+}

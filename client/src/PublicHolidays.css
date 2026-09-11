@@ -1,0 +1,231 @@
+/* Same tokens/header pattern as CategoryScreen.css/ActivityTypeDetail.css -
+   redefined locally per that file's own convention. */
+.holidays-screen {
+  --g-600: oklch(49% 0.135 150);
+  --g-100: oklch(93% 0.045 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: 24px;
+}
+
+.holidays-screen-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 14px;
+}
+
+.holidays-screen-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.holidays-screen-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.holidays-screen-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.holidays-screen-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.holidays-screen-section-label {
+  padding: 4px 20px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--faint);
+  text-transform: uppercase;
+}
+
+.holidays-screen-status {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 14px;
+}
+
+.holidays-screen-status p {
+  margin: 0;
+}
+
+.holidays-screen-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid oklch(70% 0.02 150 / 0.25);
+  border-top-color: var(--g-600);
+  animation: holidays-screen-spin 0.8s linear infinite;
+}
+
+@keyframes holidays-screen-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.holidays-screen-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin: 0 16px;
+  overflow: hidden;
+}
+
+.holidays-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 4px;
+  border-bottom: 1px solid oklch(93% 0.015 150);
+  text-decoration: none;
+  color: inherit;
+}
+
+.holidays-item:last-child {
+  border-bottom: none;
+}
+
+.holidays-item.is-today {
+  background: var(--g-100);
+  margin: 0 -20px;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.holidays-item-date {
+  width: 46px;
+  height: 46px;
+  border-radius: 11px;
+  background: oklch(96% 0.01 150);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.holidays-item-date.is-today {
+  background: var(--card);
+  border-color: var(--g-600);
+}
+
+.holidays-item-day {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.holidays-item-month {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+}
+
+.holidays-item-date.is-today .holidays-item-month {
+  color: var(--g-600);
+}
+
+.holidays-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.holidays-item-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.holidays-item-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.holidays-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: oklch(93% 0.015 150);
+  padding: 2.5px 8px;
+  border-radius: 999px;
+}
+
+.holidays-tag.is-regional {
+  color: var(--g-600);
+  background: var(--g-100);
+}
+
+.holidays-tag-outline {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.holidays-item-weekday {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.holidays-item-when {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--faint);
+  flex-shrink: 0;
+}
+
+.holidays-item-when .is-today {
+  color: var(--g-600);
+  font-weight: 700;
+}
+
+.holidays-screen-footer {
+  padding: 18px 20px 4px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--faint);
+}

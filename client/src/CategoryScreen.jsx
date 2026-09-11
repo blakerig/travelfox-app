@@ -11,6 +11,7 @@ import { fetchWalkingDistances } from './walkingDistance.js';
 import { useUserLocation } from './useUserLocation.js';
 import { activityTypeHref } from './activityTypeHref.js';
 import { isOpenNow } from './openingHours.js';
+import EssentialsHolidaysRow from './EssentialsHolidaysRow.jsx';
 
 // Radius choices for the Eating Out distance filter (2026-08-28) - single
 // select (tapping the active one again clears it), not the OR-multi-select
@@ -105,11 +106,24 @@ function sortItems(items, sortBy) {
 // cardShowOpenStatus/'openNow' doc comments for why this filter is only
 // offered when the city has a timezone set at all.
 //
-// A grouped category (Activities) never has any dimension active - no UI
-// drives filterOptions there (see categoryConfig.js) - so this returns
-// early before touching any ActivityType-shaped item.
-function filterItems(items, { types, priceLevels, radiusKm, origin, openNowOnly, timezone, walkingDistances }) {
-  if (types.size === 0 && priceLevels.size === 0 && radiusKm == null && !openNowOnly) return items;
+// A grouped category (Activities) only ever has the `activityGroup`
+// dimension active (2026-09-10, see categoryConfig.js) - every other
+// dimension stays permanently empty/null for it, since ActivityType rows
+// don't carry `types`/`priceLevel`/coordinates/openingTimes, so typeOk/
+// priceOk/distanceOk/openNowOk below all just pass through as true for
+// them, same as before this dimension existed.
+function filterItems(
+  items,
+  { types, priceLevels, radiusKm, origin, openNowOnly, timezone, walkingDistances, activityGroup }
+) {
+  if (
+    types.size === 0 &&
+    priceLevels.size === 0 &&
+    radiusKm == null &&
+    !openNowOnly &&
+    !activityGroup
+  )
+    return items;
   return items.filter((entry) => {
     const typeOk = types.size === 0 || (entry.types ?? []).some((t) => types.has(t));
     const priceOk =
@@ -138,7 +152,12 @@ function filterItems(items, { types, priceLevels, radiusKm, origin, openNowOnly,
     // while the filter is active, same as priceOk/distanceOk excluding an
     // entry missing that data rather than guessing.
     const openNowOk = !openNowOnly || isOpenNow(entry.openingTimes, timezone) === true;
-    return typeOk && priceOk && distanceOk && openNowOk;
+    // ActivityType-shaped items only (see categoryConfig.js's 'activityGroup'
+    // doc comment) - an ungrouped ActivityType (entry.group is null) never
+    // matches an active group filter, same as any other dimension excluding
+    // data it doesn't have rather than guessing.
+    const groupOk = !activityGroup || entry.group?.slug === activityGroup;
+    return typeOk && priceOk && distanceOk && openNowOk && groupOk;
   });
 }
 
@@ -193,10 +212,14 @@ function loadScrollY(key) {
 // 'group' variant and linking to either ActivityTypeDetail or, for a
 // single-provider type with no description, straight to that provider's
 // EntryDetail (see activityTypeHref above). Everything else on this screen
-// - header, count line, loading/empty states - is unchanged, and the
-// sort/filter machinery below safely no-ops for this case rather than
-// needing its own branch, since Activities sets sortOptions/filterOptions
-// to null.
+// - header, count line, loading/empty states - is unchanged, and the sort
+// machinery below safely no-ops for this case, since Activities sets
+// sortOptions to null. It does now offer one filter dimension
+// (`activityGroup`, 2026-09-10, see ActivityGroup in schema.prisma) shown
+// as its own always-visible chip row (showActivityGroupFilter below)
+// rather than through the shared collapsible "Filters" panel the other
+// categories use - see the doc comment on the `activities` entry in
+// categoryConfig.js for why.
 function CategoryScreen() {
   const { slug } = useParams();
   const { city, loading: cityLoading } = useCity();
@@ -222,6 +245,13 @@ function CategoryScreen() {
   const [selectedRadiusKm, setSelectedRadiusKm] = useState(initialPrefs?.radiusKm ?? null);
   const [selectedOpenNowOnly, setSelectedOpenNowOnly] = useState(
     initialPrefs?.openNowOnly ?? false
+  );
+  // Activities' one filter dimension (see categoryConfig.js's
+  // 'activityGroup' doc comment) - a single slug or null ("All"), not a Set
+  // like selectedTypes/selectedPriceLevels above, since only one group can
+  // be chosen at a time.
+  const [selectedActivityGroup, setSelectedActivityGroup] = useState(
+    initialPrefs?.activityGroup ?? null
   );
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   // Tracks whether this component instance has completed at least one
@@ -273,6 +303,7 @@ function CategoryScreen() {
       setSelectedPriceLevels(new Set());
       setSelectedRadiusKm(null);
       setSelectedOpenNowOnly(false);
+      setSelectedActivityGroup(null);
     }
     // Cached derived data tied to `key`, not a user preference - unlike
     // the sort/filter selections above (deliberately preserved across the
@@ -320,12 +351,21 @@ function CategoryScreen() {
           priceLevels: Array.from(selectedPriceLevels),
           radiusKm: selectedRadiusKm,
           openNowOnly: selectedOpenNowOnly,
+          activityGroup: selectedActivityGroup,
         })
       );
     } catch {
       // ignore - see loadSavedPrefs
     }
-  }, [key, sortBy, selectedTypes, selectedPriceLevels, selectedRadiusKm, selectedOpenNowOnly]);
+  }, [
+    key,
+    sortBy,
+    selectedTypes,
+    selectedPriceLevels,
+    selectedRadiusKm,
+    selectedOpenNowOnly,
+    selectedActivityGroup,
+  ]);
 
   // Continuously records scroll position while on this screen (so the very
   // last position before navigating into EntryDetail.jsx is captured, not
@@ -374,6 +414,25 @@ function CategoryScreen() {
     });
     return Array.from(set).sort((a, b) => a - b);
   }, [items]);
+
+  // Chip values for Activities' group filter, derived from whatever's
+  // actually present among this city's ActivityType rows (same "don't show
+  // a chip nothing currently uses" principle as availableTypes/
+  // availablePriceLevels above), sorted by ActivityGroup.sortOrder rather
+  // than alphabetically - see that field's comment in schema.prisma. Always
+  // empty for a non-grouped category, since a flat Entry has no `.group`.
+  const availableActivityGroups = useMemo(() => {
+    if (!config.groupedByType) return [];
+    const bySlug = new Map();
+    (items ?? []).forEach((item) => {
+      if (item.group) bySlug.set(item.group.slug, item.group);
+    });
+    return Array.from(bySlug.values()).sort(
+      (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)
+    );
+  }, [items, config.groupedByType]);
+  const showActivityGroupFilter =
+    Boolean(config.filterOptions?.includes('activityGroup')) && availableActivityGroups.length > 0;
 
   const hasCoordinateData = useMemo(
     () => (items ?? []).some((item) => item.latitude != null && item.longitude != null),
@@ -477,6 +536,7 @@ function CategoryScreen() {
         // filterItems treats the same as "not ready, use straight-line"
         // (see its doc comment above).
         walkingDistances: walkingDistancesStatus === 'ready' ? walkingDistances : null,
+        activityGroup: selectedActivityGroup,
       }),
     [
       items,
@@ -488,6 +548,7 @@ function CategoryScreen() {
       city?.timezone,
       walkingDistances,
       walkingDistancesStatus,
+      selectedActivityGroup,
     ]
   );
   const sortedItems = useMemo(() => sortItems(filteredItems, sortBy), [filteredItems, sortBy]);
@@ -497,6 +558,7 @@ function CategoryScreen() {
     setSelectedPriceLevels(new Set());
     setSelectedRadiusKm(null);
     setSelectedOpenNowOnly(false);
+    setSelectedActivityGroup(null);
   }
 
   return (
@@ -524,11 +586,58 @@ function CategoryScreen() {
         )}
       </div>
 
+      {/* Public Holidays preview row (2026-09-11, Essentials only) - not
+          Entry-backed like the rest of this screen, so it's a separate
+          component with its own fetch/loading rather than folded into the
+          items/sortedItems logic below - see EssentialsHolidaysRow.jsx and
+          claude/public-holidays-spec.md. Renders nothing on its own if the
+          city's country has no holiday data yet, so it's safe to always
+          mount here rather than gating it on anything about the Entry list. */}
+      {slug === 'essentials' && (
+        <div className="category-screen-holidays-row">
+          <EssentialsHolidaysRow />
+        </div>
+      )}
+
       {items !== null && items.length > 0 && (
         <div className="category-screen-count">
           {sortedItems.length === items.length
             ? `${items.length} ${items.length === 1 ? config.itemLabel : config.itemLabelPlural}`
             : `${sortedItems.length} of ${items.length} ${config.itemLabelPlural}`}
+        </div>
+      )}
+
+      {/* Activities' group filter (2026-09-10) - always-visible chip row,
+          not gated behind the "Filters" toggle below, since it's the only
+          dimension this category offers - see the doc comment on the
+          `activities` entry in categoryConfig.js. Horizontally scrollable
+          rather than wrapping, so it stays a fixed one-line height however
+          many groups eventually exist (four today). */}
+      {showActivityGroupFilter && (
+        <div className="category-screen-group-filter">
+          <div className="category-screen-group-filter-chips">
+            <button
+              type="button"
+              className="category-screen-group-chip"
+              aria-pressed={selectedActivityGroup === null}
+              onClick={() => setSelectedActivityGroup(null)}
+            >
+              All
+            </button>
+            {availableActivityGroups.map((group) => (
+              <button
+                type="button"
+                key={group.slug}
+                className="category-screen-group-chip"
+                aria-pressed={selectedActivityGroup === group.slug}
+                onClick={() =>
+                  setSelectedActivityGroup((prev) => (prev === group.slug ? null : group.slug))
+                }
+              >
+                {group.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

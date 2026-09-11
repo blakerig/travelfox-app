@@ -147,8 +147,22 @@ Write-Host "Dump saved to: $localDumpPath" -ForegroundColor Green
 # the reverse, older-tool-against-newer-server, that Postgres refuses.
 Write-Host ""
 Write-Host "Restoring into local database..." -ForegroundColor Cyan
+# Scoped down to just this call (2026-09-10): with the script-wide
+# $ErrorActionPreference = "Stop" (see top of file) still in effect, PowerShell
+# treats each line pg_restore writes to stderr - captured here via 2>&1 - as
+# its own terminating error the instant it appears, rather than collecting
+# them into $restoreOutput for the "errors ignored on restore" check below to
+# actually run. That's what was happening: the script died on the first
+# stderr line (e.g. the transaction_timeout warning this file's comments
+# already anticipated) before ever reaching its own graceful handling of it.
+# Temporarily relaxing to "Continue" for just this one native call lets
+# pg_restore run to completion and hand back its real exit code/output, while
+# every other command in this script still stops hard on a genuine failure.
+$prevErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 $restoreOutput = & docker run --rm -v "${dumpDir}:/dump" $dumpToolImage pg_restore -d $localUrlForDocker --clean --if-exists --no-owner --no-acl "/dump/$dumpFileName" 2>&1
 $restoreExit = $LASTEXITCODE
+$ErrorActionPreference = $prevErrorActionPreference
 $restoreOutput | ForEach-Object { Write-Host $_ }
 if ($restoreExit -ne 0) {
     # pg_restore returns the same nonzero exit code whether it aborted

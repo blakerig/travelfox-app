@@ -100,6 +100,30 @@ app.get('/api/users', requireAuth, requireRole('ADMIN'), async (req, res) => {
   res.json(users);
 });
 
+// Reset a team member's password - admin only, and the account-recovery
+// path (no "current password" check - that's a different, self-service
+// flow, not built yet). Doesn't touch email/role, only passwordHash.
+app.patch('/api/users/:id/password', requireAuth, requireRole('ADMIN'), async (req, res) => {
+  const id = Number(req.params.id);
+  const { password } = req.body;
+  if (!password) {
+    return res.status(400).json({ error: 'A new password is required' });
+  }
+  try {
+    const user = await prisma.user.update({
+      where: { id },
+      data: { passwordHash: await hashPassword(password) },
+    });
+    res.json({ id: user.id, email: user.email, role: user.role });
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    console.error('Failed to reset password:', err);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
 // Uploads a single image to Cloudinary and returns its URL. Decoupled from
 // the entry create/update endpoints on purpose: the client uploads the file
 // here first, gets back a URL, then sends that URL as a normal string field
@@ -549,12 +573,18 @@ app.patch('/api/entries/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADM
 // categoryConfig.js). Each type carries its provider Entries inline so the
 // client can decide per-card, without a second round-trip, whether to link
 // to ActivityTypeDetail or straight to a single provider (see
-// activityTypeHref in CategoryScreen.jsx).
+// activityTypeHref in CategoryScreen.jsx). `group` included too (2026-09-10,
+// see ActivityGroup in schema.prisma) so CategoryScreen.jsx's group filter-
+// chip row can derive its available chips straight from these rows, same
+// "no separate endpoint, values come from what's actually fetched" pattern
+// already used for the Eating Out/Sightseeing type filter - an ungrouped
+// ActivityType simply comes back with group: null.
 app.get('/api/cities/:cityId/activity-types', async (req, res) => {
   const cityId = Number(req.params.cityId);
   const activityTypes = await prisma.activityType.findMany({
     where: { cityId },
     include: {
+      group: true,
       entries: {
         where: req.user ? {} : { status: 'PUBLISHED' },
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
@@ -568,12 +598,16 @@ app.get('/api/cities/:cityId/activity-types', async (req, res) => {
 // Single ActivityType with its providers, for ActivityTypeDetail.jsx -
 // fetched independently (not just read out of the city-level list above)
 // so the screen also works if reached directly, e.g. a bookmarked link,
-// matching how GET /api/entries/:id already works for EntryDetail.
+// matching how GET /api/entries/:id already works for EntryDetail. `group`
+// included for the same reason as above, even though ActivityTypeDetail.jsx
+// doesn't display it yet - keeps this endpoint's shape consistent with the
+// city-level list rather than needing its own special case later.
 app.get('/api/activity-types/:id', async (req, res) => {
   const id = Number(req.params.id);
   const activityType = await prisma.activityType.findUnique({
     where: { id },
     include: {
+      group: true,
       entries: {
         where: req.user ? {} : { status: 'PUBLISHED' },
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
@@ -643,6 +677,135 @@ app.get('/api/cities/:cityId/neighbourhoods', async (req, res) => {
     orderBy: { name: 'asc' },
   });
   res.json(neighbourhoods);
+});
+
+// Public holidays for a city's country (and region, where relevant) - see
+// claude/public-holidays-spec.md for the full design discussion and
+// PublicHoliday/HolidayInfo in schema.prisma for the data model.
+//
+// Uses Node's built-in fetch, same as /api/walking-distances and
+// /api/geocode above.
+const NAGER_DATE_BASE_URL = 'https://date.nager.at/api/v3';
+
+// Populates PublicHoliday for one country/year from Nager.Date, if it isn't
+// already cached - a year's holiday dates don't change once published, so
+// this only ever hits the network once per country per year (see
+// PublicHoliday's doc comment in schema.prisma). Resolves without throwing
+// even on failure (logs and leaves the cache as-is) - the caller falls back
+// to whatever's already cached rather than failing the whole request over a
+// transient Nager.Date/network error.
+async function ensureHolidaysCached(countryCode, year) {
+  const alreadyCached = await prisma.publicHoliday.findFirst({ where: { countryCode, year } });
+  if (alreadyCached) return;
+
+  let response;
+  try {
+    response = await fetch(`${NAGER_DATE_BASE_URL}/PublicHolidays/${year}/${countryCode}`);
+  } catch (err) {
+    console.error(`Nager.Date request errored for ${countryCode}/${year}:`, err);
+    return;
+  }
+  if (!response.ok) {
+    // A country code Nager.Date doesn't recognise, or it's temporarily
+    // down - either way, leave the cache empty for this country/year rather
+    // than throwing.
+    console.error(`Nager.Date request failed for ${countryCode}/${year}:`, response.status);
+    return;
+  }
+
+  const holidays = await response.json();
+  if (!Array.isArray(holidays) || holidays.length === 0) return;
+
+  await prisma.publicHoliday.createMany({
+    data: holidays.map((h) => ({
+      countryCode,
+      year,
+      date: new Date(h.date),
+      localName: h.localName,
+      name: h.name,
+      global: h.global ?? true,
+      // Nager.Date calls this field `counties` - renamed here to
+      // subdivisionCodes, see that field's comment in schema.prisma.
+      subdivisionCodes: h.counties ?? [],
+    })),
+    // Defensive against a race between two concurrent requests both finding
+    // nothing cached and both trying to populate the same country/year -
+    // the @@unique on PublicHoliday would otherwise throw on the second
+    // insert.
+    skipDuplicates: true,
+  });
+}
+
+// Matches a cached PublicHoliday row to its (optional) editorial content by
+// checking whether either of Nager.Date's two name fields appears in
+// HolidayInfo.matchNames - see that model's doc comment in schema.prisma for
+// why this is name-based rather than a foreign key.
+function matchHolidayInfo(holiday, infos) {
+  return infos.find(
+    (info) => info.matchNames.includes(holiday.localName) || info.matchNames.includes(holiday.name)
+  );
+}
+
+// Response: { subdivisionName, holidays: [{ date, localName, name, global,
+//   slug, description, whatToExpect }, ...] }, sorted by date. `slug`/
+//   `description`/`whatToExpect` are null for a holiday with no matching
+//   HolidayInfo row - see PublicHolidays.jsx, which only makes a holiday
+//   tappable through to the detail screen when slug is present.
+// A city whose country has no `code` set yet (see Country.code in
+// schema.prisma) gets `{ subdivisionName: null, holidays: [] }` rather than
+// an error - same "don't guess" fallback as timezone/openingHours
+// elsewhere, and lets the client just hide the Essentials row.
+app.get('/api/cities/:cityId/holidays', async (req, res) => {
+  const cityId = Number(req.params.cityId);
+  const city = await prisma.city.findUnique({ where: { id: cityId }, include: { country: true } });
+  if (!city) {
+    return res.status(404).json({ error: 'City not found' });
+  }
+  if (!city.country?.code) {
+    return res.json({ subdivisionName: null, holidays: [] });
+  }
+
+  const countryCode = city.country.code;
+  const currentYear = new Date().getFullYear();
+  // Also cache/serve next year once December arrives, so the client's
+  // "upcoming" list (see PublicHolidays.jsx) doesn't run dry in the last
+  // weeks of the year.
+  const years = new Date().getMonth() === 11 ? [currentYear, currentYear + 1] : [currentYear];
+
+  await Promise.all(years.map((year) => ensureHolidaysCached(countryCode, year)));
+
+  const cached = await prisma.publicHoliday.findMany({
+    where: { countryCode, year: { in: years } },
+    orderBy: { date: 'asc' },
+  });
+
+  // A holiday counts for this city if it's nationwide, or if it's
+  // restricted to a region this city belongs to (city.subdivisionCode is
+  // null for a city that hasn't been backfilled yet - see that field's
+  // comment in schema.prisma - so such a city only ever sees nationwide
+  // holidays, same "don't guess" principle as everywhere else this pattern
+  // is used in this app).
+  const relevant = cached.filter(
+    (h) => h.global || (city.subdivisionCode && h.subdivisionCodes.includes(city.subdivisionCode))
+  );
+
+  const infos = await prisma.holidayInfo.findMany();
+
+  res.json({
+    subdivisionName: city.subdivisionName ?? null,
+    holidays: relevant.map((h) => {
+      const info = matchHolidayInfo(h, infos);
+      return {
+        date: h.date.toISOString().slice(0, 10),
+        localName: h.localName,
+        name: h.name,
+        global: h.global,
+        slug: info?.slug ?? null,
+        description: info?.description ?? null,
+        whatToExpect: info?.whatToExpect ?? null,
+      };
+    }),
+  });
 });
 
 // Lowercases and strips accents/diacritics for search matching - "Gaudi"

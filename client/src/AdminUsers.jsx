@@ -23,6 +23,17 @@ function AdminUsers() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
 
+  // Which row's inline "Reset password" form is open, if any - only one
+  // at a time, closes on success or Cancel. resetSuccessId briefly labels
+  // the row that just got reset (cleared after a few seconds or as soon
+  // as another reset starts), separate from resettingId so the success
+  // message can outlive the form itself.
+  const [resettingId, setResettingId] = useState(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [resetError, setResetError] = useState(null);
+  const [resetSuccessId, setResetSuccessId] = useState(null);
+
   const isAdmin = isAuthenticated && user.role === 'ADMIN';
 
   useEffect(() => {
@@ -63,6 +74,43 @@ function AdminUsers() {
       .finally(() => setCreating(false));
   }
 
+  function openReset(userId) {
+    setResettingId(userId);
+    setResetPassword('');
+    setResetError(null);
+    setResetSuccessId(null);
+  }
+
+  function cancelReset() {
+    setResettingId(null);
+    setResetPassword('');
+    setResetError(null);
+  }
+
+  function handleResetPassword(e, userId) {
+    e.preventDefault();
+    setResetSubmitting(true);
+    setResetError(null);
+
+    fetch(`${import.meta.env.VITE_API_URL}/api/users/${userId}/password`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ password: resetPassword }),
+    })
+      .then((res) => {
+        if (!res.ok) return res.json().then((data) => Promise.reject(new Error(data.error || `Failed (${res.status})`)));
+        return res.json();
+      })
+      .then(() => {
+        setResettingId(null);
+        setResetPassword('');
+        setResetSuccessId(userId);
+        setTimeout(() => setResetSuccessId((current) => (current === userId ? null : current)), 4000);
+      })
+      .catch((err) => setResetError(err.message))
+      .finally(() => setResetSubmitting(false));
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="admin-users">
@@ -93,9 +141,45 @@ function AdminUsers() {
       {users && (
         <ul className="admin-users-list">
           {users.map((u) => (
-            <li key={u.id} className="admin-users-row">
-              <span className="admin-users-email">{u.email}</span>
-              <span className="admin-users-role">{u.role.toLowerCase()}</span>
+            <li key={u.id} className="admin-users-row-wrap">
+              <div className="admin-users-row">
+                <span className="admin-users-email">{u.email}</span>
+                <span className="admin-users-role">{u.role.toLowerCase()}</span>
+                {resettingId === u.id ? (
+                  <button type="button" className="admin-users-reset-cancel" onClick={cancelReset}>
+                    Cancel
+                  </button>
+                ) : (
+                  <button type="button" className="admin-users-reset-open" onClick={() => openReset(u.id)}>
+                    Reset password
+                  </button>
+                )}
+              </div>
+
+              {resetSuccessId === u.id && (
+                <p className="admin-users-reset-success">Password reset.</p>
+              )}
+
+              {resettingId === u.id && (
+                <form className="admin-users-reset-form" onSubmit={(e) => handleResetPassword(e, u.id)}>
+                  <input
+                    type="text"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    className="admin-users-input"
+                    placeholder="New temporary password"
+                    autoFocus
+                    required
+                  />
+                  {resetError && <div className="admin-users-error admin-users-reset-error">{resetError}</div>}
+                  <button type="submit" className="admin-users-submit admin-users-reset-submit" disabled={resetSubmitting}>
+                    {resetSubmitting ? 'Setting…' : 'Set new password'}
+                  </button>
+                  <p className="admin-users-hint">
+                    Tell {u.email} this password directly - nothing is emailed to them (see claude/todo.md).
+                  </p>
+                </form>
+              )}
             </li>
           ))}
         </ul>

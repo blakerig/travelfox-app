@@ -95,6 +95,13 @@
 // right after saving in the editor) - this flag only changes how
 // CategoryScreen links into cards, not whether the detail route exists.
 //
+// 'activityGroup' (2026-09-10, Activities only) - see the doc comment on
+// the `activities` entry below for the fuller reasoning (single-select,
+// rendered as an always-visible chip row rather than the collapsible
+// filter panel). Its available chip values are still derived from what's
+// actually fetched, same principle as 'types'/'priceLevel' above - a group
+// with zero ActivityTypes in this city currently doesn't get a chip.
+//
 // itemLabel/itemLabelPlural (2026-08-28) name a single entry in this
 // category, e.g. "restaurant"/"restaurants" - used by CategoryScreen.jsx to
 // show a count above the list ("42 restaurants", or "12 of 42 restaurants"
@@ -137,10 +144,24 @@ export const CATEGORY_CONFIG = {
   // interchangeable providers, so CategoryScreen shows ActivityType cards
   // here (cardVariant: 'group') and drills into ActivityTypeDetail.jsx for
   // the provider list within one type - see groupedByType in
-  // CategoryScreen.jsx. No sort/filter options yet - types are hand-ordered
-  // via ActivityType.sortOrder (same mechanism as Entry.sortOrder
-  // elsewhere), and rating/price/type don't apply at the type level the way
-  // they do to a flat Entry list.
+  // CategoryScreen.jsx. Still no sort options - types are hand-ordered via
+  // ActivityType.sortOrder (same mechanism as Entry.sortOrder elsewhere),
+  // and rating/price/type don't apply at the type level the way they do to
+  // a flat Entry list.
+  //
+  // filterOptions: ['activityGroup'] (2026-09-10, see ActivityGroup in
+  // schema.prisma) is the one filter dimension Activities does offer - a
+  // broader interest grouping (Sport & Active, Culture & Arts, Outdoors &
+  // Nature, Fun & Entertainment) an ActivityType can optionally belong to.
+  // Deliberately NOT rendered through the same collapsible "Filters" panel
+  // the other categories use (see CategoryScreen.jsx's showActivityGroupFilter
+  // rendering branch) - with only this one dimension, and given how
+  // fundamentally different an ActivityType card list is from a flat Entry
+  // list already, an always-visible chip row directly under the header
+  // reads better than a button that reveals a single row of chips. Single-
+  // select (a plain string or null, not a Set like the 'types'/'priceLevel'
+  // dimensions below) - "show me Sport & Active" is a single choice, not a
+  // combinable set of tags the way cuisines are.
   activities: {
     title: 'Activities',
     groupedByType: true,
@@ -150,7 +171,7 @@ export const CATEGORY_CONFIG = {
     // same as any other Activities entry used to be before grouping.
     providerCardVariant: 'venue',
     sortOptions: null,
-    filterOptions: null,
+    filterOptions: ['activityGroup'],
     itemLabel: 'activity',
     itemLabelPlural: 'activities',
   },

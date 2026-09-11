@@ -68,6 +68,54 @@
   color: var(--muted);
 }
 
+/* Public Holidays preview row (2026-09-11, Essentials only) - see
+   EssentialsHolidaysRow.jsx/.css for the row's own styling; this just
+   places it consistently with the rest of the screen's horizontal rhythm. */
+.category-screen-holidays-row {
+  padding: 0 16px 10px;
+}
+
+/* Activities' group filter (2026-09-10) - an always-visible row, not tucked
+   behind the "Filters" toggle below (see CategoryScreen.jsx's
+   showActivityGroupFilter). Horizontally scrollable with the scrollbar
+   hidden (overflow-x, not flex-wrap) so it stays a fixed one-line height no
+   matter how many groups eventually exist, rather than pushing the list
+   down further as more get added - see that render block's comment. */
+.category-screen-group-filter {
+  padding: 0 20px 14px;
+}
+
+.category-screen-group-filter-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.category-screen-group-filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.category-screen-group-chip {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.category-screen-group-chip[aria-pressed='true'] {
+  background: var(--g-600);
+  color: var(--card);
+  border-color: var(--g-600);
+}
+
 .category-screen-controls {
   display: flex;
   align-items: center;

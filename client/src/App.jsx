@@ -12,6 +12,8 @@ import ActivityTypeDetail from './ActivityTypeDetail.jsx';
 import CityEditor from './CityEditor.jsx';
 import Search from './Search.jsx';
 import Neighbourhoods from './Neighbourhoods.jsx';
+import PublicHolidays from './PublicHolidays.jsx';
+import HolidayDetail from './HolidayDetail.jsx';
 import AdminLogin from './AdminLogin.jsx';
 import AdminUsers from './AdminUsers.jsx';
 
@@ -68,6 +70,17 @@ function AppRoutes() {
         <Route path="/search" element={<Search />} />
         <Route path="/city/:cityId/edit" element={<CityEditor />} />
         <Route path="/category/:slug" element={<CategoryScreen />} />
+        {/* Fixed to Essentials, not a generic /category/:slug/holidays route -
+            same reasoning as /neighbourhoods below being its own top-level
+            route rather than parameterized: this is a one-off feature living
+            inside a specific category, not a mechanism every category can
+            opt into. See claude/public-holidays-spec.md. Placed above the
+            :slug/entry/:entryId routes below since "holidays" is a distinct
+            literal path segment, not another entryId - no route-matching
+            ambiguity, ordered here just to keep Essentials-specific routes
+            together. */}
+        <Route path="/category/essentials/holidays" element={<PublicHolidays />} />
+        <Route path="/category/essentials/holidays/:slug" element={<HolidayDetail />} />
         <Route path="/neighbourhoods" element={<Neighbourhoods />} />
         <Route path="/category/:slug/type/:typeId" element={<ActivityTypeDetail />} />
         <Route path="/category/:slug/entry/:entryId" element={<EntryDetail />} />

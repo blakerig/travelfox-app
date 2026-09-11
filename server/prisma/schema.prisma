@@ -55,6 +55,15 @@ model Country {
   name           String  @unique
   currencyName   String?
   currencySymbol String?
+  // ISO 3166-1 alpha-2 code (e.g. "ES", "FR") - added 2026-09-11 alongside
+  // the Public Holidays feature (see claude/public-holidays-spec.md), which
+  // needs it to call the Nager.Date API (GET .../PublicHolidays/{year}/{code}).
+  // Optional/nullable and hand-set in Prisma Studio, same pattern as
+  // City.countryId/timezone below - existing Country rows (France, Spain,
+  // ...) predate this and need backfilling; a city whose country has no
+  // code set just doesn't show a Public Holidays row (see
+  // GET /api/cities/:cityId/holidays) rather than guessing one.
+  code           String? @unique
   cities         City[]
 }
 
@@ -88,6 +97,21 @@ model City {
   // after this migration applies, and the open-now badge/filter simply
   // stays hidden for any city left blank rather than guessing.
   timezone      String?
+  // Region within this city's country, for the Public Holidays feature
+  // (added 2026-09-11, see claude/public-holidays-spec.md) - Spain's
+  // autonomous communities (Catalonia, Madrid, ...) each get their own
+  // holidays on top of the national ones, and Nager.Date tags those with an
+  // ISO 3166-2 subdivision code (e.g. "ES-CT" for Catalonia) rather than
+  // returning them per-city. subdivisionCode is what GET
+  // /api/cities/:cityId/holidays matches against; subdivisionName is a
+  // plain display label (e.g. "Catalonia") shown as a tag on a regional
+  // holiday, since deriving a human-readable name from the ISO code would
+  // need its own lookup table for no real benefit at this scale. Both
+  // optional and hand-set in Prisma Studio, same pattern as
+  // timezone/countryId above - a city with neither set only ever sees
+  // nationwide holidays, never a guessed region.
+  subdivisionCode String?
+  subdivisionName String?
   entries       Entry[]
   // Opposite side of ActivityType.city - a city's activity "type" groupings
   // (Laser Tag, Padel, ...). See ActivityType below for the full rationale.
@@ -135,6 +159,122 @@ model Neighbourhood {
   @@unique([cityId, slug])
 }
 
+// Local cache of Nager.Date's public-holiday data (added 2026-09-11, see
+// claude/public-holidays-spec.md for the full design discussion behind the
+// Public Holidays feature). One row per holiday per country per year -
+// Nager.Date returns every holiday for a country in a single call (both
+// nationwide ones and region-specific ones together), so this caches that
+// whole response rather than one row per city; GET /api/cities/:cityId/
+// holidays filters down to what's relevant for one city at query time
+// (global === true, or subdivisionCodes includes that city's own
+// City.subdivisionCode).
+//
+// Deliberately NOT keyed by city - two cities in the same country
+// (Barcelona, Madrid) share one cached fetch instead of each re-hitting
+// Nager.Date for the same country/year. Refetched lazily (see
+// ensureHolidaysCached in server/index.js): checked on the first request
+// for a given country/year, left alone after that for the rest of that
+// year, since a year's holiday dates don't change once published.
+model PublicHoliday {
+  id               Int      @id @default(autoincrement())
+  // ISO 3166-1 alpha-2, e.g. "ES" - matches Country.code above.
+  countryCode      String
+  year             Int
+  date             DateTime @db.Date
+  // Nager.Date's own two name fields - localName is in the country's own
+  // language (e.g. "Día de Navidad"), name is the English translation.
+  // Both kept since which one reads better varies (a Catalan/Spanish name
+  // can be more recognisable locally than its English translation, or vice
+  // versa) - the client currently shows localName, see PublicHolidays.jsx.
+  localName        String
+  name             String
+  // true for a nationwide holiday; false means it's restricted to the
+  // regions listed in subdivisionCodes below (Nager.Date's own `global`
+  // field, passed straight through).
+  global           Boolean  @default(true)
+  // ISO 3166-2 codes this holiday applies to when NOT global (Nager.Date's
+  // `counties` field, renamed here since "county" reads as a much smaller
+  // unit than what these actually are - Spain's codes are its autonomous
+  // communities, e.g. "ES-CT" for Catalonia, not provinces or municipalities
+  // - see the City.subdivisionCode comment above). Empty array when global
+  // is true.
+  subdivisionCodes String[] @default([])
+
+  // One row per distinct holiday per country/year - guards against a
+  // duplicate insert if ensureHolidaysCached() is ever called twice for the
+  // same country/year in a race (e.g. two concurrent requests before either
+  // finishes caching).
+  @@unique([countryCode, year, date, localName])
+}
+
+// Editorial "why"/"what to expect" content for a recurring public holiday
+// (added 2026-09-11 alongside PublicHoliday above) - written once per
+// holiday, not per year, since what a holiday commemorates and what to
+// expect while it's on barely changes year to year even though its actual
+// date does (a fixed-date holiday moves within the week, a lunar/religious
+// one moves more). Keyed by a stable, hand-chosen `slug` rather than by
+// date/year for exactly that reason - see claude/public-holidays-spec.md.
+//
+// Matched to a live PublicHoliday row at request time (see matchInfo() in
+// server/index.js) by checking whether that holiday's localName or name
+// appears in matchNames - a small array rather than a single expected
+// string because Nager.Date's exact wording for a given holiday isn't
+// guaranteed to stay byte-for-byte identical across years (accents,
+// capitalisation, minor rephrasing), so a couple of known variants is more
+// resilient than one exact match. A PublicHoliday with no matching row here
+// still shows on the list (date/name/tags) - it just isn't tappable through
+// to a detail screen, see PublicHolidays.jsx. There is no city/country
+// scoping on this model itself - matching happens purely by name text, so
+// the same slug/content would also serve another city that happens to share
+// a holiday name, without needing its own copy.
+model HolidayInfo {
+  id           Int      @id @default(autoincrement())
+  slug         String   @unique
+  matchNames   String[] @default([])
+  // "About this day" - the holiday's history/significance, written in the
+  // app's own editorial voice (same principle as Entry.description
+  // elsewhere - see claude/todo.md's "Editorial copy is never for sale").
+  description  String
+  // "What to expect" - practical, traveler-facing notes (closures, likely
+  // crowds/transport impact). Optional, since a quiet family holiday (e.g.
+  // Sant Esteve) may not need one the way a day with citywide
+  // demonstrations (e.g. the Diada) does.
+  whatToExpect String?
+}
+
+// Broader interest groupings that ActivityType rows can optionally belong to
+// (Sport & Active, Culture & Arts, Outdoors & Nature, Fun & Entertainment) -
+// added 2026-09-10 so someone who only wants, say, sport-adjacent activities
+// can filter the Activities screen down to just those instead of scanning
+// every ActivityType in the city (see the always-visible filter-chip row in
+// client/src/CategoryScreen.jsx). One level up from ActivityType, the same
+// way ActivityType sits one level up from Entry - a real, separate model
+// rather than a free-text tag, for the same reason ActivityType itself is:
+// the group list is small and fixed (four for now, see
+// client/src/categoryConfig.js/seed.js), not something anyone types freely,
+// so there's no spelling-drift risk a lookup table needs to solve (contrast
+// Entry.types, which deliberately stays free text - see that field's
+// comment below). Simply cleaner to reference a real row than to hardcode
+// four magic strings in both the schema and the client.
+//
+// Shared globally, unlike ActivityType (which is scoped per-city) - "Sport &
+// Active" means the same thing in every city, there's no per-city
+// description to duplicate/collide the way ActivityType.description can
+// (see that model's comment below), so there's nothing to gain from scoping
+// this to a city and real cost (every city would otherwise need its own
+// copy of the same four rows).
+model ActivityGroup {
+  id            Int            @id @default(autoincrement())
+  name          String
+  slug          String         @unique
+  // Manual display order for the filter-chip row - same mechanism/rationale
+  // as ActivityType.sortOrder below. Alphabetical would put "Culture & Arts"
+  // before "Sport & Active" for no good reason; this lets the four be
+  // ordered deliberately instead (see seed.js).
+  sortOrder     Float          @default(0)
+  activityTypes ActivityType[]
+}
+
 // Groups multiple provider Entries under one activity "type" (e.g. Laser
 // Tag, Padel, Escape Rooms) - added 2026-08-28 because, unlike Sightseeing
 // or Eating Out where each Entry is a unique, non-substitutable thing,
@@ -175,6 +315,17 @@ model ActivityType {
   description String?
   city        City    @relation(fields: [cityId], references: [id])
   cityId      Int
+  // Optional broader grouping (Sport & Active, Culture & Arts, ...) shown as
+  // filter chips on the Activities screen - see ActivityGroup above.
+  // Optional rather than required: existing ActivityType rows (Laser Tag,
+  // Padel, ...) predate this relation and need assigning by hand in Prisma
+  // Studio after this migration applies, same pattern as
+  // City.countryId/timezone elsewhere in this schema. An ungrouped
+  // ActivityType still shows under "All" (the default, unfiltered view) -
+  // it just never matches a specific group chip, same as an Entry with no
+  // `types` never matching a cuisine chip.
+  group       ActivityGroup? @relation(fields: [groupId], references: [id])
+  groupId     Int?
   // Manual display order among ActivityType cards on the Activities
   // screen - same mechanism/rationale as Entry.sortOrder below.
   sortOrder   Float   @default(0)
