@@ -234,6 +234,6 @@ const DEFAULT_CATEGORY_CONFIG = {
 // Safety net for a slug with no config entry yet (e.g. a category added to
 // the DB before its UI config was written) - renders with sane defaults
 // rather than crashing.
-export function {items !== nullgetCategoryConfig(slug) {
+export function getCategoryConfig(slug) {
   return CATEGORY_CONFIG[slug] ?? { ...DEFAULT_CATEGORY_CONFIG, title: slug };
 }
