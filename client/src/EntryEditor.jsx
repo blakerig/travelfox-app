@@ -556,7 +556,7 @@ function EntryEditor() {
                 onClick={handleAddressLookup}
                 disabled={!address.trim() || geocodeStatus === 'loading'}
               >
-                Look up
+                Find coordinates
               </button>
             </div>
 

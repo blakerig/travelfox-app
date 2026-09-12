@@ -599,7 +599,10 @@ function CategoryScreen() {
         </div>
       )}
 
-      {items !== null && items.length > 0 && (
+      {/* Essentials skips the count line (2026-09-12) - it doesn't sort or
+          filter, so "X items" never conveys anything useful, unlike
+          Activities/Eating Out/etc. where it also reports filtered counts. */}
+      {items !== null && items.length > 0 && slug !== 'essentials' && (
         <div className="category-screen-count">
           {sortedItems.length === items.length
             ? `${items.length} ${items.length === 1 ? config.itemLabel : config.itemLabelPlural}`
