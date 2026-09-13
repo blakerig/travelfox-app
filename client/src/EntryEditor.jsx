@@ -22,6 +22,19 @@ import './EntryEditor.css';
 // "blank draft" step that could leave a half-empty stub row behind if the
 // user backs out.
 //
+// Essentials hides the venue-shaped fields (2026-09-13) - Type, Phone,
+// Website, Address, Coordinates, Opening times, Price - since Essentials
+// entries (airport, language, money, etc.) are reference content, not
+// venues, and these fields never made sense to fill in for them. They're
+// still fully supported server-side (unaffected for every other category);
+// this is purely a client-side display decision, gated on isEssentials
+// below, not a schema/API change. If an Essentials entry already has values
+// in any of these fields (e.g. from before this change), they're simply not
+// editable here anymore rather than being cleared - Save only ever sends
+// the fields this form actually shows plus whatever state each hidden
+// field's useState already held, so a hidden field's last-loaded value is
+// preserved on save, not blanked out.
+//
 // Deliberately scoped to text/string fields only, matching the server's
 // PATCH/POST endpoints - editing/setting location/price/rating still goes
 // through Prisma Studio. This is a plain field-by-field form on purpose (no
@@ -46,6 +59,9 @@ function EntryEditor() {
   const { slug, entryId } = useParams();
   const navigate = useNavigate();
   const isCreate = entryId === 'new';
+  // Gates the venue-only fields below (Type/Phone/Website/Address/
+  // Coordinates/Opening times/Price) - see the file comment above.
+  const isEssentials = slug === 'essentials';
   const { city, loading: cityLoading } = useCity();
   const { cityData, cityDataReady, ensureCategories, upsertEntry } = useCityData();
   const { user, isAuthenticated } = useAuth();
@@ -477,155 +493,163 @@ function EntryEditor() {
             />
           </label>
 
-          <label className="entry-editor-field">
-            <span className="entry-editor-label">
-              Type (optional - shown on the card, e.g. cuisine for restaurants or a place type
-              like &quot;Museum&quot; for sightseeing. Separate more than one with a comma, e.g.
-              &quot;Pinchos, Catalan&quot;)
-            </span>
-            <input
-              type="text"
-              value={typesInput}
-              onChange={(e) => setTypesInput(e.target.value)}
-              className="entry-editor-input"
-              placeholder="e.g. Tapas, Catalan"
-            />
-          </label>
-
-          <label className="entry-editor-field">
-            <span className="entry-editor-label">
-              Phone (optional - shown on the card, tap-to-call on the detail screen)
-            </span>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="entry-editor-input"
-              placeholder="e.g. +34 933 123 456"
-            />
-          </label>
-
-          <label className="entry-editor-field">
-            <span className="entry-editor-label">Website (optional)</span>
-            <input
-              type="text"
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
-              className="entry-editor-input"
-              placeholder="e.g. https://restaurant.com"
-            />
-          </label>
-
-          <label className="entry-editor-field">
-            <span className="entry-editor-label">Address (optional)</span>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              onBlur={handleAddressLookup}
-              className="entry-editor-input"
-              placeholder="e.g. Carrer de Sant Carles 4, Barcelona"
-            />
-          </label>
-
-          <div className="entry-editor-field">
-            <span className="entry-editor-label">
-              Coordinates (optional - looked up automatically from the address above when you
-              leave the field; always worth a quick check, it isn&apos;t always exact)
-            </span>
-            <div className="entry-editor-coords-row">
-              <input
-                type="number"
-                step="any"
-                value={latitude}
-                onChange={(e) => setLatitude(e.target.value)}
-                className="entry-editor-input entry-editor-coord-input"
-                placeholder="Latitude"
-              />
-              <input
-                type="number"
-                step="any"
-                value={longitude}
-                onChange={(e) => setLongitude(e.target.value)}
-                className="entry-editor-input entry-editor-coord-input"
-                placeholder="Longitude"
-              />
-              <button
-                type="button"
-                className="entry-editor-geocode-button"
-                onClick={handleAddressLookup}
-                disabled={!address.trim() || geocodeStatus === 'loading'}
-              >
-                Find coordinates
-              </button>
-            </div>
-
-            {geocodeStatus === 'loading' && (
-              <p className="entry-editor-hint">Looking up coordinates…</p>
-            )}
-            {geocodeStatus === 'auto-filled' && (
-              <p className="entry-editor-hint">
-                Looked up automatically from the address - please verify (e.g. against the map on
-                the entry&apos;s detail screen once saved).
-              </p>
-            )}
-            {geocodeStatus === 'not-found' && (
-              <p className="entry-editor-hint">
-                Couldn&apos;t find coordinates for that address - enter them manually, or adjust
-                the address and try again.
-              </p>
-            )}
-            {geocodeStatus === 'error' && (
-              <p className="entry-editor-hint">
-                Coordinate lookup failed - try again, or enter coordinates manually.
-              </p>
-            )}
-            {geocodeStatus === 'suggestion' && geocodeSuggestion && (
-              <div className="entry-editor-geocode-suggestion">
-                <span>
-                  Found: {geocodeSuggestion.latitude.toFixed(5)}, {geocodeSuggestion.longitude.toFixed(5)}
+          {/* Type/Phone/Website/Address/Coordinates/Opening times/Price are
+              venue-shaped fields that don't apply to Essentials (reference
+              content like airport/language/money, not places) - hidden
+              here rather than removed, see the file comment at the top. */}
+          {!isEssentials && (
+            <>
+              <label className="entry-editor-field">
+                <span className="entry-editor-label">
+                  Type (optional - shown on the card, e.g. cuisine for restaurants or a place type
+                  like &quot;Museum&quot; for sightseeing. Separate more than one with a comma, e.g.
+                  &quot;Pinchos, Catalan&quot;)
                 </span>
-                <button type="button" onClick={acceptGeocodeSuggestion}>
-                  Use this
-                </button>
-                <button type="button" onClick={dismissGeocodeSuggestion}>
-                  Dismiss
-                </button>
+                <input
+                  type="text"
+                  value={typesInput}
+                  onChange={(e) => setTypesInput(e.target.value)}
+                  className="entry-editor-input"
+                  placeholder="e.g. Tapas, Catalan"
+                />
+              </label>
+
+              <label className="entry-editor-field">
+                <span className="entry-editor-label">
+                  Phone (optional - shown on the card, tap-to-call on the detail screen)
+                </span>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="entry-editor-input"
+                  placeholder="e.g. +34 933 123 456"
+                />
+              </label>
+
+              <label className="entry-editor-field">
+                <span className="entry-editor-label">Website (optional)</span>
+                <input
+                  type="text"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  className="entry-editor-input"
+                  placeholder="e.g. https://restaurant.com"
+                />
+              </label>
+
+              <label className="entry-editor-field">
+                <span className="entry-editor-label">Address (optional)</span>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  onBlur={handleAddressLookup}
+                  className="entry-editor-input"
+                  placeholder="e.g. Carrer de Sant Carles 4, Barcelona"
+                />
+              </label>
+
+              <div className="entry-editor-field">
+                <span className="entry-editor-label">
+                  Coordinates (optional - looked up automatically from the address above when you
+                  leave the field; always worth a quick check, it isn&apos;t always exact)
+                </span>
+                <div className="entry-editor-coords-row">
+                  <input
+                    type="number"
+                    step="any"
+                    value={latitude}
+                    onChange={(e) => setLatitude(e.target.value)}
+                    className="entry-editor-input entry-editor-coord-input"
+                    placeholder="Latitude"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    value={longitude}
+                    onChange={(e) => setLongitude(e.target.value)}
+                    className="entry-editor-input entry-editor-coord-input"
+                    placeholder="Longitude"
+                  />
+                  <button
+                    type="button"
+                    className="entry-editor-geocode-button"
+                    onClick={handleAddressLookup}
+                    disabled={!address.trim() || geocodeStatus === 'loading'}
+                  >
+                    Find coordinates
+                  </button>
+                </div>
+
+                {geocodeStatus === 'loading' && (
+                  <p className="entry-editor-hint">Looking up coordinates…</p>
+                )}
+                {geocodeStatus === 'auto-filled' && (
+                  <p className="entry-editor-hint">
+                    Looked up automatically from the address - please verify (e.g. against the map on
+                    the entry&apos;s detail screen once saved).
+                  </p>
+                )}
+                {geocodeStatus === 'not-found' && (
+                  <p className="entry-editor-hint">
+                    Couldn&apos;t find coordinates for that address - enter them manually, or adjust
+                    the address and try again.
+                  </p>
+                )}
+                {geocodeStatus === 'error' && (
+                  <p className="entry-editor-hint">
+                    Coordinate lookup failed - try again, or enter coordinates manually.
+                  </p>
+                )}
+                {geocodeStatus === 'suggestion' && geocodeSuggestion && (
+                  <div className="entry-editor-geocode-suggestion">
+                    <span>
+                      Found: {geocodeSuggestion.latitude.toFixed(5)}, {geocodeSuggestion.longitude.toFixed(5)}
+                    </span>
+                    <button type="button" onClick={acceptGeocodeSuggestion}>
+                      Use this
+                    </button>
+                    <button type="button" onClick={dismissGeocodeSuggestion}>
+                      Dismiss
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          <label className="entry-editor-field">
-            <span className="entry-editor-label">
-              Opening times (optional - free text, e.g. &quot;Mon: 7.30pm to
-              11.30pm, Tue-Sat: 1pm to 3.45pm &amp; 7.30pm to 11.30pm&quot; -
-              commas separate day-range clauses, &quot;&amp;&quot; separates
-              multiple windows in one clause, minutes use a period like
-              7.30pm)
-            </span>
-            <textarea
-              value={openingTimes}
-              onChange={(e) => setOpeningTimes(e.target.value)}
-              className="entry-editor-textarea entry-editor-textarea-short"
-              rows={2}
-            />
-          </label>
+              <label className="entry-editor-field">
+                <span className="entry-editor-label">
+                  Opening times (optional - free text, e.g. &quot;Mon: 7.30pm to
+                  11.30pm, Tue-Sat: 1pm to 3.45pm &amp; 7.30pm to 11.30pm&quot; -
+                  commas separate day-range clauses, &quot;&amp;&quot; separates
+                  multiple windows in one clause, minutes use a period like
+                  7.30pm)
+                </span>
+                <textarea
+                  value={openingTimes}
+                  onChange={(e) => setOpeningTimes(e.target.value)}
+                  className="entry-editor-textarea entry-editor-textarea-short"
+                  rows={2}
+                />
+              </label>
 
-          <label className="entry-editor-field">
-            <span className="entry-editor-label">
-              Price (optional - keep it short, e.g. &quot;€12, kids free&quot; or
-              &quot;Free&quot;. This is a headline price, not a full tariff table -
-              put a full breakdown in the description instead if you want one
-              on record)
-            </span>
-            <input
-              type="text"
-              value={priceInfo}
-              onChange={(e) => setPriceInfo(e.target.value)}
-              className="entry-editor-input"
-              placeholder="e.g. €12, kids free"
-            />
-          </label>
+              <label className="entry-editor-field">
+                <span className="entry-editor-label">
+                  Price (optional - keep it short, e.g. &quot;€12, kids free&quot; or
+                  &quot;Free&quot;. This is a headline price, not a full tariff table -
+                  put a full breakdown in the description instead if you want one
+                  on record)
+                </span>
+                <input
+                  type="text"
+                  value={priceInfo}
+                  onChange={(e) => setPriceInfo(e.target.value)}
+                  className="entry-editor-input"
+                  placeholder="e.g. €12, kids free"
+                />
+              </label>
+            </>
+          )}
 
           <div className="entry-editor-field">
             <span className="entry-editor-label">Photo (optional - shown on the card)</span>
