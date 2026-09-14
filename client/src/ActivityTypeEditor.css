@@ -1,0 +1,213 @@
+.activity-type-editor {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: 32px;
+}
+
+.activity-type-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 8px;
+}
+
+.activity-type-editor-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.activity-type-editor-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.activity-type-editor-status {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 14px;
+}
+
+.activity-type-editor-form {
+  padding: 8px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.activity-type-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.activity-type-editor-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.activity-type-editor-input,
+.activity-type-editor-textarea,
+.activity-type-editor-select {
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.activity-type-editor-input:focus,
+.activity-type-editor-textarea:focus,
+.activity-type-editor-select:focus {
+  outline: 2px solid var(--g-600);
+  outline-offset: -1px;
+}
+
+.activity-type-editor-select {
+  appearance: auto;
+}
+
+.activity-type-editor-textarea {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13.5px;
+  line-height: 1.5;
+  min-height: 150px;
+}
+
+.activity-type-editor-desc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.activity-type-editor-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.activity-type-editor-tab {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.activity-type-editor-tab.is-active {
+  background: var(--g-600);
+  color: #fff;
+  font-weight: 600;
+}
+
+.activity-type-editor-preview {
+  min-height: 150px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.activity-type-editor-preview-empty {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.activity-type-editor-preview h1,
+.activity-type-editor-preview h2,
+.activity-type-editor-preview h3 {
+  font-size: 15.5px;
+  font-weight: 600;
+  margin: 14px 0 6px;
+}
+
+.activity-type-editor-preview h1:first-child,
+.activity-type-editor-preview h2:first-child,
+.activity-type-editor-preview h3:first-child {
+  margin-top: 0;
+}
+
+.activity-type-editor-preview p {
+  margin: 0 0 10px;
+}
+
+.activity-type-editor-preview ul,
+.activity-type-editor-preview ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.activity-type-editor-hint {
+  font-size: 11.5px;
+  color: var(--faint);
+  margin: 0;
+}
+
+.activity-type-editor-error {
+  font-size: 13px;
+  color: oklch(50% 0.18 25);
+  background: oklch(96% 0.03 25);
+  border: 1px solid oklch(80% 0.08 25);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.activity-type-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.activity-type-editor-cancel {
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 9px 16px;
+  border-radius: 10px;
+}
+
+.activity-type-editor-save {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--g-600);
+  border: none;
+  border-radius: 10px;
+  padding: 9px 18px;
+  cursor: pointer;
+}
+
+.activity-type-editor-save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

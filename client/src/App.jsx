@@ -9,6 +9,7 @@ import CategoryScreen from './CategoryScreen.jsx';
 import EntryDetail from './EntryDetail.jsx';
 import EntryEditor from './EntryEditor.jsx';
 import ActivityTypeDetail from './ActivityTypeDetail.jsx';
+import ActivityTypeEditor from './ActivityTypeEditor.jsx';
 import CityEditor from './CityEditor.jsx';
 import Search from './Search.jsx';
 import Neighbourhoods from './Neighbourhoods.jsx';
@@ -83,6 +84,13 @@ function AppRoutes() {
         <Route path="/category/essentials/holidays/:slug" element={<HolidayDetail />} />
         <Route path="/neighbourhoods" element={<Neighbourhoods />} />
         <Route path="/category/:slug/type/:typeId" element={<ActivityTypeDetail />} />
+        {/* Create/edit an ActivityType itself (2026-09-14, see
+            ActivityTypeEditor.jsx) - distinct from the entry-edit routes
+            below, which are for a *provider* within a type. "new" as a
+            literal :typeId value, same convention EntryEditor.jsx already
+            uses for entryId. */}
+        <Route path="/category/:slug/type/new/edit" element={<ActivityTypeEditor />} />
+        <Route path="/category/:slug/type/:typeId/edit" element={<ActivityTypeEditor />} />
         <Route path="/category/:slug/entry/:entryId" element={<EntryDetail />} />
         <Route path="/category/:slug/entry/:entryId/edit" element={<EntryEditor />} />
         {/* Team login - deliberately not linked from anywhere in the

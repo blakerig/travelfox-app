@@ -408,21 +408,34 @@ app.get('/api/cities/:cityId/entries', async (req, res) => {
 // Single entry, for the entry-detail screen (tapping into a card).
 app.get('/api/entries/:id', async (req, res) => {
   const id = Number(req.params.id);
-  const entry = await prisma.entry.findUnique({
-    where: { id },
-    // activityType included (2026-08-28) so EntryDetail.jsx can send a
-    // provider's "back" link to its ActivityType screen instead of the
-    // flat category list - see Entry.activityTypeId in schema.prisma. null
-    // for every entry outside Activities.
-    include: { category: true, activityType: true },
-  });
-  // Treat a non-published entry as not-found for anonymous callers, same
-  // as a genuinely missing id - never leak draft/awaiting-review content
-  // via a guessed/bookmarked url. Logged-in team roles see every status.
-  if (!entry || (entry.status !== 'PUBLISHED' && !req.user)) {
-    return res.status(404).json({ error: 'Entry not found' });
+  // Same non-numeric-:id guard as GET /api/activity-types/:id below, and
+  // for the same reason (2026-09-15) - this had the identical unguarded
+  // findUnique({ where: { id: NaN } }) shape, which throws a
+  // PrismaClientValidationError nothing here caught, crashing the whole
+  // server rather than just failing this one request.
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid entry id' });
   }
-  res.json(entry);
+  try {
+    const entry = await prisma.entry.findUnique({
+      where: { id },
+      // activityType included (2026-08-28) so EntryDetail.jsx can send a
+      // provider's "back" link to its ActivityType screen instead of the
+      // flat category list - see Entry.activityTypeId in schema.prisma. null
+      // for every entry outside Activities.
+      include: { category: true, activityType: true },
+    });
+    // Treat a non-published entry as not-found for anonymous callers, same
+    // as a genuinely missing id - never leak draft/awaiting-review content
+    // via a guessed/bookmarked url. Logged-in team roles see every status.
+    if (!entry || (entry.status !== 'PUBLISHED' && !req.user)) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+    res.json(entry);
+  } catch (err) {
+    console.error('Failed to fetch entry:', err);
+    res.status(500).json({ error: 'Failed to fetch entry' });
+  }
 });
 
 // Create a new entry. Used by the "+ Add" button on CategoryScreen: city and
@@ -604,20 +617,179 @@ app.get('/api/cities/:cityId/activity-types', async (req, res) => {
 // city-level list rather than needing its own special case later.
 app.get('/api/activity-types/:id', async (req, res) => {
   const id = Number(req.params.id);
-  const activityType = await prisma.activityType.findUnique({
-    where: { id },
-    include: {
-      group: true,
-      entries: {
-        where: req.user ? {} : { status: 'PUBLISHED' },
-        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-      },
-    },
-  });
-  if (!activityType) {
-    return res.status(404).json({ error: 'Activity type not found' });
+  // Guards against a non-numeric :id (e.g. a stale/bad link, or someone
+  // hand-editing the url) - added 2026-09-15 after exactly this crashed
+  // the whole server: Number(req.params.id) on something non-numeric is
+  // NaN, and prisma.activityType.findUnique({ where: { id: NaN } }) throws
+  // a PrismaClientValidationError ("Argument `id` is missing") that
+  // wasn't caught by anything below, so the rejected promise took the
+  // entire Node process down instead of just this one request. Same fix
+  // as the try/catch already wrapping the POST/PATCH activity-type
+  // handlers above - this GET just predates that pattern.
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid activity type id' });
   }
-  res.json(activityType);
+  try {
+    const activityType = await prisma.activityType.findUnique({
+      where: { id },
+      include: {
+        group: true,
+        entries: {
+          where: req.user ? {} : { status: 'PUBLISHED' },
+          orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        },
+      },
+    });
+    if (!activityType) {
+      return res.status(404).json({ error: 'Activity type not found' });
+    }
+    res.json(activityType);
+  } catch (err) {
+    console.error('Failed to fetch activity type:', err);
+    res.status(500).json({ error: 'Failed to fetch activity type' });
+  }
+});
+
+// Turns an ActivityType name into a URL/DB-safe slug (2026-09-14, see
+// POST/PATCH below) - reuses foldAccents (defined further down this file;
+// safe to call here since function declarations are hoisted) so accents
+// are stripped the same way search already folds them, then collapses
+// anything that isn't a-z0-9 into a single hyphen and trims the ends:
+// "Laser Tag" -> "laser-tag", "Go-Karting!" -> "go-karting".
+function slugify(str) {
+  return foldAccents(str)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// Resolves a slug that's actually unique within one city (see the
+// @@unique([cityId, slug]) constraint on ActivityType in schema.prisma) -
+// appends -2, -3, ... only if the plain slug is already taken by a
+// *different* row in the same city, so the ordinary case (a genuinely new
+// name) never gets a suffix. excludeId lets a rename-free edit skip
+// colliding with its own existing row.
+async function uniqueActivityTypeSlug(name, cityId, excludeId) {
+  const base = slugify(name) || 'activity';
+  let slug = base;
+  let suffix = 2;
+  while (
+    await prisma.activityType.findFirst({
+      where: { cityId, slug, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    })
+  ) {
+    slug = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return slug;
+}
+
+// Create a new ActivityType (e.g. "Laser Tag", "Padel") - used by the
+// "+ Add type" link on CategoryScreen.jsx for the Activities category (see
+// groupedByType in categoryConfig.js and ActivityTypeEditor.jsx). Open to
+// every team role rather than gated to Editor/Admin the way the City photo
+// PATCH below is (2026-09-14 decision) - unlike Entry, ActivityType has no
+// draft/review status to catch a Creator's mistake behind, but this was a
+// deliberate call, not an oversight; revisit if near-duplicate types start
+// piling up (see claude/todo.md).
+app.post('/api/activity-types', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
+  const { cityId, name, summary, description, groupId } = req.body;
+
+  if (!cityId) {
+    return res.status(400).json({ error: 'cityId is required' });
+  }
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Name cannot be empty' });
+  }
+
+  try {
+    const slug = await uniqueActivityTypeSlug(name, Number(cityId));
+    const activityType = await prisma.activityType.create({
+      data: {
+        name,
+        slug,
+        summary: summary || null,
+        description: description || null,
+        city: { connect: { id: Number(cityId) } },
+        ...(groupId ? { group: { connect: { id: Number(groupId) } } } : {}),
+      },
+      include: { group: true, entries: true },
+    });
+    res.status(201).json(activityType);
+  } catch (err) {
+    console.error('Failed to create activity type:', err);
+    res.status(500).json({ error: 'Failed to create activity type' });
+  }
+});
+
+// Edit for an existing ActivityType - name/group/summary/description, the
+// same fields ActivityTypeEditor.jsx's form shows (sortOrder stays
+// Prisma-Studio-only, same as Entry.sortOrder never having grown a form
+// field either). The slug is only regenerated when the name actually
+// changes, so a field-only save (fixing a typo in the description, say)
+// never risks shifting the slug - and therefore any link built from it -
+// out from under an edit that didn't touch the name at all.
+app.patch('/api/activity-types/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
+  const id = Number(req.params.id);
+  const { name, summary, description, groupId } = req.body;
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid activity type id' });
+  }
+
+  try {
+    const existing = await prisma.activityType.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Activity type not found' });
+    }
+
+    const data = {};
+    if (name !== undefined) {
+      if (!name.trim()) {
+        return res.status(400).json({ error: 'Name cannot be empty' });
+      }
+      data.name = name;
+      if (name !== existing.name) {
+        data.slug = await uniqueActivityTypeSlug(name, existing.cityId, id);
+      }
+    }
+    if (summary !== undefined) data.summary = summary === '' ? null : summary;
+    if (description !== undefined) data.description = description === '' ? null : description;
+    if (groupId !== undefined) {
+      data.group = groupId ? { connect: { id: Number(groupId) } } : { disconnect: true };
+    }
+
+    const activityType = await prisma.activityType.update({
+      where: { id },
+      data,
+      include: {
+        group: true,
+        entries: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
+      },
+    });
+    res.json(activityType);
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Activity type not found' });
+    }
+    console.error('Failed to update activity type:', err);
+    res.status(500).json({ error: 'Failed to update activity type' });
+  }
+});
+
+// Every ActivityGroup that exists (2026-09-14) - not city-scoped, unlike
+// the ActivityType endpoints above (see ActivityGroup in schema.prisma:
+// it's a small, fixed, shared-across-cities list). What
+// ActivityTypeEditor.jsx's Group dropdown fetches once (via
+// ensureActivityGroups in CityDataProvider.jsx) to offer every group, not
+// just the ones a city's ActivityTypes already happen to use - that
+// narrower set is all the embedded `group` on GET
+// /api/cities/:cityId/activity-types can tell you (see
+// CategoryScreen.jsx's availableActivityGroups), which is fine for a
+// filter chip row but not enough for "assign this type to a group it
+// isn't using yet".
+app.get('/api/activity-groups', async (req, res) => {
+  const groups = await prisma.activityGroup.findMany({ orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
+  res.json(groups);
 });
 
 app.get('/api/categories', async (req, res) => {

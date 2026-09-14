@@ -570,18 +570,26 @@ function CategoryScreen() {
           </Link>
           <h1 className="category-screen-title">{config.title ?? slug}</h1>
         </div>
-        {/* Grouped categories don't offer "+ Add" here - a new ActivityType
-            is created in Prisma Studio for now (a deliberate scope
-            decision, same as sortOrder/rating/etc. - see ActivityType in
-            schema.prisma). Adding a new *provider* within an existing type
-            is still done in-app, via "+ Add provider" on
-            ActivityTypeDetail.jsx. */}
         {/* Only a logged-in team member ever sees "+ Add" - not just
             visually hidden, this is the only place the link is rendered
-            at all for a public visitor. See claude/todo.md. */}
-        {!config.groupedByType && isAuthenticated && (
-          <Link to={`/category/${slug}/entry/new/edit`} className="category-screen-add">
-            + Add
+            at all for a public visitor. See claude/todo.md.
+            Grouped categories (Activities) get their own differently-
+            labeled link that creates a new ActivityType (e.g. "Escape
+            Rooms") via ActivityTypeEditor.jsx, rather than a bare Entry -
+            added 2026-09-14 so this no longer has to go through Prisma
+            Studio (see ActivityType in schema.prisma). Adding a
+            *provider* within an existing type is still a separate action,
+            via "+ Add provider" on ActivityTypeDetail.jsx. */}
+        {isAuthenticated && (
+          <Link
+            to={
+              config.groupedByType
+                ? `/category/${slug}/type/new/edit`
+                : `/category/${slug}/entry/new/edit`
+            }
+            className="category-screen-add"
+          >
+            {config.groupedByType ? '+ Add type' : '+ Add'}
           </Link>
         )}
       </div>

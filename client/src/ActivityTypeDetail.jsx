@@ -89,12 +89,21 @@ function ActivityTypeDetail() {
           &larr;
         </Link>
         {activityType && isAuthenticated && (
-          <Link
-            to={`/category/${slug}/entry/new/edit?activityTypeId=${activityType.id}`}
-            className="activity-type-detail-add"
-          >
-            + Add provider
-          </Link>
+          <div className="activity-type-detail-header-actions">
+            {/* Edits the type itself (name/group/summary/description) via
+                ActivityTypeEditor.jsx - added 2026-09-14, distinct from
+                "+ Add provider" below which adds a new Entry under this
+                type instead. */}
+            <Link to={`/category/${slug}/type/${activityType.id}/edit`} className="activity-type-detail-add">
+              Edit
+            </Link>
+            <Link
+              to={`/category/${slug}/entry/new/edit?activityTypeId=${activityType.id}`}
+              className="activity-type-detail-add"
+            >
+              + Add provider
+            </Link>
+          </div>
         )}
       </div>
 

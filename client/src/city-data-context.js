@@ -5,7 +5,8 @@ import { createContext, useContext } from 'react';
 // (React Fast Refresh works reliably when a file exports only a component).
 //
 // Context value shape:
-//   { cityData, cityDataReady, categories, ensureCategories, upsertEntry, refreshCity }
+//   { cityData, cityDataReady, categories, ensureCategories, upsertEntry,
+//     activityGroups, ensureActivityGroups, upsertActivityType, refreshCity }
 //
 //   - cityData: the current city's cached bundle -
 //     { entries, activityTypes, homeCategorySlugs, neighbourhoods, fetchedAt }
@@ -28,6 +29,18 @@ import { createContext, useContext } from 'react';
 //     current city's cached bundle in place (see EntryEditor.jsx's
 //     handleSave) so the app reflects your own edit immediately, without
 //     waiting on or forcing a full re-fetch.
+//   - activityGroups: every ActivityGroup that exists ([{ id, slug, name,
+//     sortOrder }, ...]) - reference data, not city-scoped (same idea as
+//     `categories` above), fetched once for the app's lifetime the first
+//     time anything calls ensureActivityGroups() (ActivityTypeEditor.jsx,
+//     populating its Group dropdown). null until then.
+//   - ensureActivityGroups(): returns a Promise of `activityGroups`,
+//     fetching once if it hasn't been already.
+//   - upsertActivityType(activityType): patches a just-created/just-edited
+//     ActivityType into the current city's cached bundle in place (see
+//     ActivityTypeEditor.jsx's handleSave), same idea as upsertEntry above
+//     but simpler - an ActivityType save can't change which Entries exist,
+//     so only `bundle.activityTypes` needs touching, not `entries` too.
 //   - refreshCity(): forces a fresh network fetch of the current city's
 //     bundle. Not wired to any UI yet - available for a future
 //     pull-to-refresh.

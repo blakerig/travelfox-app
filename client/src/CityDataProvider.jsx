@@ -91,7 +91,8 @@ async function fetchCityBundle(cityId) {
 //     re-hitting the server.
 //   - A save in EntryEditor.jsx patches the cache directly via
 //     upsertEntry() instead of waiting for/forcing a re-fetch, so your own
-//     edits show up immediately.
+//     edits show up immediately. A save in ActivityTypeEditor.jsx does the
+//     same via upsertActivityType() (2026-09-14).
 //
 // Deliberately NOT covered here: Search.jsx still queries
 // GET /api/cities/:cityId/search directly. That endpoint does
@@ -103,6 +104,7 @@ export function CityDataProvider({ children }) {
   const { city } = useCity();
   const [bundles, setBundles] = useState({}); // { [cityId]: bundle }
   const [categories, setCategories] = useState(null);
+  const [activityGroups, setActivityGroups] = useState(null);
   const fetchedThisSession = useRef(new Set());
   const inFlight = useRef(new Map()); // cityId -> Promise, de-dupes overlapping fetches
 
@@ -148,6 +150,23 @@ export function CityDataProvider({ children }) {
         return [];
       });
   }, [categories]);
+
+  // Same fetched-once pattern as ensureCategories above, for the four
+  // ActivityGroups - see the doc comment on activityGroups in
+  // city-data-context.js.
+  const ensureActivityGroups = useCallback(() => {
+    if (activityGroups !== null) return Promise.resolve(activityGroups);
+    return fetch(`${import.meta.env.VITE_API_URL}/api/activity-groups`)
+      .then((res) => res.json())
+      .then((data) => {
+        setActivityGroups(data);
+        return data;
+      })
+      .catch((err) => {
+        console.error('Failed to fetch activity groups:', err);
+        return [];
+      });
+  }, [activityGroups]);
 
   useEffect(() => {
     if (!city) return;
@@ -226,6 +245,31 @@ export function CityDataProvider({ children }) {
     [city]
   );
 
+  // Patches a just-created/just-edited ActivityType into the current
+  // city's cached bundle in place - see ActivityTypeEditor.jsx's
+  // handleSave. Simpler than upsertEntry above: an ActivityType save can't
+  // change which provider Entries exist (that's Entry's own city/
+  // activityType fields, untouched here), so only `activityTypes` needs
+  // patching, never `entries`.
+  const upsertActivityType = useCallback(
+    (activityType) => {
+      if (!city) return;
+      setBundles((prev) => {
+        const bundle = prev[city.id];
+        if (!bundle) return prev;
+
+        const activityTypes = bundle.activityTypes.some((t) => t.id === activityType.id)
+          ? bundle.activityTypes.map((t) => (t.id === activityType.id ? activityType : t))
+          : [...bundle.activityTypes, activityType];
+
+        const updated = { ...bundle, activityTypes };
+        writeCachedBundle(city.id, updated);
+        return { ...prev, [city.id]: updated };
+      });
+    },
+    [city]
+  );
+
   const refreshCity = useCallback(() => {
     if (!city) return Promise.resolve();
     return loadCity(city.id);
@@ -241,6 +285,9 @@ export function CityDataProvider({ children }) {
         categories,
         ensureCategories,
         upsertEntry,
+        activityGroups,
+        ensureActivityGroups,
+        upsertActivityType,
         refreshCity,
       }}
     >

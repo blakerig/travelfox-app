@@ -29,6 +29,16 @@
   line-height: 1;
 }
 
+/* Wraps "Edit" + "+ Add provider" (2026-09-14) so both right-aligned
+   actions sit together as a group against the header's
+   justify-content: space-between, rather than the second one pushing the
+   first out to its own edge. */
+.activity-type-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .activity-type-detail-add {
   font-size: 13px;
   font-weight: 600;
