@@ -86,10 +86,15 @@ function AppRoutes() {
         <Route path="/category/:slug/type/:typeId" element={<ActivityTypeDetail />} />
         {/* Create/edit an ActivityType itself (2026-09-14, see
             ActivityTypeEditor.jsx) - distinct from the entry-edit routes
-            below, which are for a *provider* within a type. "new" as a
-            literal :typeId value, same convention EntryEditor.jsx already
-            uses for entryId. */}
-        <Route path="/category/:slug/type/new/edit" element={<ActivityTypeEditor />} />
+            below, which are for a *provider* within a type. One route only
+            (2026-09-15 fix) - :typeId captures "new" as a plain string
+            value just like the entry-edit route below already does for
+            entryId, rather than a separate literal "/type/new/edit" route.
+            That second route existed briefly and was the actual bug: a
+            literal "new" segment isn't the same as :typeId, so
+            useParams().typeId came back undefined on it, isCreate (typeId
+            === 'new') was always false, and Save PATCHed
+            /api/activity-types/undefined instead of creating anything. */}
         <Route path="/category/:slug/type/:typeId/edit" element={<ActivityTypeEditor />} />
         <Route path="/category/:slug/entry/:entryId" element={<EntryDetail />} />
         <Route path="/category/:slug/entry/:entryId/edit" element={<EntryEditor />} />
