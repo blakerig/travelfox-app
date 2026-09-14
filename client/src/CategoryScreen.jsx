@@ -228,6 +228,7 @@ function CategoryScreen() {
   const config = getCategoryConfig(slug);
   const key = city ? `${city.id}:${slug}` : null;
   const currencySymbol = city?.country?.currencySymbol || '$';
+  const countryCode = city?.country?.code;
   // Read once, on this component instance's first render only (the
   // useState calls below only ever use their initial argument on that
   // same first render) - captures whatever sort/filter selection was
@@ -850,8 +851,10 @@ function CategoryScreen() {
                 currencySymbol={currencySymbol}
                 showPrice={config.cardShowPrice ?? true}
                 showPhone={config.cardShowPhone ?? false}
+                countryCode={countryCode}
                 showOpenStatus={config.cardShowOpenStatus ?? false}
                 timezone={city?.timezone}
+                city={city}
                 expandable
                 editHref={isAuthenticated ? `/category/${slug}/entry/${item.id}/edit` : undefined}
               />
@@ -871,6 +874,8 @@ function CategoryScreen() {
                   currencySymbol={currencySymbol}
                   showPrice={config.cardShowPrice ?? true}
                   showPhone={config.cardShowPhone ?? false}
+                  countryCode={countryCode}
+                  city={city}
                   showOpenStatus={config.cardShowOpenStatus ?? false}
                   timezone={city?.timezone}
                 />

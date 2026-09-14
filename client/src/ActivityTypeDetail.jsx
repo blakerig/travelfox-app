@@ -36,6 +36,7 @@ function ActivityTypeDetail() {
   const { cityData, cityDataReady } = useCityData();
   const { isAuthenticated } = useAuth();
   const currencySymbol = city?.country?.currencySymbol || '$';
+  const countryCode = city?.country?.code;
 
   // Read straight out of the current city's cache first (see
   // CityDataProvider.jsx) - the common case, since this is normally
@@ -138,6 +139,8 @@ function ActivityTypeDetail() {
                     entry={entry}
                     variant={config.providerCardVariant ?? 'venue'}
                     currencySymbol={currencySymbol}
+                    countryCode={countryCode}
+                    city={city}
                   />
                 </Link>
               ))}

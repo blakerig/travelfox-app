@@ -11,6 +11,8 @@ import { useAuth } from './auth-context.js';
 import photoPlaceholder from './assets/entry-photo-placeholder.svg';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import { isOpenNow } from './openingHours.js';
+import { formatPhoneNumber } from './phoneNumber.js';
+import { formatEntryAddress } from './address.js';
 import EntryLocationMap from './EntryLocationMap.jsx';
 
 // Prefixes a bare domain (e.g. "restaurant.com", typed without a scheme -
@@ -138,6 +140,9 @@ function EntryDetail() {
   // status" - handled below by simply not rendering the badge.
   const openStatus = entry ? isOpenNow(entry.openingTimes, city?.timezone) : null;
   const directionsUrl = entry ? getDirectionsUrl(entry) : null;
+  // See phoneNumber.js for the country-code rule (only filled in from
+  // City.country.code when entry.phone doesn't already start with "+").
+  const formattedPhone = entry?.phone ? formatPhoneNumber(entry.phone, city?.country?.code) : null;
 
   return (
     <div className="entry-detail">
@@ -174,7 +179,7 @@ function EntryDetail() {
               )}
               {entry.priceLevel != null && <span>{currencySymbol.repeat(entry.priceLevel)}</span>}
               {entry.types?.length > 0 && <span>{entry.types.join(', ')}</span>}
-              {entry.address && <span>{entry.address}</span>}
+              {entry.address && <span>{formatEntryAddress(entry.address, city)}</span>}
             </div>
           )}
 
@@ -216,10 +221,10 @@ function EntryDetail() {
                   <span className="entry-detail-contact-value">Open in Maps</span>
                 </a>
               )}
-              {entry.phone && (
-                <a href={`tel:${entry.phone}`} className="entry-detail-contact-row">
+              {formattedPhone && (
+                <a href={formattedPhone.href} className="entry-detail-contact-row">
                   <span className="entry-detail-contact-label">Call</span>
-                  <span className="entry-detail-contact-value">{entry.phone}</span>
+                  <span className="entry-detail-contact-value">{formattedPhone.display}</span>
                 </a>
               )}
               {entry.website && (

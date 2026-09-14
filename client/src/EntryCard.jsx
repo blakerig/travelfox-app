@@ -7,6 +7,8 @@ import './EntryCard.css';
 import photoPlaceholder from './assets/entry-photo-placeholder.svg';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import { isOpenNow } from './openingHours.js';
+import { formatPhoneNumber } from './phoneNumber.js';
+import { formatEntryAddress } from './address.js';
 
 // Strip common Markdown syntax for a plain-text card snippet. Entry.description
 // is authored as Markdown (see project notes), but full formatted rendering
@@ -70,14 +72,27 @@ function snippet(text, max = 120) {
 // rather than showing a "don't know" state - same as showPrice/showPhone
 // only rendering when there's real data. See categoryConfig.js's
 // cardShowOpenStatus for the per-category on/off switch.
+//
+// countryCode (2026-09-14, 'photo' variant only) is the current city's
+// Country.code (ISO alpha-2, e.g. "ES") - passed down alongside
+// currencySymbol so phoneNumber.js's formatPhoneNumber can fill in a dial
+// code for any entry.phone that doesn't already start with "+". See
+// phoneNumber.js for the full rule.
+//
+// city (2026-09-14, 'venue' variant only - see below) is the current City
+// itself, not just its name, so address.js's formatEntryAddress can drop a
+// trailing city name from entry.address when it's redundant with the
+// section already being viewed. See address.js for the full rule.
 function EntryCard({
   entry,
   variant,
   currencySymbol = '$',
   showPrice = true,
   showPhone = false,
+  countryCode,
   showOpenStatus = false,
   timezone,
+  city,
   expandable = false,
   editHref,
 }) {
@@ -103,7 +118,8 @@ function EntryCard({
     // label for the card's compact meta line, same spot the single value
     // used to render.
     const typesLabel = entry.types?.length ? entry.types.join(', ') : null;
-    const showPhoneMeta = showPhone && Boolean(entry.phone);
+    const formattedPhone = showPhone ? formatPhoneNumber(entry.phone, countryCode) : null;
+    const showPhoneMeta = Boolean(formattedPhone);
 
     // Meta line segments as an array (2026-09-02, was two hand-special-cased
     // segments before phone was added) so a middot separator only appears
@@ -140,10 +156,10 @@ function EntryCard({
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            window.location.href = `tel:${entry.phone}`;
+            window.location.href = formattedPhone.href;
           }}
         >
-          &#9742; {entry.phone}
+          &#9742; {formattedPhone.display}
         </button>
       ),
     ].filter(Boolean);
@@ -268,7 +284,9 @@ function EntryCard({
           {entry.priceLevel != null && (
             <span className="entry-card-price">{currencySymbol.repeat(entry.priceLevel)}</span>
           )}
-          {entry.address && <span className="entry-card-address">{entry.address}</span>}
+          {entry.address && (
+            <span className="entry-card-address">{formatEntryAddress(entry.address, city)}</span>
+          )}
         </div>
       )}
 

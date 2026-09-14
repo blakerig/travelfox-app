@@ -71,6 +71,7 @@ function resultHref(result) {
 function Search() {
   const { city } = useCity();
   const currencySymbol = city?.country?.currencySymbol || '$';
+  const countryCode = city?.country?.code;
   const navigate = useNavigate();
   const inputRef = useRef(null);
   const [query, setQuery] = useState('');
@@ -237,8 +238,10 @@ function Search() {
                       currencySymbol={currencySymbol}
                       showPrice={config.cardShowPrice ?? true}
                       showPhone={config.cardShowPhone ?? false}
+                      countryCode={countryCode}
                       showOpenStatus={config.cardShowOpenStatus ?? false}
                       timezone={city?.timezone}
+                      city={city}
                     />
                   </Link>
                 );
