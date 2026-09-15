@@ -83,6 +83,23 @@ function snippet(text, max = 120) {
 // itself, not just its name, so address.js's formatEntryAddress can drop a
 // trailing city name from entry.address when it's redundant with the
 // section already being viewed. See address.js for the full rule.
+//
+// Publish-status badge (2026-09-15) - entry.status is 'DRAFT' |
+// 'AWAITING_REVIEW' | 'PUBLISHED' (see the Publish workflow note in
+// EntryEditor.jsx / EntryStatus in schema.prisma). The server only ever
+// returns non-published entries to an authenticated editor/creator in the
+// first place, so this badge doesn't gate on isAuthenticated itself - it
+// just flags, for whoever *is* seeing the card, which ones are Draft or
+// Awaiting Review and therefore still need attention. A card with no
+// `status` at all (a 'group' ActivityType row isn't an Entry - see
+// schema.prisma) or one that's Published renders neither the badge nor the
+// border accent below, so a normal published list looks exactly as it did
+// before this existed.
+const STATUS_BADGES = {
+  DRAFT: { label: 'Draft', modifier: 'draft' },
+  AWAITING_REVIEW: { label: 'Awaiting review', modifier: 'awaiting-review' },
+};
+
 function EntryCard({
   entry,
   variant,
@@ -109,6 +126,12 @@ function EntryCard({
     variant === 'group'
       ? entry.description?.trim() || entry.summary
       : entry.summary?.trim() || entry.description;
+
+  const statusInfo = STATUS_BADGES[entry.status] || null;
+  const statusBadge = statusInfo ? (
+    <div className={`entry-card-status-badge is-${statusInfo.modifier}`}>{statusInfo.label}</div>
+  ) : null;
+  const statusCardClass = statusInfo ? ` entry-card-status-${statusInfo.modifier}` : '';
 
   if (variant === 'photo') {
     const showPriceMeta = showPrice && entry.priceLevel != null;
@@ -242,7 +265,7 @@ function EntryCard({
     if (expandable) {
       return (
         <div
-          className={`entry-card entry-card-photo entry-card-expandable${
+          className={`entry-card entry-card-photo entry-card-expandable${statusCardClass}${
             expanded ? ' is-expanded' : ''
           }`}
           role="button"
@@ -258,23 +281,28 @@ function EntryCard({
         >
           {photo}
           {openBadge}
+          {statusBadge}
           {body}
         </div>
       );
     }
 
     return (
-      <div className="entry-card entry-card-photo">
+      <div className={`entry-card entry-card-photo${statusCardClass}`}>
         {photo}
         {openBadge}
+        {statusBadge}
         {body}
       </div>
     );
   }
 
   return (
-    <div className="entry-card">
-      <div className="entry-card-name">{entry.name}</div>
+    <div className={`entry-card${statusCardClass}`}>
+      <div className="entry-card-name-row">
+        <div className="entry-card-name">{entry.name}</div>
+        {statusBadge}
+      </div>
 
       {variant === 'venue' && (
         <div className="entry-card-meta">

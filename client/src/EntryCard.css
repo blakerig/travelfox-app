@@ -52,6 +52,65 @@
   background: rgba(107, 99, 117, 0.75);
 }
 
+/* Publish-status badge + card accent (2026-09-15) - see the statusInfo doc
+   comment in EntryCard.jsx. Two treatments applied together so a Draft/
+   Awaiting Review card registers even scanning past it quickly, not just
+   from reading the badge text: an inset colour stripe down the card's left
+   edge (inset, not a real border, so it respects border-radius cleanly on
+   both the plain and photo card shapes without any extra markup), plus a
+   small text pill. The pill sits inline next to the name on every variant
+   except 'photo', where .entry-card-photo > .entry-card-status-badge below
+   moves it to float over the photo's top-right corner instead - the
+   opposite corner from .entry-card-open-badge, so the two never collide
+   even when a category shows both. */
+.entry-card-status-draft {
+  box-shadow: inset 4px 0 0 rgba(107, 99, 117, 0.55), 0 1px 3px rgba(20, 30, 25, 0.06);
+}
+
+.entry-card-status-awaiting-review {
+  box-shadow: inset 4px 0 0 rgba(191, 107, 6, 0.6), 0 1px 3px rgba(20, 30, 25, 0.06);
+}
+
+.entry-card-status-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.entry-card-status-badge.is-draft {
+  background: rgba(107, 99, 117, 0.85);
+}
+
+.entry-card-status-badge.is-awaiting-review {
+  background: rgba(191, 107, 6, 0.9);
+}
+
+.entry-card-photo > .entry-card-status-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  backdrop-filter: blur(2px);
+}
+
+/* Non-photo variants (venue/group/reference) have no photo real estate for
+   an overlaid badge, so it sits inline next to the name instead. */
+.entry-card-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.entry-card-name-row .entry-card-name {
+  margin-bottom: 0;
+}
+
 .entry-card-photo-img {
   display: block;
   width: 100%;
