@@ -72,15 +72,17 @@
 // user's current location (see geo.js/useUserLocation.js) - unlike
 // type/priceLevel it isn't Eating-Out-specific in principle (any venue
 // with coordinates could use it), it's just only wired up here for now.
-// Deliberately a filter only, not a sort option: the user has direct
-// experience of a straight-line "Nearest" sort being misleading in a dense
-// city (a closer-as-the-crow-flies restaurant can be a longer walk than a
-// farther one), so ranking by this distance was judged too likely to
+// Deliberately a filter only, never a sort: the user has direct experience
+// of a straight-line "Nearest" sort being misleading in a dense city (a
+// closer-as-the-crow-flies restaurant can be a longer walk than a farther
+// one), so ranking by this number specifically was judged too likely to
 // mislead. A radius cutoff is a coarser, more defensible use of the same
-// number - it's honest about being approximate rather than claiming to
-// know which option is truly closest. Real walking distance/time (via a
-// routing API) is logged in claude/todo.md - that's what a "Nearest" sort
-// should wait for.
+// number - it's honest about being approximate rather than claiming to know
+// which option is truly closest. This reasoning is about straight-line
+// distance specifically, not distance sorting in general - see 'nearest' in
+// SORT_NEAREST_CURATED_NAME below, added 2026-09-15 once real walking
+// distance/duration existed to back a sort with (the thing this comment
+// used to say a "Nearest" sort should wait for).
 //
 // expandInPlace (2026-08-29) - when true, CategoryScreen renders this
 // category's cards without wrapping them in a Link to EntryDetail; instead
@@ -129,22 +131,50 @@
 //     'shopTypeId', matching the scalar column name on Entry itself (see
 //     schema.prisma).
 
-const SORT_NAME_RATING = [
-  { value: 'name', label: 'Name (A-Z)' },
-  { value: 'rating', label: 'Rating' },
-];
-
-// Eating Out only (2026-08-28): 'curated' isn't a real sort - CategoryScreen's
-// sortEntries() doesn't recognise it, so entries pass through unchanged in
-// whatever order the server returned them, i.e. Entry.sortOrder (see
-// GET /api/cities/:cityId/entries). Listed first so it's the *default* on
-// first load - deliberately not name/rating: with 60-80 restaurants per
-// city expected, A-Z would arbitrarily favour names starting with "A", and
-// a displayed star rating implies a review system that doesn't exist.
-// "Recommended" here just means "the order the curator hand-picked in
-// Prisma Studio" - same sortOrder mechanism Essentials already uses. "Name
-// (A-Z)" stays available for someone scanning for a specific known name.
-const SORT_CURATED_NAME = [
+// Eating Out / Sightseeing sort options (2026-09-15: Sightseeing switched
+// onto this same shared array, replacing its old name/rating-only one - see
+// below). 'rating' was dropped outright, not just from Sightseeing: nothing
+// in the app actually collects star ratings from real reviewers, so a
+// "Rating" sort was ordering by a number that doesn't mean anything to a
+// real user - same "don't claim precision you don't have" principle used
+// throughout this app, just applied to a sort option rather than a
+// displayed figure this time.
+//
+// 'nearest' (2026-09-15) is backed by real walking *duration* - the same
+// OpenRouteService Matrix data already fetched for the distance filter and
+// the card-level walking time (see walkingMinutesFor and the
+// walkingDistances effect in CategoryScreen.jsx, and "Real walking
+// distance/time" in claude/todo.md) - so this is the real-distance "Nearest"
+// sort that was deliberately deferred back when only straight-line distance
+// existed (see the 'distance' doc comment above). Listed first/default, but
+// CategoryScreen.jsx's sortItems() only actually orders by it once the
+// user's location is granted *and* judged close enough to this city -
+// specifically not, per Blake's own example, someone planning a trip from
+// elsewhere. Short of that (no permission yet, still resolving, or too far
+// away) it gracefully falls through to the exact same pass-through order as
+// 'curated' below, with a small hint explaining why, rather than sorting by
+// a meaningless distance or leaving the list looking broken. Doesn't cost
+// anything extra to compute - it reads data that's already being fetched for
+// every category that offers this option, not a new request.
+//
+// 'curated' isn't a real sort - CategoryScreen's sortItems() doesn't
+// recognise it, so entries pass through unchanged in whatever order the
+// server returned them, i.e. Entry.sortOrder (see GET
+// /api/cities/:cityId/entries) - "Recommended" just means "the order the
+// curator hand-picked in Prisma Studio," same sortOrder mechanism Essentials
+// already uses. Deliberately kept as an available option alongside 'nearest'
+// rather than removed (Blake, 2026-09-15: "at least for now, keep it") for
+// two reasons: it's the graceful fallback described above for whenever
+// Nearest can't be computed, and it doubles as a manual override - switching
+// to Recommended is how Blake can force a particular entry higher (via its
+// sortOrder in Prisma Studio) even though it's farther away than others,
+// without needing a separate "pin above the sorted list" mechanism built
+// just for that.
+//
+// "Name (A-Z)" stays available for someone scanning for a specific known
+// name, same as before.
+const SORT_NEAREST_CURATED_NAME = [
+  { value: 'nearest', label: 'Nearest' },
   { value: 'curated', label: 'Recommended' },
   { value: 'name', label: 'Name (A-Z)' },
 ];
@@ -240,7 +270,7 @@ export const CATEGORY_CONFIG = {
     cardShowPhone: true,
     // See cardShowOpenStatus doc comment above.
     cardShowOpenStatus: true,
-    sortOptions: SORT_CURATED_NAME,
+    sortOptions: SORT_NEAREST_CURATED_NAME,
     filterOptions: ['types', 'priceLevel', 'distance', 'openNow'],
     typeFilterLabel: 'Cuisine',
     itemLabel: 'restaurant',
@@ -250,7 +280,7 @@ export const CATEGORY_CONFIG = {
     title: 'Sightseeing',
     cardVariant: 'photo',
     cardShowPrice: false,
-    sortOptions: SORT_NAME_RATING,
+    sortOptions: SORT_NEAREST_CURATED_NAME,
     // Type and distance, but not price (2026-08-28) - sightseeing entries
     // don't have a restaurant-style price tier worth filtering on, see
     // cardShowPrice above.

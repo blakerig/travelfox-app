@@ -33,28 +33,82 @@ const RADIUS_OPTIONS_KM = [0.5, 1, 2, 5];
 // the server.
 const WALKING_DISTANCE_PREFILTER_KM = 8;
 
+// How close the user needs to be to a city's own stored coordinates
+// (City.latitude/longitude) before "Nearest" (see sortItems above) is
+// allowed to drive the sort order at all, rather than quietly falling back
+// to Recommended (2026-09-15, Blake: "obviously this should only be done if
+// the user is close enough... not if they are planning a trip from another
+// city"). Same value and "same metro area" reasoning as
+// MAX_USER_LOCATION_DISTANCE_KM in EntryLocationMap.jsx - a coarse cutoff,
+// not a precisely researched one, kept consistent across the app rather
+// than introducing a second number to reason about. See nearestUsable
+// below for how this actually gets checked.
+const NEAREST_SORT_MAX_CITY_DISTANCE_KM = 50;
+
 // Sorting is done client-side for now - lists are small in v1 and this
 // avoids adding server-side sort-param parsing before it's actually needed.
 // Revisit (move to the API, via ?sort=) if item counts grow enough to matter.
 //
-// sortBy === 'curated' (Eating Out's default, see categoryConfig.js) is
-// deliberately not handled here - falling through both branches leaves
-// `items` in the order the server returned them, i.e. Entry.sortOrder
-// (see GET /api/cities/:cityId/entries), so "Recommended" just means
-// "however it was hand-ordered in Prisma Studio."
+// sortBy === 'curated' (see categoryConfig.js) is deliberately not handled
+// here - falling through leaves `items` in the order the server returned
+// them, i.e. Entry.sortOrder (see GET /api/cities/:cityId/entries), so
+// "Recommended" just means "however it was hand-ordered in Prisma Studio."
+//
+// sortBy === 'nearest' (2026-09-15, Eating Out/Sightseeing - see
+// SORT_NEAREST_CURATED_NAME in categoryConfig.js) only actually reorders
+// when `nearestUsable` is true (computed in CategoryScreen from location
+// status + how close the user is judged to be to this city - see that
+// component for the full reasoning); otherwise it falls through to the
+// exact same pass-through as 'curated' above, so selecting "Nearest" before
+// it's usable never produces a broken or nonsensical order, just the
+// existing Recommended one, with the UI explaining why via the hint text
+// rendered alongside the sort control.
+//
+// When usable, nearestSortKey below produces a three-tier ordering rather
+// than a flat comparison: entries with a real walking *duration* (from
+// `walkingDistances`, the same Matrix data already fetched for the distance
+// filter/card walking time - see the walkingDistances effect and
+// walkingMinutesFor further down) sort first, ascending, since that's an
+// actual measured number; entries missing one (outside the Matrix request's
+// pre-filter/destination cap, or ORS not yet configured at all - see
+// claude/todo.md) fall back to straight-line distance from `origin` for
+// relative ordering only - never displayed as if it were the real number,
+// same "silent internal use only" treatment WALKING_DISTANCE_PREFILTER_KM
+// already gets - and sort after every entry that does have real data, via
+// NEAREST_FALLBACK_OFFSET_SECONDS (chosen well above any plausible real
+// walking duration, so the two tiers never interleave); entries with no
+// coordinates at all - so no distance of any kind can be computed - sort
+// last, in whatever relative order they were already in (JS's stable sort
+// leaves ties in their prior order, so this is quietly stable rather than
+// re-shuffling them each time).
 //
 // For a grouped category (Activities, see groupedByType in
-// categoryConfig.js) sortBy is always null - ActivityType objects don't
-// have `rating`, so this just falls through the `!sortBy` guard below and
-// leaves the server's ActivityType.sortOrder order untouched, same
-// mechanism one level up.
-function sortItems(items, sortBy) {
+// categoryConfig.js) sortBy is always null - this just falls through the
+// `!sortBy` guard below and leaves the server's ActivityType.sortOrder
+// order untouched, same mechanism one level up.
+const NEAREST_FALLBACK_OFFSET_SECONDS = 1_000_000;
+
+function nearestSortKey(item, { walkingDistances, origin }) {
+  const realDurationSeconds = walkingDistances?.get(item.id)?.durationSeconds;
+  if (realDurationSeconds != null) return realDurationSeconds;
+  if (origin && item.latitude != null && item.longitude != null) {
+    return (
+      NEAREST_FALLBACK_OFFSET_SECONDS +
+      haversineDistanceKm(origin.latitude, origin.longitude, item.latitude, item.longitude)
+    );
+  }
+  return Infinity;
+}
+
+function sortItems(items, sortBy, nearestContext) {
   if (!sortBy) return items;
   const sorted = items.slice();
   if (sortBy === 'name') {
     sorted.sort((a, b) => a.name.localeCompare(b.name));
-  } else if (sortBy === 'rating') {
-    sorted.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
+  } else if (sortBy === 'nearest' && nearestContext?.nearestUsable) {
+    sorted.sort(
+      (a, b) => nearestSortKey(a, nearestContext) - nearestSortKey(b, nearestContext)
+    );
   }
   return sorted;
 }
@@ -468,6 +522,31 @@ function CategoryScreen() {
   );
   const showDistanceFilter = Boolean(config.filterOptions?.includes('distance')) && hasCoordinateData;
 
+  // Whether "Nearest" (see sortItems/SORT_NEAREST_CURATED_NAME) is allowed
+  // to actually drive the sort order right now, as opposed to gracefully
+  // falling back to Recommended - 2026-09-15, see NEAREST_SORT_MAX_CITY_
+  // DISTANCE_KM's comment above for the full reasoning. Three things all
+  // have to be true: this category offers real distance data at all
+  // (categoryHasDistanceFilter - Eating Out/Sightseeing only), the user has
+  // actually granted location (not idle/loading/denied/unavailable), and
+  // they're judged close enough to *this city* specifically - compared
+  // against City.latitude/longitude (always set, unlike Entry's, which is
+  // why this doesn't need the hasCoordinateData-style "does the data even
+  // exist" guard the entry-level checks elsewhere need). That last check is
+  // what stops Nearest from silently sorting by a meaningless few-hundred-km
+  // number for someone browsing this city's page while they're actually
+  // still at home planning a trip.
+  const distanceFromCityCenterKm =
+    userCoords && city
+      ? haversineDistanceKm(userCoords.latitude, userCoords.longitude, city.latitude, city.longitude)
+      : null;
+  const nearestUsable =
+    categoryHasDistanceFilter &&
+    locationStatus === 'granted' &&
+    userCoords != null &&
+    distanceFromCityCenterKm != null &&
+    distanceFromCityCenterKm <= NEAREST_SORT_MAX_CITY_DISTANCE_KM;
+
   // Fetches real walking distance/duration for nearby candidates once
   // location is granted, for categories that actually offer the distance
   // filter. A denied/unavailable/idle location, or this category not
@@ -579,7 +658,20 @@ function CategoryScreen() {
       selectedActivityGroup,
     ]
   );
-  const sortedItems = useMemo(() => sortItems(filteredItems, sortBy), [filteredItems, sortBy]);
+  // Same "only once the fetch has actually succeeded" treatment as
+  // filteredItems' own walkingDistances above - nearestSortKey (in
+  // sortItems) falls back to straight-line for anything missing from the
+  // Map, and 'loading'/'error'/'idle' should all read as "missing" here too,
+  // not as an empty-but-ready Map.
+  const sortedItems = useMemo(
+    () =>
+      sortItems(filteredItems, sortBy, {
+        nearestUsable,
+        walkingDistances: walkingDistancesStatus === 'ready' ? walkingDistances : null,
+        origin: userCoords,
+      }),
+    [filteredItems, sortBy, nearestUsable, walkingDistances, walkingDistancesStatus, userCoords]
+  );
 
   // Real walking minutes for one card, or null when there isn't a real
   // number to show (2026-09-15, see the walkingMinutes doc comment in
@@ -721,6 +813,67 @@ function CategoryScreen() {
             >
               Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
             </button>
+          )}
+        </div>
+      )}
+
+      {/* "Nearest" hint (2026-09-15) - shown right under the sort control
+          itself, not inside the collapsible Filters panel below, since the
+          sort dropdown is always visible while the filter panel usually
+          isn't. Only rendered while "Nearest" is actually selected, and
+          explains whichever state is stopping it from sorting yet - never
+          silently shows Recommended order with the dropdown reading
+          "Nearest" and no explanation, since that would look like a bug
+          rather than the deliberate graceful-fallback behavior it is (see
+          sortItems' doc comment above). Reuses the distance filter's own
+          location-state classes/copy conventions (category-screen-location-
+          button/-status, category-screen-filter-hint) rather than inventing
+          a parallel set of styles for what's the same underlying states. */}
+      {config.sortOptions && sortBy === 'nearest' && (
+        <div className="category-screen-controls category-screen-sort-hint-row">
+          {locationStatus === 'idle' && (
+            <>
+              <span className="category-screen-location-status">
+                Showing Recommended order until we know where you are.
+              </span>
+              <button
+                type="button"
+                className="category-screen-location-button"
+                onClick={requestLocation}
+              >
+                Use my location
+              </button>
+            </>
+          )}
+          {locationStatus === 'loading' && (
+            <span className="category-screen-location-status">Finding your location…</span>
+          )}
+          {(locationStatus === 'denied' || locationStatus === 'unavailable') && (
+            <span className="category-screen-location-status">
+              Couldn&apos;t access your location — showing Recommended order.{' '}
+              <button
+                type="button"
+                className="category-screen-filter-clear-inline"
+                onClick={requestLocation}
+              >
+                Try again
+              </button>
+            </span>
+          )}
+          {locationStatus === 'granted' && !nearestUsable && (
+            <span className="category-screen-location-status">
+              You&apos;re a bit too far from {city?.name ?? 'this city'} for distance sorting —
+              showing Recommended order instead.
+            </span>
+          )}
+          {locationStatus === 'granted' && nearestUsable && (
+            <span className="category-screen-location-status">
+              {walkingDistancesStatus === 'ready'
+                ? 'Sorted by real walking distance.'
+                : walkingDistancesStatus === 'error'
+                  ? "Couldn't get real walking distances — sorted by straight-line distance instead (the actual order may differ slightly)."
+                  : 'Sorting by approximate distance while we get real walking distances…'}
+            </span>
           )}
         </div>
       )}

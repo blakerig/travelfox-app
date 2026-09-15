@@ -141,6 +141,23 @@
   color: var(--ink);
 }
 
+/* "Nearest" hint row (2026-09-15) - sits directly under the sort control
+   itself (see the doc comment above the JSX block that renders this), so it
+   reuses .category-screen-controls' row layout/horizontal padding rather
+   than a one-off. Only overrides what needs to differ: no bottom padding of
+   its own (immediately follows a row that already has some), a tighter gap,
+   and wrapping allowed since "Couldn't access your location — showing
+   Recommended order. Try again" is long enough to wrap on a narrow phone
+   screen where .category-screen-controls' own two items (a select and a
+   short button) never needed to. */
+.category-screen-sort-hint-row {
+  padding-top: 0;
+  padding-bottom: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
 /* Filters (2026-08-28): a single toggle button rather than always-visible
    filter controls, so the controls row stays to one line even once a
    category has both a sort dropdown and filters - the chips themselves only
