@@ -226,6 +226,12 @@ function CategoryScreen() {
   const { isAuthenticated } = useAuth();
   const { cityData } = useCityData();
   const config = getCategoryConfig(slug);
+  // Coarser than showDistanceFilter below (doesn't also require
+  // hasCoordinateData, which needs `items` to be loaded first) - just
+  // enough to know, before useUserLocation() is called, whether this
+  // category could ever want real walking distances at all. See the
+  // autoFetchIfGranted argument below for what this actually gates.
+  const categoryHasDistanceFilter = Boolean(config.filterOptions?.includes('distance'));
   const key = city ? `${city.id}:${slug}` : null;
   const currencySymbol = city?.country?.currencySymbol || '$';
   const countryCode = city?.country?.code;
@@ -272,7 +278,25 @@ function CategoryScreen() {
   // city/category (see the loadedKey block) - CategoryScreen stays mounted
   // across a category switch, so a granted location should persist rather
   // than re-prompting.
-  const { status: locationStatus, coords: userCoords, requestLocation } = useUserLocation();
+  //
+  // autoFetchIfGranted: categoryHasDistanceFilter (2026-09-15, added so
+  // Eating Out/Sightseeing cards can show real walking time - see
+  // walkingMinutesFor below - without anyone having to open the Filters
+  // panel first) - once the browser has already granted this site location
+  // access (e.g. from a previous visit, or from EntryWalkingTime.jsx on an
+  // entry-detail screen), locationStatus goes straight to 'granted' on
+  // mount instead of sitting at 'idle' until someone taps "Use my
+  // location", which in turn lets the walking-distances effect below fire
+  // automatically. See the autoFetchIfGranted doc comment in
+  // useUserLocation.js for why this never reintroduces the location
+  // prompt itself - it only skips the wait once permission already exists.
+  // Gated to categories that actually offer the distance filter (rather
+  // than passed unconditionally) so Essentials/Activities/Shopping/Local
+  // Cuisine don't fire a pointless geolocation lookup on every visit for a
+  // number they'd never use.
+  const { status: locationStatus, coords: userCoords, requestLocation } = useUserLocation({
+    autoFetchIfGranted: categoryHasDistanceFilter,
+  });
   // Tracks which (city, slug) pair the state above currently belongs to.
   const [loadedKey, setLoadedKey] = useState(null);
 
@@ -556,6 +580,23 @@ function CategoryScreen() {
     ]
   );
   const sortedItems = useMemo(() => sortItems(filteredItems, sortBy), [filteredItems, sortBy]);
+
+  // Real walking minutes for one card, or null when there isn't a real
+  // number to show (2026-09-15, see the walkingMinutes doc comment in
+  // EntryCard.jsx) - reads the same `walkingDistances` Map the distance
+  // filter already fetches (see the effect above), so this is never an
+  // extra per-card request, just a lookup into data that's either already
+  // there or isn't. Deliberately returns null rather than a straight-line
+  // estimate for anything not in the Map - not granted/loaded yet, outside
+  // the Matrix request's ~50-destination cap for a very large list, or ORS
+  // genuinely couldn't route there on foot - same "omit rather than show
+  // a number that might be misleadingly precise" choice the prop's own doc
+  // comment explains.
+  function walkingMinutesFor(item) {
+    if (walkingDistancesStatus !== 'ready') return null;
+    const durationSeconds = walkingDistances?.get(item.id)?.durationSeconds;
+    return durationSeconds != null ? Math.round(durationSeconds / 60) : null;
+  }
 
   function clearFilters() {
     setSelectedTypes(new Set());
@@ -858,6 +899,7 @@ function CategoryScreen() {
                 showOpenStatus={config.cardShowOpenStatus ?? false}
                 timezone={city?.timezone}
                 city={city}
+                walkingMinutes={walkingMinutesFor(item)}
                 expandable
                 editHref={isAuthenticated ? `/category/${slug}/entry/${item.id}/edit` : undefined}
               />
@@ -881,6 +923,7 @@ function CategoryScreen() {
                   city={city}
                   showOpenStatus={config.cardShowOpenStatus ?? false}
                   timezone={city?.timezone}
+                  walkingMinutes={walkingMinutesFor(item)}
                 />
               </Link>
             )

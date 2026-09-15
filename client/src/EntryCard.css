@@ -151,6 +151,15 @@
   font-weight: 600;
 }
 
+/* Walking time (2026-09-15) - same green/bold "this is a meaningful
+   highlighted number" treatment as .entry-card-rating above, since it's
+   the one meta segment meant to catch the eye before someone taps in - see
+   the walkingMinutes doc comment in EntryCard.jsx. */
+.entry-card-walking {
+  color: var(--g-600, #3a7d55);
+  font-weight: 600;
+}
+
 .entry-card-meta-sep {
   color: var(--line, #e5e4e7);
 }

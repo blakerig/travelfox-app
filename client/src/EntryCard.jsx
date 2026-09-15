@@ -9,6 +9,7 @@ import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import { isOpenNow } from './openingHours.js';
 import { formatPhoneNumber } from './phoneNumber.js';
 import { formatEntryAddress } from './address.js';
+import { formatWalkingMinutes } from './walkingDistance.js';
 
 // Strip common Markdown syntax for a plain-text card snippet. Entry.description
 // is authored as Markdown (see project notes), but full formatted rendering
@@ -84,6 +85,19 @@ function snippet(text, max = 120) {
 // trailing city name from entry.address when it's redundant with the
 // section already being viewed. See address.js for the full rule.
 //
+// walkingMinutes (2026-09-15, 'photo' variant only) - real walking duration
+// in whole minutes, from the same OpenRouteService Matrix data the Eating
+// Out/Sightseeing distance filter already fetches for the whole visible
+// list (see CategoryScreen.jsx) - not a per-card API call, and not the
+// straight-line estimate EntryWalkingTime.jsx falls back to on the
+// entry-detail screen. Deliberately `null`/omitted rather than an
+// estimate whenever a real number isn't available (location not granted
+// yet, still loading, outside the Matrix request's candidate/destination
+// cap, or ORS couldn't route there on foot) - a card has no room for the
+// "(straight-line estimate)" qualifier the detail screen uses to keep an
+// estimate honest, so the simplest honest choice here is to just not show
+// a number rather than show one that might be misleadingly precise.
+//
 // Publish-status badge (2026-09-15) - entry.status is 'DRAFT' |
 // 'AWAITING_REVIEW' | 'PUBLISHED' (see the Publish workflow note in
 // EntryEditor.jsx / EntryStatus in schema.prisma). The server only ever
@@ -110,6 +124,7 @@ function EntryCard({
   showOpenStatus = false,
   timezone,
   city,
+  walkingMinutes = null,
   expandable = false,
   editHref,
 }) {
@@ -148,8 +163,13 @@ function EntryCard({
     // segments before phone was added) so a middot separator only appears
     // between whichever segments actually end up present, in any
     // combination, without a growing pile of pairwise `showX && showY &&`
-    // checks. Order here is display order: price, then type/cuisine, then
-    // phone.
+    // checks. Order here is display order: walking time (when known),
+    // then price, then type/cuisine, then phone. Walking time leads
+    // (2026-09-15) rather than joining at the end - it's the one segment
+    // that answers "is this near me" at a glance, which is the actual
+    // reason someone would want it visible before tapping into a card at
+    // all, so it earns the most prominent spot the way .entry-card-rating
+    // does on the 'venue' variant below.
     //
     // The phone segment is a <button>, not a plain <span> like the others -
     // it's the only clickable one. This card is normally rendered inside a
@@ -161,6 +181,11 @@ function EntryCard({
     // <button>, not a nested <a href="tel:...">, since a nested <a> inside
     // the outer Link's own <a> would be invalid HTML.
     const metaSegments = [
+      walkingMinutes != null && (
+        <span key="walking" className="entry-card-walking">
+          {formatWalkingMinutes(walkingMinutes)} walk
+        </span>
+      ),
       showPriceMeta && (
         <span key="price" className="entry-card-price">
           {currencySymbol.repeat(entry.priceLevel)}

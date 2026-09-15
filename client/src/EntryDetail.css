@@ -116,6 +116,30 @@ a.entry-detail-contact-row .entry-detail-contact-value {
   word-break: break-word;
 }
 
+/* Walking-time row (2026-09-15, EntryWalkingTime.jsx) - reuses
+   .entry-detail-contact-row/-label/-value above rather than a separate CSS
+   file, since it's just another row in this same block, not an
+   independent widget with its own layout the way the map it replaced was. */
+.entry-detail-walking-btn {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--g-600);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Marks the straight-line fallback as visibly less precise than a real
+   ORS duration, same "never let an estimate pass as the real thing"
+   principle as CategoryScreen's walking-distance filter hint text. */
+.entry-detail-walking-approx {
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
 .entry-detail-hours-value div {
   margin-bottom: 2px;
 }

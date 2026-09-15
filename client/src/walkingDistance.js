@@ -38,3 +38,15 @@ export async function fetchWalkingDistances(apiUrl, origin, destinations) {
   }
   return map;
 }
+
+// Shared with EntryWalkingTime.jsx (2026-09-15, pulled out from there so
+// EntryCard.jsx's card-level walking time - see CategoryScreen.jsx - can
+// use the exact same formatting without duplicating it).
+// e.g. 8 -> "8 min", 0 -> "<1 min", 95 -> "1 hr 35 min", 120 -> "2 hr".
+export function formatWalkingMinutes(minutes) {
+  if (minutes < 1) return '<1 min';
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder === 0 ? `${hours} hr` : `${hours} hr ${remainder} min`;
+}

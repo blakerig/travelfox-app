@@ -13,7 +13,17 @@ import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import { isOpenNow } from './openingHours.js';
 import { formatPhoneNumber } from './phoneNumber.js';
 import { formatEntryAddress } from './address.js';
-import EntryLocationMap from './EntryLocationMap.jsx';
+// Disabled 2026-09-15 per Blake's request: the static "here's where it is"
+// map was taking up too much screen space on this page relative to what it
+// actually told someone, so it's been swapped for a plain walking-time
+// line instead (EntryWalkingTime.jsx, below). Commented out rather than
+// deleted - EntryLocationMap.jsx/.css are untouched and still fully wired
+// up (MapTiler style, "you are here" pin, the lot) in case a future pass
+// wants to bring the map back with more functionality, e.g. the tier-three
+// live route preview logged in claude/todo.md. To re-enable: uncomment
+// this import and the <EntryLocationMap ... /> block further down.
+// import EntryLocationMap from './EntryLocationMap.jsx';
+import EntryWalkingTime from './EntryWalkingTime.jsx';
 
 // Prefixes a bare domain (e.g. "restaurant.com", typed without a scheme -
 // see the hint on EntryEditor.jsx's Website field, which doesn't enforce
@@ -184,32 +194,35 @@ function EntryDetail() {
             </div>
           )}
 
-          {/* Contact block (2026-09-02, extended 2026-09-04 twice) - a
-              small location map, then directions/phone/website/opening
-              times, each shown only if set/possible. Deliberately separate
-              from entry-detail-meta above rather than folded into it: those
-              are short inline facts, this is a mix of a visual (the map)
-              and labeled, often-clickable rows (get directions, tap to
-              call, tap to open the site), so they need their own layout.
-              Not gated by cardVariant/showMetaRow the way the meta row is -
-              these fields are free to appear on any category's detail
-              screen once populated (see Entry.phone/website/openingTimes/
-              latitude/longitude/address in schema.prisma), even though only
-              Eating Out enters phone/website/openingTimes today. Directions
-              (text link) works for any entry with either coordinates or an
-              address, see getDirectionsUrl above; the map itself only
-              renders when coordinates are actually set, since there's
-              nothing to plot a pin from a free-text address alone (see
-              EntryLocationMap.jsx) - the text Directions link still covers
-              those entries via the address fallback even without the map. */}
+          {/* Contact block (2026-09-02, extended 2026-09-04 twice, map
+              swapped for a walking-time line 2026-09-15) - a walking-time
+              row, then directions/phone/website/opening times, each shown
+              only if set/possible. Deliberately separate from
+              entry-detail-meta above rather than folded into it: those are
+              short inline facts, this is a mix of labeled, often-clickable
+              rows (walking time, get directions, tap to call, tap to open
+              the site). Not gated by cardVariant/showMetaRow the way the
+              meta row is - these fields are free to appear on any
+              category's detail screen once populated (see Entry.phone/
+              website/openingTimes/latitude/longitude/address in
+              schema.prisma), even though only Eating Out enters phone/
+              website/openingTimes today. Directions (text link) works for
+              any entry with either coordinates or an address, see
+              getDirectionsUrl above; the walking-time row only renders when
+              coordinates are actually set, same as the map it replaced,
+              since there's nothing to route to/from a free-text address
+              alone (see EntryWalkingTime.jsx) - the text Directions link
+              still covers those entries via the address fallback even
+              without a walking-time figure. */}
           {(entry.phone || entry.website || entry.openingTimes || entry.priceInfo || directionsUrl) && (
             <div className="entry-detail-contact">
               {entry.latitude != null && entry.longitude != null && (
-                <EntryLocationMap
-                  latitude={entry.latitude}
-                  longitude={entry.longitude}
-                  label={entry.name}
-                />
+                // <EntryLocationMap
+                //   latitude={entry.latitude}
+                //   longitude={entry.longitude}
+                //   label={entry.name}
+                // />
+                <EntryWalkingTime latitude={entry.latitude} longitude={entry.longitude} />
               )}
               {directionsUrl && (
                 <a
