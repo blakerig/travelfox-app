@@ -12,7 +12,8 @@ import { authHeaders } from './auth.js';
 import './EntryEditor.css';
 
 // Text-only editor for an entry: name, summary, types, phone, website,
-// opening times, price info, description, notes (plus a photo upload). Handles both
+// opening times, price (priceInfo or priceLevel, see below), description,
+// notes (plus a photo upload). Handles both
 // editing an existing entry (/category/:slug/entry/:entryId/edit) and
 // creating a new one (/category/:slug/entry/new/edit - entryId === 'new',
 // reached via "+ Add" on CategoryScreen). Same form either way; creation
@@ -36,12 +37,30 @@ import './EntryEditor.css';
 // preserved on save, not blanked out.
 //
 // Deliberately scoped to text/string fields only, matching the server's
-// PATCH/POST endpoints - editing/setting location/price/rating still goes
-// through Prisma Studio. This is a plain field-by-field form on purpose (no
-// generic form-schema abstraction yet); when the scope grows to a full
-// editor (city/category pickers, location, price, rating), that's the point
-// to reach for a form library rather than continuing to hand-roll
-// individual useState fields.
+// PATCH/POST endpoints - editing/setting rating still goes through Prisma
+// Studio (see Entry.rating in schema.prisma), same for city/category on an
+// existing entry. This is a plain field-by-field form on purpose (no
+// generic form-schema abstraction yet); when the scope grows to cover
+// city/category pickers or rating, that's the point to reach for a form
+// library rather than continuing to hand-roll individual useState fields.
+//
+// priceLevel (2026-09-15) is Eating Out's own price field - a 1-4 $/$$/$$/
+// $$$$ tier (see Entry.priceLevel in schema.prisma), rendered as a <select>
+// rather than a free number input so it's impossible to save anything
+// outside that range by mistake (no "5" or "2.5" to catch on review) and so
+// the options read the same way the resulting $/$$/$$$/$$$$ chips do
+// elsewhere in the app (CategoryScreen.jsx's distance-filter panel,
+// EntryCard.jsx). It replaces priceInfo for this one category rather than
+// sitting alongside it - Eating Out was never actually using priceInfo's
+// free-text headline price (that field exists for Sightseeing admission,
+// which doesn't fit a $/$$/$$/$$$$ scale - see priceInfo's own doc comment
+// below) - so showing both would just be confusing about which one a
+// restaurant's card/filter chips actually read from (priceLevel, always,
+// per cardShowPrice/filterOptions in categoryConfig.js). Every other
+// category keeps priceInfo exactly as before; isEatingOut/isEssentials are
+// mutually exclusive by slug, so this never has to consider both at once.
+// See the isEatingOut-gated fields below for where this and priceInfo
+// actually diverge.
 // Splits the comma-separated types field into a clean array for the API:
 // trims whitespace around each value, drops empty entries (a trailing
 // comma, or the field left blank), but doesn't dedupe or otherwise
@@ -62,10 +81,18 @@ function EntryEditor() {
   // Gates the venue-only fields below (Type/Phone/Website/Address/
   // Coordinates/Opening times/Price) - see the file comment above.
   const isEssentials = slug === 'essentials';
+  // Gates which price field renders below - priceLevel (a $/$$/$$/$$$$
+  // select) for Eating Out, priceInfo (free text) for every other
+  // non-Essentials category - see the priceLevel doc comment above.
+  const isEatingOut = slug === 'eating-out';
   const { city, loading: cityLoading } = useCity();
   const { cityData, cityDataReady, ensureCategories, upsertEntry } = useCityData();
   const { user, isAuthenticated } = useAuth();
   const canPublish = isAuthenticated && (user.role === 'EDITOR' || user.role === 'ADMIN');
+  // Labels the priceLevel select's options below ($/$$/$$/$$$$) - same
+  // fallback and source (City.country.currencySymbol) as CategoryScreen.jsx
+  // uses for its own $/$$/$$/$$$$ filter chips, so the two stay consistent.
+  const currencySymbol = city?.country?.currencySymbol || '$';
 
   // Create mode only, and only reached from ActivityTypeDetail's/
   // ShopTypeDetail's "+ Add provider" link (?activityTypeId=<id> or
@@ -119,6 +146,11 @@ function EntryEditor() {
   // "headline" price, not a full tariff table (see this field's hint
   // text below for the same guidance surfaced to whoever's typing).
   const [priceInfo, setPriceInfo] = useState('');
+  // Eating Out only - see Entry.priceLevel in schema.prisma and the
+  // isEatingOut doc comment above. Held as a string ('', '1'..'4') matching
+  // a <select>'s value, same convention as latitude/longitude below;
+  // parsed to a number (or null) only at save time.
+  const [priceLevel, setPriceLevel] = useState('');
   const [description, setDescription] = useState('');
   const [descTab, setDescTab] = useState('write'); // 'write' | 'preview'
   // Internal-only - see Entry.notes in schema.prisma. Never read by any
@@ -170,6 +202,7 @@ function EntryEditor() {
     setWebsite('');
     setOpeningTimes('');
     setPriceInfo('');
+    setPriceLevel('');
     setDescription('');
     setDescTab('write');
     setNotes('');
@@ -206,6 +239,7 @@ function EntryEditor() {
       setWebsite(data.website ?? '');
       setOpeningTimes(data.openingTimes ?? '');
       setPriceInfo(data.priceInfo ?? '');
+      setPriceLevel(data.priceLevel != null ? String(data.priceLevel) : '');
       setDescription(data.description ?? '');
       setNotes(data.notes ?? '');
       setStatus(data.status ?? 'DRAFT');
@@ -368,6 +402,7 @@ function EntryEditor() {
             website,
             openingTimes,
             priceInfo,
+            priceLevel: priceLevel === '' ? null : Number(priceLevel),
             description,
             photoUrl,
             notes,
@@ -395,6 +430,7 @@ function EntryEditor() {
             website,
             openingTimes,
             priceInfo,
+            priceLevel: priceLevel === '' ? null : Number(priceLevel),
             description,
             photoUrl,
             notes,
@@ -644,21 +680,45 @@ function EntryEditor() {
                 />
               </label>
 
-              <label className="entry-editor-field">
-                <span className="entry-editor-label">
-                  Price (optional - keep it short, e.g. &quot;€12, kids free&quot; or
-                  &quot;Free&quot;. This is a headline price, not a full tariff table -
-                  put a full breakdown in the description instead if you want one
-                  on record)
-                </span>
-                <input
-                  type="text"
-                  value={priceInfo}
-                  onChange={(e) => setPriceInfo(e.target.value)}
-                  className="entry-editor-input"
-                  placeholder="e.g. €12, kids free"
-                />
-              </label>
+              {/* Eating Out gets priceLevel (a $/$$/$$/$$$$ select) instead
+                  of priceInfo - see the isEatingOut doc comment near the top
+                  of this file for why the two don't both show at once. */}
+              {isEatingOut ? (
+                <label className="entry-editor-field">
+                  <span className="entry-editor-label">
+                    Price level (optional - shown on the card and used for the price filter,
+                    from {currencySymbol} (budget) to {currencySymbol.repeat(4)} (top end))
+                  </span>
+                  <select
+                    value={priceLevel}
+                    onChange={(e) => setPriceLevel(e.target.value)}
+                    className="entry-editor-input"
+                  >
+                    <option value="">Not set</option>
+                    {[1, 2, 3, 4].map((level) => (
+                      <option key={level} value={level}>
+                        {currencySymbol.repeat(level)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label className="entry-editor-field">
+                  <span className="entry-editor-label">
+                    Price (optional - keep it short, e.g. &quot;€12, kids free&quot; or
+                    &quot;Free&quot;. This is a headline price, not a full tariff table -
+                    put a full breakdown in the description instead if you want one
+                    on record)
+                  </span>
+                  <input
+                    type="text"
+                    value={priceInfo}
+                    onChange={(e) => setPriceInfo(e.target.value)}
+                    className="entry-editor-input"
+                    placeholder="e.g. €12, kids free"
+                  />
+                </label>
+              )}
             </>
           )}
 

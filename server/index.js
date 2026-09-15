@@ -445,7 +445,7 @@ app.get('/api/entries/:id', async (req, res) => {
 // doesn't get called until the user actually hits Save there, so there's no
 // window where a half-empty stub entry exists in the database.
 app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
-  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, notes, activityTypeId, shopTypeId, address, latitude, longitude, status } = req.body;
+  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, priceLevel, notes, activityTypeId, shopTypeId, address, latitude, longitude, status } = req.body;
 
   if (!cityId || !categoryId) {
     return res.status(400).json({ error: 'cityId and categoryId are required' });
@@ -461,6 +461,18 @@ app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'),
   const hasLng = longitude !== undefined && longitude !== null && longitude !== '';
   if (hasLat !== hasLng) {
     return res.status(400).json({ error: 'latitude and longitude must be provided together' });
+  }
+  // priceLevel (2026-09-15, see EntryEditor.jsx's isEatingOut-gated select)
+  // is a 1-4 $/$$/$$/$$$$ tier, not a free-form number - reject anything
+  // outside that range rather than silently clamping or storing it, same
+  // "don't guess, reject" approach as the coordinate pairing check above.
+  let resolvedPriceLevel = null;
+  if (priceLevel !== undefined && priceLevel !== null && priceLevel !== '') {
+    const parsedPriceLevel = Number(priceLevel);
+    if (!Number.isInteger(parsedPriceLevel) || parsedPriceLevel < 1 || parsedPriceLevel > 4) {
+      return res.status(400).json({ error: 'priceLevel must be an integer between 1 and 4' });
+    }
+    resolvedPriceLevel = parsedPriceLevel;
   }
 
   // A creator can only ever produce Draft/Awaiting Review content - status
@@ -493,6 +505,7 @@ app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'),
         openingTimes: openingTimes || null,
         photoUrl: photoUrl || null,
         priceInfo: priceInfo || null,
+        priceLevel: resolvedPriceLevel,
         notes: notes || null,
         address: address || null,
         latitude: hasLat ? Number(latitude) : null,
@@ -524,12 +537,13 @@ app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'),
 // description, etc.) with city/category/location/price/rating deliberately
 // left to Prisma Studio - address/latitude/longitude joined the editable
 // set 2026-09-05 alongside the address-to-coordinates geocode-lookup
-// feature (see EntryEditor.jsx and GET /api/geocode above); city/category/
-// price/rating still go through Prisma Studio. See project notes if/when
-// this needs to grow into a full editor.
+// feature (see EntryEditor.jsx and GET /api/geocode above), and priceLevel
+// joined it 2026-09-15 (Eating Out only - see EntryEditor.jsx's
+// isEatingOut); city/category/rating still go through Prisma Studio. See
+// project notes if/when this needs to grow into a full editor.
 app.patch('/api/entries/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, notes, address, latitude, longitude, status } = req.body;
+  const { name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, priceLevel, notes, address, latitude, longitude, status } = req.body;
 
   const data = {};
   if (name !== undefined) {
@@ -546,6 +560,18 @@ app.patch('/api/entries/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADM
   if (openingTimes !== undefined) data.openingTimes = openingTimes === '' ? null : openingTimes;
   if (photoUrl !== undefined) data.photoUrl = photoUrl === '' ? null : photoUrl;
   if (priceInfo !== undefined) data.priceInfo = priceInfo === '' ? null : priceInfo;
+  // Same "reject rather than guess" validation as POST /api/entries above.
+  if (priceLevel !== undefined) {
+    if (priceLevel === null || priceLevel === '') {
+      data.priceLevel = null;
+    } else {
+      const parsedPriceLevel = Number(priceLevel);
+      if (!Number.isInteger(parsedPriceLevel) || parsedPriceLevel < 1 || parsedPriceLevel > 4) {
+        return res.status(400).json({ error: 'priceLevel must be an integer between 1 and 4' });
+      }
+      data.priceLevel = parsedPriceLevel;
+    }
+  }
   if (notes !== undefined) data.notes = notes === '' ? null : notes;
   if (address !== undefined) data.address = address === '' ? null : address;
   if (status !== undefined) {

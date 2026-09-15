@@ -403,11 +403,19 @@ model Entry {
   // - latitude/longitude can be looked up automatically from the address
   // via GET /api/geocode (OpenStreetMap Nominatim), but that's a starting
   // point to verify, not guaranteed precise - see claude/todo.md's
-  // "Automate lat/long lookup" item. priceLevel/rating (below) are still
+  // "Automate lat/long lookup" item. rating (below) is still
   // Prisma-Studio-only.
   address        String?
   latitude       Float?
   longitude      Float?
+  // A 1-4 $/$$/$$/$$$$ tier, restaurant-style - Eating Out only (see
+  // cardShowPrice/filterOptions in client/src/categoryConfig.js). Editable
+  // from EntryEditor.jsx (2026-09-15, gated on isEatingOut there) via a
+  // <select> rather than a free number input, so nothing outside 1-4 can
+  // ever be saved - POST/PATCH /api/entries in server/index.js validate the
+  // same range server-side too, not just the client. Every other category
+  // uses priceInfo (below) instead - see that field's doc comment for why
+  // the two aren't both shown/editable together.
   priceLevel     Int?
   // Free-text "headline" price line for entries that don't fit
   // priceLevel's restaurant-style $/$$/$$$ scale - Sightseeing admission is
@@ -420,9 +428,11 @@ model Entry {
   // notable exception. Anything more detailed than that belongs in
   // `description` instead (e.g. under its own "Prices" heading), which
   // already exists for arbitrarily long content. Editable via
-  // EntryEditor.jsx, unlike priceLevel/rating which stay Prisma-Studio-
-  // only - see that field's hint text for the same "keep it short"
-  // guidance surfaced to whoever's entering data.
+  // EntryEditor.jsx for every category except Eating Out (which uses
+  // priceLevel above instead, exclusively - see that field's doc comment
+  // and EntryEditor.jsx's isEatingOut) - see this field's hint text there
+  // for the same "keep it short" guidance surfaced to whoever's entering
+  // data. rating still stays Prisma-Studio-only.
   priceInfo      String?
   // URL of the entry's photo, hosted on Cloudinary - null falls back to
   // the static placeholder image in EntryCard.jsx. See claude/todo.md for
