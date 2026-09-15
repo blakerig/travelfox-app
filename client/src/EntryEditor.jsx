@@ -67,14 +67,24 @@ function EntryEditor() {
   const { user, isAuthenticated } = useAuth();
   const canPublish = isAuthenticated && (user.role === 'EDITOR' || user.role === 'ADMIN');
 
-  // Create mode only, and only reached from ActivityTypeDetail's "+ Add
-  // provider" link (?activityTypeId=<id> in the URL) - links this new
-  // provider Entry to its ActivityType automatically, the same way
+  // Create mode only, and only reached from ActivityTypeDetail's/
+  // ShopTypeDetail's "+ Add provider" link (?activityTypeId=<id> or
+  // ?shopTypeId=<id> in the URL, per categoryConfig.js's typeIdParam) -
+  // links this new provider Entry to its type automatically, the same way
   // city/category are already resolved from context rather than being form
-  // fields. Undefined for every other "+ Add" entry point, so entries
-  // outside Activities are unaffected.
+  // fields. Both are undefined for every other "+ Add" entry point, so
+  // entries outside Activities/Shopping are unaffected. Reading both by
+  // name rather than a single generic `searchParams.get(config.typeIdParam)`
+  // keeps this working even for a category with no typeIdParam configured
+  // at all (get() on an absent param name is just undefined either way, but
+  // being explicit here means a typo in categoryConfig.js can't silently
+  // stop this from working for either category).
   const [searchParams] = useSearchParams();
   const activityTypeId = searchParams.get('activityTypeId');
+  const shopTypeId = searchParams.get('shopTypeId');
+  // Whichever of the two is present for this entry point (at most one ever
+  // is) - used below for the POST body and the "cancel" back-link.
+  const groupedTypeId = activityTypeId ?? shopTypeId;
 
   const [entry, setEntry] = useState(null);
   const [notFound, setNotFound] = useState(false);
@@ -362,6 +372,7 @@ function EntryEditor() {
             photoUrl,
             notes,
             activityTypeId,
+            shopTypeId,
             address: address.trim() || null,
             latitude: latitude.trim() === '' ? null : latitude.trim(),
             longitude: longitude.trim() === '' ? null : longitude.trim(),
@@ -422,8 +433,8 @@ function EntryEditor() {
   }
 
   const cancelTo = isCreate
-    ? activityTypeId
-      ? `/category/${slug}/type/${activityTypeId}`
+    ? groupedTypeId
+      ? `/category/${slug}/type/${groupedTypeId}`
       : `/category/${slug}`
     : `/category/${slug}/entry/${entryId}`;
 

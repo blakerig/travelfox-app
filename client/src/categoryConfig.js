@@ -107,6 +107,27 @@
 // show a count above the list ("42 restaurants", or "12 of 42 restaurants"
 // once filtered). Falls back to the generic "entry"/"entries" in
 // DEFAULT_CATEGORY_CONFIG for any category that doesn't set its own.
+//
+// groupedTypeKey/typeApiPath/typeIdParam (2026-09-15, groupedByType
+// categories only - Activities and, since then, Shopping) say which piece
+// of the shared per-city cache and API a grouped category's "type" rows
+// live at, since CategoryScreen.jsx/ActivityTypeDetail.jsx/
+// ShopTypeDetail.jsx now serve more than one such category rather than
+// Activities alone:
+//   groupedTypeKey - the field on the cached city bundle holding this
+//     category's type rows (see CityDataProvider.jsx) - 'activityTypes' or
+//     'shopTypes'. Falls back to 'activityTypes' when unset, so this was
+//     added without needing to touch the `activities` entry at the same
+//     time - added there anyway for symmetry/clarity now that a second
+//     value exists.
+//   typeApiPath - the REST path segment for this category's type endpoints,
+//     e.g. GET /api/cities/:cityId/<typeApiPath> - 'activity-types' or
+//     'shop-types'.
+//   typeIdParam - the query-param name EntryEditor.jsx reads/sends to link
+//     a new provider Entry back to its type (see "+ Add provider" on
+//     ActivityTypeDetail.jsx/ShopTypeDetail.jsx) - 'activityTypeId' or
+//     'shopTypeId', matching the scalar column name on Entry itself (see
+//     schema.prisma).
 
 const SORT_NAME_RATING = [
   { value: 'name', label: 'Name (A-Z)' },
@@ -165,6 +186,9 @@ export const CATEGORY_CONFIG = {
   activities: {
     title: 'Activities',
     groupedByType: true,
+    groupedTypeKey: 'activityTypes',
+    typeApiPath: 'activity-types',
+    typeIdParam: 'activityTypeId',
     cardVariant: 'group',
     // Card layout for provider mini-cards on ActivityTypeDetail - 'venue'
     // since a provider is a located, unique thing (rating/price/address),
@@ -174,6 +198,31 @@ export const CATEGORY_CONFIG = {
     filterOptions: ['activityGroup'],
     itemLabel: 'activity',
     itemLabelPlural: 'activities',
+  },
+  // Grouped by ShopType, same mechanism as Activities above (see ShopType in
+  // schema.prisma) - a shop "type" (Local Markets, Souvenirs, ...) is often
+  // offered by several roughly interchangeable providers, so CategoryScreen
+  // shows ShopType cards here and drills into ShopTypeDetail.jsx for the
+  // provider list within one type.
+  //
+  // Deliberately no filterOptions/'shopGroup' dimension - unlike Activities,
+  // Shopping has no ActivityGroup-style broader-interest grouping to filter
+  // by (see the "no ActivityGroup equivalent" doc comment on ShopType in
+  // schema.prisma for the reasoning) - revisit if that changes.
+  shopping: {
+    title: 'Shopping',
+    groupedByType: true,
+    groupedTypeKey: 'shopTypes',
+    typeApiPath: 'shop-types',
+    typeIdParam: 'shopTypeId',
+    cardVariant: 'group',
+    // Same reasoning as Activities' providerCardVariant above - a shop is a
+    // located, unique thing.
+    providerCardVariant: 'venue',
+    sortOptions: null,
+    filterOptions: null,
+    itemLabel: 'shop',
+    itemLabelPlural: 'shops',
   },
   'eating-out': {
     title: 'Eating Out',

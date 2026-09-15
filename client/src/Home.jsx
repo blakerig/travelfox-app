@@ -13,6 +13,7 @@ import iconEatingOut from './assets/icon-eating-out.png';
 import iconSightseeing from './assets/icon-sightseeing.png';
 import iconLocalCuisine from './assets/icon-local-cuisine.png';
 import iconNeighbourhoods from './assets/icon-neighbourhoods.png';
+import iconShopping from './assets/icon-shopping.png';
 
 // Local display info for each category the home screen knows how to render.
 // `to` overrides the default `/category/:slug` destination - Neighbourhoods
@@ -20,13 +21,22 @@ import iconNeighbourhoods from './assets/icon-neighbourhoods.png';
 // screen (client/src/Neighbourhoods.jsx), added 2026-08-31 - see
 // Neighbourhood in schema.prisma and the "Neighbourhoods" discussion in
 // claude/home-screen-spec.md.
+// Shopping (2026-09-15, see ShopType in schema.prisma and 'shopping' in
+// categoryConfig.js/seed.js) got its icon on 2026-09-15 too - a shopping
+// cart illustration resized and corner-masked to match the existing set's
+// 97x97 rounded-square card shape (see icon-shopping.png).
 const CATEGORY_DISPLAY = [
   { slug: 'essentials', label: 'Essentials', icon: iconEssentials },
   { slug: 'activities', label: 'Activities', icon: iconActivities },
   { slug: 'eating-out', label: 'Eating Out', icon: iconEatingOut },
   { slug: 'sightseeing', label: 'Sightseeing', icon: iconSightseeing },
   { slug: 'local-cuisine', label: 'Local Cuisine', icon: iconLocalCuisine },
-  { slug: 'neighbourhoods', label: 'Neighbourhoods', icon: iconNeighbourhoods, to: '/neighbourhoods' },
+  // Label reads "Areas" (2026-09-15) - the underlying route, slug, model
+  // etc. are all still "neighbourhood"/"neighbourhoods" internally
+  // (deliberately not renamed - see the comment on Neighbourhoods.jsx for
+  // why), this is a display-copy change only.
+  { slug: 'neighbourhoods', label: 'Areas', icon: iconNeighbourhoods, to: '/neighbourhoods' },
+  { slug: 'shopping', label: 'Shopping', icon: iconShopping },
 ];
 
 function Home() {

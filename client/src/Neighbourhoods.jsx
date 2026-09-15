@@ -22,6 +22,21 @@ import { useCityData } from './city-data-context.js';
 // discussion in claude/home-screen-spec.md for the fuller reasoning behind
 // why this is a map at all rather than a plain card list.
 //
+// User-facing copy on this screen was changed to "Areas" (2026-09-15) -
+// the home screen label, this screen's own title, and its status messages
+// below all say "Areas" now. Deliberately UI-copy-only: the route
+// (/neighbourhoods), this component/file's name, the Neighbourhood Prisma
+// model, its API endpoints, the `neighbourhoods` key in the CityDataProvider
+// bundle, and every variable/class name below are all still
+// "neighbourhood(s)" - renaming those too would mean a schema migration
+// (Neighbourhood is a real table) plus touching every reference to it
+// across server/index.js, CityDataProvider.jsx, city-data-context.js, this
+// file's own internals, and the CSS in Neighbourhoods.css, for what is so
+// far just a display-label change. Internal names not matching the UI's
+// current copy is normal and fine - revisit only if "Areas" sticks long
+// enough, and the mismatch has actually caused real confusion, to justify
+// that bigger, deliberate rename.
+//
 // Base map tiles come from MapTiler's free tier (see client/.env -
 // VITE_MAPTILER_KEY) - no card required, 5,000 map sessions/month, shows a
 // small MapTiler logo on the free tier. Self-hosting tiles (PMTiles) was
@@ -100,7 +115,7 @@ function Neighbourhoods() {
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     // compact: true collapses this to a small "i" button that only
-    // expands to show the required "\u00a9 MapTiler \u00a9 OpenStreetMap
+    // expands to show the required "© MapTiler © OpenStreetMap
     // contributors" text on tap, instead of sitting open over the map.
     // Styled further in Neighbourhoods.css (.maplibregl-ctrl-attrib) to
     // sit more quietly against this app's UI rather than MapLibre's
@@ -184,17 +199,19 @@ function Neighbourhoods() {
         <Link to="/" className="neighbourhoods-back" aria-label="Back to home">
           &larr;
         </Link>
-        <h1 className="neighbourhoods-title">Neighbourhoods</h1>
+        {/* "Areas" - see the file comment above for why this reads
+            differently to the route/class/model names around it. */}
+        <h1 className="neighbourhoods-title">Areas</h1>
       </div>
 
       <div className="neighbourhoods-map-wrap">
         <div ref={mapContainerRef} className="neighbourhoods-map" />
 
         {neighbourhoods === null && (
-          <div className="neighbourhoods-status">Loading neighbourhoods&hellip;</div>
+          <div className="neighbourhoods-status">Loading areas&hellip;</div>
         )}
         {neighbourhoods !== null && neighbourhoods.length === 0 && (
-          <div className="neighbourhoods-status">No neighbourhoods added for {city?.name} yet.</div>
+          <div className="neighbourhoods-status">No areas added for {city?.name} yet.</div>
         )}
         {mapError && <div className="neighbourhoods-status neighbourhoods-status-error">{mapError}</div>}
 

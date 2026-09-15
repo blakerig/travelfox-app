@@ -321,22 +321,25 @@ function CategoryScreen() {
   }
 
   // Derived from the shared per-city cache (see CityDataProvider.jsx)
-  // instead of firing its own fetch every time a category is visited.
-  // Grouped categories (Activities) read cityData.activityTypes - each one
-  // already carries its provider Entries (see GET
-  // /api/cities/:cityId/activity-types) so activityTypeHref can decide
-  // per-card whether to link to ActivityTypeDetail or straight to a
-  // single provider. Everything else filters cityData.entries down to
-  // this category client-side. null (not cityData.entries/[]) until
-  // cityData has loaded for the current city at all, so the loading
-  // spinner below still shows during that first fetch rather than briefly
-  // rendering an empty list.
+  // instead of firing its own fetch every time a category is visited. A
+  // grouped category (Activities, and since 2026-09-15 Shopping) reads its
+  // own slice of the bundle - config.groupedTypeKey says which
+  // ('activityTypes'/'shopTypes', see categoryConfig.js; falls back to
+  // 'activityTypes' for a config written before that field existed). Each
+  // row already carries its provider Entries (see GET
+  // /api/cities/:cityId/activity-types / .../shop-types) so
+  // activityTypeHref can decide per-card whether to link to the type's own
+  // detail screen or straight to a single provider. Everything else
+  // filters cityData.entries down to this category client-side. null (not
+  // cityData.entries/[]) until cityData has loaded for the current city at
+  // all, so the loading spinner below still shows during that first fetch
+  // rather than briefly rendering an empty list.
   const items = useMemo(() => {
     if (!cityData) return null;
     return config.groupedByType
-      ? cityData.activityTypes
+      ? cityData[config.groupedTypeKey ?? 'activityTypes']
       : cityData.entries.filter((entry) => entry.category.slug === slug);
-  }, [cityData, slug, config.groupedByType]);
+  }, [cityData, slug, config.groupedByType, config.groupedTypeKey]);
 
   // Persists the current sort/filter selection for this exact city+category
   // (see loadSavedPrefs above) every time it changes, so it can be restored

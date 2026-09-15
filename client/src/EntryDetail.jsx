@@ -124,13 +124,14 @@ function EntryDetail() {
 
   const showMetaRow = config.cardVariant === 'venue' || config.cardVariant === 'photo';
 
-  // Providers created under an ActivityType (see groupedByType in
-  // categoryConfig.js) return to that type's screen rather than the flat
-  // category list - entry.activityTypeId is only set for those entries
-  // (see Entry.activityTypeId in schema.prisma), so this falls back to the
-  // normal category screen for every other entry.
-  const backTo = entry?.activityTypeId
-    ? `/category/${slug}/type/${entry.activityTypeId}`
+  // Providers created under an ActivityType or ShopType (see groupedByType
+  // in categoryConfig.js) return to that type's screen rather than the flat
+  // category list - entry.activityTypeId/shopTypeId is only set for those
+  // entries respectively (see schema.prisma), and never both at once, so
+  // this falls back to the normal category screen for every other entry.
+  const groupedTypeId = entry?.activityTypeId ?? entry?.shopTypeId;
+  const backTo = groupedTypeId
+    ? `/category/${slug}/type/${groupedTypeId}`
     : `/category/${slug}`;
 
   // Uses the *city's* timezone (City.timezone), not the viewer's own device

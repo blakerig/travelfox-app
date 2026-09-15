@@ -116,6 +116,11 @@ model City {
   // Opposite side of ActivityType.city - a city's activity "type" groupings
   // (Laser Tag, Padel, ...). See ActivityType below for the full rationale.
   activityTypes ActivityType[]
+  // Opposite side of ShopType.city - a city's shop "type" groupings (Local
+  // Markets, Souvenirs, ...). See ShopType below - same shape as
+  // ActivityType, added 2026-09-15, minus the ActivityGroup-style filter
+  // grouping (Shopping has no equivalent).
+  shopTypes     ShopType[]
   // Named areas/districts within this city, shown as pins on the
   // Neighbourhoods map screen - see Neighbourhood below.
   neighbourhoods Neighbourhood[]
@@ -337,6 +342,53 @@ model ActivityType {
   @@unique([cityId, slug])
 }
 
+// Groups multiple provider Entries under one shop "type" (e.g. Local
+// Markets, Souvenirs, Fashion) - added 2026-09-15 for the Shopping category,
+// deliberately the same shape as ActivityType above (same reasoning: a
+// generic "type" of shop is often offered by several roughly interchangeable
+// providers, so the Shopping category screen lists ShopType cards rather
+// than Entry cards directly, drilling into a type's own detail screen for
+// its provider list - see groupedByType in client/src/categoryConfig.js).
+//
+// The one deliberate difference from ActivityType: no ActivityGroup-style
+// broader-interest grouping/filter. Shops in this app aren't expected to
+// need the same "browse by broad interest" filter Activities has (Sport &
+// Active, Culture & Arts, ...) - each ShopType (Markets, Souvenirs, ...) is
+// already a fairly narrow, specific grouping on its own, so there's no
+// obvious second, coarser tier to group them by the way Activities' wide
+// variety (Laser Tag through Padel through Escape Rooms) benefited from one.
+// Revisit only if Shopping's ShopType list grows large/varied enough that
+// the same need reappears - see the ActivityGroup doc comment above for the
+// full reasoning behind that model, which would be mirrored here if so.
+//
+// Scoped per-city and slugged the same way as ActivityType, for the same
+// reasons (a type with zero providers is a deliberate, valid state; a slug
+// like "markets" can exist independently in both Barcelona and a future
+// city without colliding).
+model ShopType {
+  id          Int     @id @default(autoincrement())
+  name        String
+  slug        String
+  // Optional short, punchy blurb for card display - same fallback order as
+  // ActivityType.summary above (description wins on the group card, summary
+  // is only the fallback for when no description has been written yet).
+  summary     String?
+  // Short explanation of the shop type itself - optional, same reasoning as
+  // ActivityType.description (self-explanatory types like "Souvenirs" don't
+  // need one; also what's shown when there are no providers yet).
+  description String?
+  city        City    @relation(fields: [cityId], references: [id])
+  cityId      Int
+  // Manual display order among ShopType cards on the Shopping screen - same
+  // mechanism as ActivityType.sortOrder/Entry.sortOrder elsewhere.
+  sortOrder   Float   @default(0)
+  entries     Entry[]
+
+  // Slugs are unique per city rather than globally - same reasoning as
+  // ActivityType.slug above.
+  @@unique([cityId, slug])
+}
+
 model Entry {
   id             Int           @id @default(autoincrement())
   name           String
@@ -470,6 +522,12 @@ model Entry {
   // living on the shared Entry model. See ActivityType above.
   activityType   ActivityType? @relation(fields: [activityTypeId], references: [id])
   activityTypeId Int?
+  // Optional link to a ShopType, set only on provider Entries under the
+  // Shopping category (e.g. a specific souvenir shop linking back to the
+  // "Souvenirs" ShopType) - null for every entry in every other category,
+  // same pattern as activityType/activityTypeId above. See ShopType above.
+  shopType       ShopType?     @relation(fields: [shopTypeId], references: [id])
+  shopTypeId     Int?
   // Manual display order within a category's card list (lower = earlier).
   // Ties break on id (insertion order), so new entries default to last
   // among same-sortOrder items rather than jumping around unpredictably.

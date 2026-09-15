@@ -6,16 +6,19 @@ import { createContext, useContext } from 'react';
 //
 // Context value shape:
 //   { cityData, cityDataReady, categories, ensureCategories, upsertEntry,
-//     activityGroups, ensureActivityGroups, upsertActivityType, refreshCity }
+//     activityGroups, ensureActivityGroups, upsertActivityType,
+//     upsertShopType, refreshCity }
 //
 //   - cityData: the current city's cached bundle -
-//     { entries, activityTypes, homeCategorySlugs, neighbourhoods, fetchedAt }
-//     - or null until the first fetch for this city has landed (from the
-//     network or, on a repeat visit, hydrated from localStorage - see
-//     CityDataProvider.jsx). `entries` is every Entry in the city (not
+//     { entries, activityTypes, shopTypes, homeCategorySlugs, neighbourhoods,
+//     fetchedAt } - or null until the first fetch for this city has landed
+//     (from the network or, on a repeat visit, hydrated from localStorage -
+//     see CityDataProvider.jsx). `entries` is every Entry in the city (not
 //     filtered by category - screens that only want one category's worth,
 //     e.g. CategoryScreen.jsx, filter it client-side by `entry.category.slug`
-//     rather than each firing their own `?category=` request).
+//     rather than each firing their own `?category=` request). `shopTypes`
+//     (2026-09-15) is Shopping's equivalent of `activityTypes` below - see
+//     ShopType in schema.prisma.
 //   - cityDataReady: true once cityData is non-null. Screens that used to
 //     gate their loading state on "have I fetched yet" gate it on this
 //     instead.
@@ -41,6 +44,9 @@ import { createContext, useContext } from 'react';
 //     ActivityTypeEditor.jsx's handleSave), same idea as upsertEntry above
 //     but simpler - an ActivityType save can't change which Entries exist,
 //     so only `bundle.activityTypes` needs touching, not `entries` too.
+//   - upsertShopType(shopType): same as upsertActivityType above, for
+//     ShopType (2026-09-15, see ShopTypeEditor.jsx's handleSave) - patches
+//     `bundle.shopTypes` only.
 //   - refreshCity(): forces a fresh network fetch of the current city's
 //     bundle. Not wired to any UI yet - available for a future
 //     pull-to-refresh.

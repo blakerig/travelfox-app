@@ -2,7 +2,11 @@ require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// These five match the home screen's category grid (client/src/Home.jsx).
+// These match the home screen's category grid (client/src/Home.jsx) - note
+// 'shopping' isn't in CATEGORY_DISPLAY there yet, pending an icon asset
+// (same "Food & Drink" pattern - see home-screen-spec.md), but the Category
+// row itself is seeded here regardless so ShopType/Entry rows have
+// something to attach to as soon as it's added.
 const CATEGORIES = [
   { slug: 'essentials', name: 'Essentials' },
   { slug: 'activities', name: 'Activities' },
@@ -10,6 +14,7 @@ const CATEGORIES = [
   { slug: 'sightseeing', name: 'Sightseeing' },
   { slug: 'local-cuisine', name: 'Local Cuisine' },
   { slug: 'neighbourhoods', name: 'Neighbourhoods' },
+  { slug: 'shopping', name: 'Shopping' },
 ];
 
 // Fixed, curated set of broader activity-interest groups, shown as filter

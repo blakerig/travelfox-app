@@ -33,21 +33,27 @@ const EXIT_MS = 180;
 // glance - see "Unified search + result badges" in the product discussion
 // that preceded this feature. Entry results use their own Category.name
 // (already matches Home.jsx's category labels, e.g. "Eating Out" - see
-// server/seed.js); ActivityType results don't carry a category from the
-// server (see GET /api/cities/:cityId/search), so it's hardcoded here,
-// same as Home.jsx hardcodes category labels for the icon grid.
+// server/seed.js); ActivityType/ShopType results don't carry a category
+// from the server (see GET /api/cities/:cityId/search), so both are
+// hardcoded here, same as Home.jsx hardcodes category labels for the icon
+// grid.
 function resultBadge(result) {
-  return result.kind === 'activityType' ? 'Activities' : result.category.name;
+  if (result.kind === 'activityType') return 'Activities';
+  if (result.kind === 'shopType') return 'Shopping';
+  return result.category.name;
 }
 
 // Where tapping a result card should go. Entry results link straight to
-// EntryDetail, same as every other Entry link in the app. ActivityType
-// results reuse CategoryScreen's own routing rule (skip straight to the
-// lone provider when there's no description to show first) rather than
-// duplicating that logic here.
+// EntryDetail, same as every other Entry link in the app. ActivityType/
+// ShopType results reuse CategoryScreen's own routing rule (skip straight
+// to the lone provider when there's no description to show first) rather
+// than duplicating that logic here.
 function resultHref(result) {
   if (result.kind === 'activityType') {
     return activityTypeHref('activities', result);
+  }
+  if (result.kind === 'shopType') {
+    return activityTypeHref('shopping', result);
   }
   return `/category/${result.category.slug}/entry/${result.id}`;
 }
@@ -196,7 +202,7 @@ function Search() {
         </div>
 
         {trimmedQuery.length === 0 && (
-          <div className="search-status">Search restaurants, activities, sights and more.</div>
+          <div className="search-status">Search restaurants, activities, shops, sights and more.</div>
         )}
 
         {trimmedQuery.length > 0 && trimmedQuery.length < MIN_QUERY_LENGTH && (
@@ -212,17 +218,21 @@ function Search() {
             <div className="search-results">
               {results.map((result) => {
                 const config = getCategoryConfig(
-                  result.kind === 'activityType' ? 'activities' : result.category.slug
+                  result.kind === 'activityType'
+                    ? 'activities'
+                    : result.kind === 'shopType'
+                      ? 'shopping'
+                      : result.category.slug
                 );
-                // A provider Entry filed directly under Activities (matched
-                // by its own name/summary, not via its ActivityType) uses
+                // A provider Entry filed directly under Activities/Shopping
+                // (matched by its own name/summary, not via its type) uses
                 // the 'venue' provider-card layout, not the 'group' layout
-                // ActivityType cards use on CategoryScreen's Activities
+                // ActivityType/ShopType cards use on CategoryScreen's own
                 // list - see providerCardVariant in categoryConfig.js.
                 const variant =
-                  result.kind === 'activityType'
+                  result.kind === 'activityType' || result.kind === 'shopType'
                     ? 'group'
-                    : result.category.slug === 'activities'
+                    : result.category.slug === 'activities' || result.category.slug === 'shopping'
                       ? config.providerCardVariant
                       : config.cardVariant;
                 return (

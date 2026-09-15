@@ -32,13 +32,13 @@ function writeCachedBundle(cityId, bundle) {
 }
 
 // One batch of requests covering everything every screen for this city
-// needs (Home's category icons, CategoryScreen's entries/activity-types,
-// Neighbourhoods' pins) - see the doc comment on CityDataProvider below for
-// why this replaces each screen fetching its own slice independently.
-// `entries` deliberately omits the `?category=` filter GET
-// /api/cities/:cityId/entries supports - screens that want one category's
-// worth filter this client-side instead (see CategoryScreen.jsx), since the
-// whole point here is one fetch per city, not one per category.
+// needs (Home's category icons, CategoryScreen's entries/activity-types/
+// shop-types, Neighbourhoods' pins) - see the doc comment on
+// CityDataProvider below for why this replaces each screen fetching its own
+// slice independently. `entries` deliberately omits the `?category=` filter
+// GET /api/cities/:cityId/entries supports - screens that want one
+// category's worth filter this client-side instead (see CategoryScreen.jsx),
+// since the whole point here is one fetch per city, not one per category.
 async function fetchCityBundle(cityId) {
   const base = import.meta.env.VITE_API_URL;
   // Sends the team-account token (when logged in) so a staff member sees
@@ -46,15 +46,19 @@ async function fetchCityBundle(cityId) {
   // server/index.js and claude/todo.md's "Draft visibility" decision.
   // Harmless no-op header set for an anonymous/public visitor.
   const headers = authHeaders();
-  const [entries, activityTypes, homeCategories, neighbourhoods] = await Promise.all([
+  const [entries, activityTypes, shopTypes, homeCategories, neighbourhoods] = await Promise.all([
     fetch(`${base}/api/cities/${cityId}/entries`, { headers }).then((res) => res.json()),
     fetch(`${base}/api/cities/${cityId}/activity-types`, { headers }).then((res) => res.json()),
+    // Same idea as activityTypes above, for Shopping's ShopType rows
+    // (2026-09-15, see ShopType in schema.prisma).
+    fetch(`${base}/api/cities/${cityId}/shop-types`, { headers }).then((res) => res.json()),
     fetch(`${base}/api/cities/${cityId}/home-categories`, { headers }).then((res) => res.json()),
     fetch(`${base}/api/cities/${cityId}/neighbourhoods`).then((res) => res.json()),
   ]);
   return {
     entries,
     activityTypes,
+    shopTypes,
     homeCategorySlugs: homeCategories.map((c) => c.slug),
     neighbourhoods,
     fetchedAt: Date.now(),
@@ -92,7 +96,8 @@ async function fetchCityBundle(cityId) {
 //   - A save in EntryEditor.jsx patches the cache directly via
 //     upsertEntry() instead of waiting for/forcing a re-fetch, so your own
 //     edits show up immediately. A save in ActivityTypeEditor.jsx does the
-//     same via upsertActivityType() (2026-09-14).
+//     same via upsertActivityType() (2026-09-14), and ShopTypeEditor.jsx via
+//     upsertShopType() (2026-09-15).
 //
 // Deliberately NOT covered here: Search.jsx still queries
 // GET /api/cities/:cityId/search directly. That endpoint does
@@ -204,15 +209,18 @@ export function CityDataProvider({ children }) {
   }, [city, bundles, loadCity]);
 
   // Patches a just-created/just-edited Entry into the current city's cache
-  // in place - both the flat `entries` array (what CategoryScreen.jsx/
-  // EntryDetail.jsx read) and, when the entry belongs to an ActivityType,
-  // that type's nested `entries` array (what ActivityTypeDetail.jsx reads -
-  // see GET /api/cities/:cityId/activity-types, which embeds each type's
-  // provider entries inline). `entry.activityTypeId` is a plain scalar
-  // column on Entry (see schema.prisma) so it's present on the saved row
-  // even though EntryEditor.jsx's save requests only `include: {
-  // category: true }` - no extra fetch needed to know which type (if any)
-  // an entry belongs to.
+  // in place - the flat `entries` array (what CategoryScreen.jsx/
+  // EntryDetail.jsx read), plus, when the entry belongs to a grouped type,
+  // that type's nested `entries` array (what ActivityTypeDetail.jsx/
+  // ShopTypeDetail.jsx read - see GET /api/cities/:cityId/activity-types /
+  // .../shop-types, which embed each type's provider entries inline).
+  // `entry.activityTypeId`/`shopTypeId` are plain scalar columns on Entry
+  // (see schema.prisma) so they're present on the saved row even though
+  // EntryEditor.jsx's save requests only `include: { category: true }` - no
+  // extra fetch needed to know which type (if any) an entry belongs to.
+  // patchGroupedTypes is the shared helper for the activityTypes/shopTypes
+  // halves of this, since an entry can only ever belong to one of the two
+  // grouped categories at a time (2026-09-15, added alongside ShopType).
   const upsertEntry = useCallback(
     (entry) => {
       if (!city) return;
@@ -224,20 +232,24 @@ export function CityDataProvider({ children }) {
           ? bundle.entries.map((e) => (e.id === entry.id ? entry : e))
           : [...bundle.entries, entry];
 
-        const activityTypeId = entry.activityTypeId ?? null;
-        const activityTypes = bundle.activityTypes.map((type) => {
-          const hadIt = type.entries.some((e) => e.id === entry.id);
-          const belongsHere = activityTypeId === type.id;
-          if (!hadIt && !belongsHere) return type;
-          const nextEntries = belongsHere
-            ? hadIt
-              ? type.entries.map((e) => (e.id === entry.id ? entry : e))
-              : [...type.entries, entry]
-            : type.entries.filter((e) => e.id !== entry.id);
-          return { ...type, entries: nextEntries };
-        });
+        function patchGroupedTypes(types, typeId) {
+          return types.map((type) => {
+            const hadIt = type.entries.some((e) => e.id === entry.id);
+            const belongsHere = typeId === type.id;
+            if (!hadIt && !belongsHere) return type;
+            const nextEntries = belongsHere
+              ? hadIt
+                ? type.entries.map((e) => (e.id === entry.id ? entry : e))
+                : [...type.entries, entry]
+              : type.entries.filter((e) => e.id !== entry.id);
+            return { ...type, entries: nextEntries };
+          });
+        }
 
-        const updated = { ...bundle, entries, activityTypes };
+        const activityTypes = patchGroupedTypes(bundle.activityTypes, entry.activityTypeId ?? null);
+        const shopTypes = patchGroupedTypes(bundle.shopTypes, entry.shopTypeId ?? null);
+
+        const updated = { ...bundle, entries, activityTypes, shopTypes };
         writeCachedBundle(city.id, updated);
         return { ...prev, [city.id]: updated };
       });
@@ -270,6 +282,27 @@ export function CityDataProvider({ children }) {
     [city]
   );
 
+  // Same idea as upsertActivityType above, for ShopType (2026-09-15) - see
+  // ShopTypeEditor.jsx's handleSave.
+  const upsertShopType = useCallback(
+    (shopType) => {
+      if (!city) return;
+      setBundles((prev) => {
+        const bundle = prev[city.id];
+        if (!bundle) return prev;
+
+        const shopTypes = bundle.shopTypes.some((t) => t.id === shopType.id)
+          ? bundle.shopTypes.map((t) => (t.id === shopType.id ? shopType : t))
+          : [...bundle.shopTypes, shopType];
+
+        const updated = { ...bundle, shopTypes };
+        writeCachedBundle(city.id, updated);
+        return { ...prev, [city.id]: updated };
+      });
+    },
+    [city]
+  );
+
   const refreshCity = useCallback(() => {
     if (!city) return Promise.resolve();
     return loadCity(city.id);
@@ -288,6 +321,7 @@ export function CityDataProvider({ children }) {
         activityGroups,
         ensureActivityGroups,
         upsertActivityType,
+        upsertShopType,
         refreshCity,
       }}
     >

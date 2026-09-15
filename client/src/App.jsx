@@ -10,6 +10,8 @@ import EntryDetail from './EntryDetail.jsx';
 import EntryEditor from './EntryEditor.jsx';
 import ActivityTypeDetail from './ActivityTypeDetail.jsx';
 import ActivityTypeEditor from './ActivityTypeEditor.jsx';
+import ShopTypeDetail from './ShopTypeDetail.jsx';
+import ShopTypeEditor from './ShopTypeEditor.jsx';
 import CityEditor from './CityEditor.jsx';
 import Search from './Search.jsx';
 import Neighbourhoods from './Neighbourhoods.jsx';
@@ -83,6 +85,22 @@ function AppRoutes() {
         <Route path="/category/essentials/holidays" element={<PublicHolidays />} />
         <Route path="/category/essentials/holidays/:slug" element={<HolidayDetail />} />
         <Route path="/neighbourhoods" element={<Neighbourhoods />} />
+        {/* Shopping's type detail/edit screens (2026-09-15, see ShopType in
+            schema.prisma) get their own literal-slug routes rather than
+            sharing the generic :slug ones below with Activities - both
+            ShopTypeDetail.jsx/ShopTypeEditor.jsx are near-identical to
+            their ActivityType counterparts but deliberately separate files
+            (no Group field/relation to thread through a shared component -
+            see ShopTypeDetail.jsx's file comment), so the routing has to
+            pick which component per category too. A literal "shopping"
+            segment here outranks the dynamic :slug below regardless of
+            declaration order (React Router scores a static path segment
+            higher than a param at the same position), same as
+            "/category/essentials/holidays" above already relies on for
+            "holidays" vs. :entryId - placed together with the Activities
+            routes below just for readability. */}
+        <Route path="/category/shopping/type/:typeId" element={<ShopTypeDetail />} />
+        <Route path="/category/shopping/type/:typeId/edit" element={<ShopTypeEditor />} />
         <Route path="/category/:slug/type/:typeId" element={<ActivityTypeDetail />} />
         {/* Create/edit an ActivityType itself (2026-09-14, see
             ActivityTypeEditor.jsx) - distinct from the entry-edit routes

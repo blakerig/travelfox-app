@@ -419,11 +419,12 @@ app.get('/api/entries/:id', async (req, res) => {
   try {
     const entry = await prisma.entry.findUnique({
       where: { id },
-      // activityType included (2026-08-28) so EntryDetail.jsx can send a
-      // provider's "back" link to its ActivityType screen instead of the
-      // flat category list - see Entry.activityTypeId in schema.prisma. null
-      // for every entry outside Activities.
-      include: { category: true, activityType: true },
+      // activityType/shopType included (2026-08-28 / 2026-09-15) so
+      // EntryDetail.jsx can send a provider's "back" link to its
+      // ActivityType/ShopType screen instead of the flat category list -
+      // see Entry.activityTypeId/shopTypeId in schema.prisma. Both null for
+      // every entry outside Activities/Shopping respectively.
+      include: { category: true, activityType: true, shopType: true },
     });
     // Treat a non-published entry as not-found for anonymous callers, same
     // as a genuinely missing id - never leak draft/awaiting-review content
@@ -444,7 +445,7 @@ app.get('/api/entries/:id', async (req, res) => {
 // doesn't get called until the user actually hits Save there, so there's no
 // window where a half-empty stub entry exists in the database.
 app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
-  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, notes, activityTypeId, address, latitude, longitude, status } = req.body;
+  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, notes, activityTypeId, shopTypeId, address, latitude, longitude, status } = req.body;
 
   if (!cityId || !categoryId) {
     return res.status(400).json({ error: 'cityId and categoryId are required' });
@@ -505,6 +506,10 @@ app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'),
         // typed in the form. Omitted (undefined/falsy) for every other
         // "+ Add" entry point.
         ...(activityTypeId ? { activityType: { connect: { id: Number(activityTypeId) } } } : {}),
+        // Same idea as activityTypeId above, but for a provider added from
+        // ShopTypeDetail.jsx (?shopTypeId=<id> in the URL) - see ShopType in
+        // schema.prisma (2026-09-15).
+        ...(shopTypeId ? { shopType: { connect: { id: Number(shopTypeId) } } } : {}),
       },
       include: { category: true },
     });
@@ -792,6 +797,159 @@ app.get('/api/activity-groups', async (req, res) => {
   res.json(groups);
 });
 
+// ShopType rows for a city (2026-09-15, see ShopType in schema.prisma) -
+// what CategoryScreen.jsx fetches for the Shopping category instead of a
+// flat entries list, mirroring GET /api/cities/:cityId/activity-types
+// exactly (see groupedByType/groupedTypeKey in categoryConfig.js). No
+// `group` include here - ShopType has no ActivityGroup equivalent.
+app.get('/api/cities/:cityId/shop-types', async (req, res) => {
+  const cityId = Number(req.params.cityId);
+  const shopTypes = await prisma.shopType.findMany({
+    where: { cityId },
+    include: {
+      entries: {
+        where: req.user ? {} : { status: 'PUBLISHED' },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      },
+    },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+  });
+  res.json(shopTypes);
+});
+
+// Single ShopType with its providers, for ShopTypeDetail.jsx - mirrors GET
+// /api/activity-types/:id exactly, including the same non-numeric-:id guard
+// (2026-09-15, added from the start here rather than after the fact - see
+// that endpoint's comment for the crash this guards against).
+app.get('/api/shop-types/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid shop type id' });
+  }
+  try {
+    const shopType = await prisma.shopType.findUnique({
+      where: { id },
+      include: {
+        entries: {
+          where: req.user ? {} : { status: 'PUBLISHED' },
+          orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        },
+      },
+    });
+    if (!shopType) {
+      return res.status(404).json({ error: 'Shop type not found' });
+    }
+    res.json(shopType);
+  } catch (err) {
+    console.error('Failed to fetch shop type:', err);
+    res.status(500).json({ error: 'Failed to fetch shop type' });
+  }
+});
+
+// Resolves a slug unique within one city, for ShopType - mirrors
+// uniqueActivityTypeSlug above exactly (see that function's comment), just
+// against prisma.shopType instead of prisma.activityType. Kept as its own
+// small function rather than a shared parametrized helper, matching how
+// ActivityType's own slug helper isn't shared with anything else either -
+// two five-line lookups, not worth the indirection of passing a Prisma
+// model delegate around.
+async function uniqueShopTypeSlug(name, cityId, excludeId) {
+  const base = slugify(name) || 'shop';
+  let slug = base;
+  let suffix = 2;
+  while (
+    await prisma.shopType.findFirst({
+      where: { cityId, slug, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    })
+  ) {
+    slug = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return slug;
+}
+
+// Create a new ShopType (e.g. "Local Markets", "Souvenirs") - used by the
+// "+ Add type" link on CategoryScreen.jsx for the Shopping category (see
+// groupedByType in categoryConfig.js and ShopTypeEditor.jsx). Mirrors POST
+// /api/activity-types exactly, minus groupId - open to every team role for
+// the same reasoning given there (no draft/review status to catch a
+// mistake behind either way, so no extra restriction is being lost).
+app.post('/api/shop-types', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
+  const { cityId, name, summary, description } = req.body;
+
+  if (!cityId) {
+    return res.status(400).json({ error: 'cityId is required' });
+  }
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Name cannot be empty' });
+  }
+
+  try {
+    const slug = await uniqueShopTypeSlug(name, Number(cityId));
+    const shopType = await prisma.shopType.create({
+      data: {
+        name,
+        slug,
+        summary: summary || null,
+        description: description || null,
+        city: { connect: { id: Number(cityId) } },
+      },
+      include: { entries: true },
+    });
+    res.status(201).json(shopType);
+  } catch (err) {
+    console.error('Failed to create shop type:', err);
+    res.status(500).json({ error: 'Failed to create shop type' });
+  }
+});
+
+// Edit for an existing ShopType - name/summary/description, the same fields
+// ShopTypeEditor.jsx's form shows. Mirrors PATCH /api/activity-types/:id
+// exactly, minus groupId.
+app.patch('/api/shop-types/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
+  const id = Number(req.params.id);
+  const { name, summary, description } = req.body;
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid shop type id' });
+  }
+
+  try {
+    const existing = await prisma.shopType.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Shop type not found' });
+    }
+
+    const data = {};
+    if (name !== undefined) {
+      if (!name.trim()) {
+        return res.status(400).json({ error: 'Name cannot be empty' });
+      }
+      data.name = name;
+      if (name !== existing.name) {
+        data.slug = await uniqueShopTypeSlug(name, existing.cityId, id);
+      }
+    }
+    if (summary !== undefined) data.summary = summary === '' ? null : summary;
+    if (description !== undefined) data.description = description === '' ? null : description;
+
+    const shopType = await prisma.shopType.update({
+      where: { id },
+      data,
+      include: {
+        entries: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
+      },
+    });
+    res.json(shopType);
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Shop type not found' });
+    }
+    console.error('Failed to update shop type:', err);
+    res.status(500).json({ error: 'Failed to update shop type' });
+  }
+});
+
 app.get('/api/categories', async (req, res) => {
   const categories = await prisma.category.findMany();
   res.json(categories);
@@ -818,6 +976,19 @@ app.get('/api/cities/:cityId/home-categories', async (req, res) => {
     if (hasActivityType) {
       const activitiesCategory = await prisma.category.findUnique({ where: { slug: 'activities' } });
       if (activitiesCategory) categories.push(activitiesCategory);
+    }
+  }
+
+  // Same reasoning as the Activities special-case above, but for Shopping
+  // (2026-09-15, see ShopType in schema.prisma) - a ShopType with zero
+  // providers yet is a valid, deliberate state, not missing data, so the
+  // Entry-based check above alone would wrongly hide the Shopping icon for
+  // a city whose only Shopping content right now is a description-only type.
+  if (!categories.some((c) => c.slug === 'shopping')) {
+    const hasShopType = await prisma.shopType.findFirst({ where: { cityId } });
+    if (hasShopType) {
+      const shoppingCategory = await prisma.category.findUnique({ where: { slug: 'shopping' } });
+      if (shoppingCategory) categories.push(shoppingCategory);
     }
   }
 
@@ -1039,7 +1210,7 @@ app.get('/api/cities/:cityId/search', async (req, res) => {
     return res.json([]);
   }
 
-  const [entries, activityTypes] = await Promise.all([
+  const [entries, activityTypes, shopTypes] = await Promise.all([
     prisma.entry.findMany({
       where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
       include: { category: true },
@@ -1050,6 +1221,18 @@ app.get('/api/cities/:cityId/search', async (req, res) => {
       // a "N providers" count on the group card (see EntryCard.jsx's
       // 'group' variant), without pulling every provider field along for
       // the ride.
+      include: {
+        entries: {
+          where: req.user ? {} : { status: 'PUBLISHED' },
+          select: { id: true },
+        },
+      },
+    }),
+    // Same reasoning as activityTypes above, for ShopType (2026-09-15) - a
+    // "padel"-style search for a shop type (e.g. "market") should surface
+    // its ShopType card the same way it already does for Activities.
+    prisma.shopType.findMany({
+      where: { cityId },
       include: {
         entries: {
           where: req.user ? {} : { status: 'PUBLISHED' },
@@ -1075,6 +1258,15 @@ app.get('/api/cities/:cityId/search', async (req, res) => {
     ...entries.map((e) => ({ kind: 'entry', ...e, rank: matchRank(e) })),
     ...activityTypes.map((t) => ({
       kind: 'activityType',
+      id: t.id,
+      name: t.name,
+      summary: t.summary,
+      description: t.description,
+      entries: t.entries,
+      rank: matchRank(t),
+    })),
+    ...shopTypes.map((t) => ({
+      kind: 'shopType',
       id: t.id,
       name: t.name,
       summary: t.summary,
