@@ -1,10 +1,12 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './AuthProvider.jsx';
+import { FavouritesProvider } from './FavouritesProvider.jsx';
 import { CityProvider } from './CityProvider.jsx';
 import { useCity } from './city-context.js';
 import { CityDataProvider } from './CityDataProvider.jsx';
 import LoadingScreen from './LoadingScreen.jsx';
 import Home from './Home.jsx';
+import Favourites from './Favourites.jsx';
 import CategoryScreen from './CategoryScreen.jsx';
 import EntryDetail from './EntryDetail.jsx';
 import EntryEditor from './EntryEditor.jsx';
@@ -23,11 +25,20 @@ import AdminUsers from './AdminUsers.jsx';
 function App() {
   return (
     <AuthProvider>
-      <CityProvider>
-        <CityDataProvider>
-          <AppRoutes />
-        </CityDataProvider>
-      </CityProvider>
+      {/* Sits above CityProvider/CityDataProvider - a device's favourites
+          span every city, not just the currently-selected one, so this
+          shouldn't reset or reload alongside per-city state. Below
+          AuthProvider only because it happens to be declared first here,
+          not because favouriting depends on team-account auth in any way
+          (see FavouritesProvider.jsx - it's a fully separate, anonymous
+          concern). */}
+      <FavouritesProvider>
+        <CityProvider>
+          <CityDataProvider>
+            <AppRoutes />
+          </CityDataProvider>
+        </CityProvider>
+      </FavouritesProvider>
     </AuthProvider>
   );
 }
@@ -85,6 +96,7 @@ function AppRoutes() {
         <Route path="/category/essentials/holidays" element={<PublicHolidays />} />
         <Route path="/category/essentials/holidays/:slug" element={<HolidayDetail />} />
         <Route path="/neighbourhoods" element={<Neighbourhoods />} />
+        <Route path="/favourites" element={<Favourites />} />
         {/* Shopping's type detail/edit screens (2026-09-15, see ShopType in
             schema.prisma) get their own literal-slug routes rather than
             sharing the generic :slug ones below with Activities - both

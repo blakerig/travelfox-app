@@ -17,6 +17,9 @@
   color: var(--ink);
   text-align: left;
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  /* Clears the fixed BottomNav (see BottomNav.css) added 2026-09-18 so the
+     bottom of the category grid is never hidden behind it. */
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
 }
 
 .home-hero {

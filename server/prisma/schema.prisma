@@ -554,4 +554,45 @@ model Entry {
   sortOrder      Float         @default(0)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  // Opposite side of Favourite.entry - which anonymous devices have
+  // bookmarked this entry. See Favourite below.
+  favourites     Favourite[]
+}
+
+// A device's bookmark of an Entry ("Favourites" feature, added 2026-09-18).
+// Deliberately anonymous/device-scoped rather than gated behind a login:
+// real consumer accounts are still an open, deferred decision (see
+// claude/todo.md's "User accounts / login" item), and that item explicitly
+// names saved favourites as the natural first hook for a future "soft
+// login wall" - this ships that hook now, on a random client-generated id
+// (see client/src/deviceId.js), so favouriting works today without forcing
+// the accounts decision first. Migrating a device's favourites onto a real
+// account later (once one exists) is a small follow-up - reassign
+// deviceId's rows to a userId - not a rebuild.
+//
+// Not a join table with extra fields beyond createdAt/ordering, so no
+// separate id would strictly be needed (deviceId+entryId could be the
+// primary key) - kept as a normal autoincrement id anyway, consistent with
+// every other model in this schema, since there's no cost to it and it
+// keeps this model uniform with the rest rather than being the one
+// composite-key exception.
+model Favourite {
+  id        Int      @id @default(autoincrement())
+  // Client-generated random id (crypto.randomUUID()), persisted in
+  // localStorage - see client/src/deviceId.js. Stands in for a user
+  // account, which doesn't exist yet for consumers (contrast the team-only
+  // User model above). Not a foreign key to anything, since there's no
+  // account row to point at.
+  deviceId  String
+  entry     Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entryId   Int
+  createdAt DateTime @default(now())
+
+  // One favourite per device per entry - toggling twice (double-tap,
+  // duplicate request) is idempotent rather than creating duplicate rows.
+  @@unique([deviceId, entryId])
+  // Every read of this model is "give me this device's favourites" (GET
+  // /api/favourites?deviceId=...) - an index on deviceId alone keeps that
+  // lookup fast without needing the full composite key.
+  @@index([deviceId])
 }

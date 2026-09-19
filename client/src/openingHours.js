@@ -28,13 +28,36 @@
 // Fri: 9am to 5pm") - same result, just one clause per day rather than one
 // clause covering three.
 //
-// Known limitation, not handled: a window that crosses midnight (e.g.
-// "10pm to 2am") is parsed but its end-before-start shape means it will
-// never match anything, i.e. it's silently treated as closed rather than
-// "open until 2am" - no entries use this yet, but worth fixing properly
-// (splitting into two same-day windows) if a real late-night venue is ever
-// entered. Logged in claude/todo.md alongside the rest of this feature's
-// known gaps.
+// "&" also combines day-groups on the *day* side of a clause (2026-09-17,
+// see parseDayRange below) - "Mon-Thu & Sun: 11.30am to 2.30am" means
+// Mon/Tue/Wed/Thu/Sun all share that one set of hours, without needing to
+// repeat them across separate comma clauses. Added once a real entry used
+// it this way and it turned out to silently parse wrong rather than fail
+// loudly - see the "Fixed 2026-09-17" note below.
+//
+// Fixed 2026-09-17: a window that crosses midnight (e.g. "11.30am to
+// 2.30am") used to be parsed but never match anything - its end-before-
+// start shape meant it read as permanently closed rather than "open until
+// 2.30am the next morning" (found via a real entry using exactly this
+// shape, open Mon-Thu & Sun 11.30am-2.30am, showing closed at 5.30pm on a
+// Thursday). isOpenNow now treats endMin <= startMin as "crosses into the
+// next calendar day": it matches either the tail of *today's* window
+// (today is in the clause's days, now is at/after startMin) or the
+// spillover from *yesterday's* window (yesterday is in the clause's days,
+// now is still before endMin) - see isOpenNow below. This was previously
+// logged as a known limitation in claude/todo.md; that note has been
+// updated to reflect the fix.
+//
+// Fixed 2026-09-17, same fix: the day-parsing bug this surfaced. Before
+// the "&" day-group support above existed, "Mon-Thu & Sun" was fed whole
+// into the hyphen-range parser, which split it on "-" into "Mon" and
+// "Thu & Sun" - the latter then matched via parseDayToken's startsWith
+// check (which was only ever meant to match a token against its own name)
+// because "thu & sun" happens to start with "thu", silently discarding
+// Sunday from the day set with no error or warning. Fixed as a side effect
+// of routing each "&"-separated group through the day/range parser
+// separately (see parseDayRange below), so parseDayToken only ever sees a
+// single clean day token again.
 
 const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
@@ -47,13 +70,15 @@ function parseDayToken(token) {
 
 // "Mon" -> {1}; "Tue-Sat" -> {2,3,4,5,6}; "Sat-Sun" -> {6,0} (wraps past
 // the end of the DAY_NAMES array, since Sat=6 comes after Sun=0 in
-// calendar order). Takes a single day or a single hyphen-range, not a
-// comma-separated list of several - a comma is the *clause* separator now
-// (see parseOpeningTimes below), so by the time this runs any comma has
-// already split the string into separate clauses. "Mon, Wed, Fri: ..." in
-// one clause isn't representable any more; write it as three clauses
-// instead (see the file-level doc comment above).
-function parseDayRange(daysPart) {
+// calendar order). Takes a single day-group: one day, or one hyphen-range
+// - not a comma-separated list of several, since a comma is the *clause*
+// separator now (see parseOpeningTimes below), and not an "&"-separated
+// list of several either, since that's split off by parseDayRange below
+// before this ever runs. "Mon, Wed, Fri: ..." in one clause isn't
+// representable via comma any more; write it as three clauses instead
+// (see the file-level doc comment above), or combine them with "&" if
+// they share identical hours (see parseDayRange below).
+function parseDayGroup(daysPart) {
   const days = new Set();
   const parts = daysPart.split('-').map((p) => p.trim());
   if (parts.length === 1) {
@@ -72,6 +97,24 @@ function parseDayRange(daysPart) {
         i = (i + 1) % 7;
       }
     }
+  }
+  return days;
+}
+
+// "Mon-Thu & Sun" -> {1,2,3,4,0} - splits on "&" first (2026-09-17, see the
+// file-level doc comment above) so each day-group (a single day or a
+// hyphen-range) is parsed on its own via parseDayGroup, then unions the
+// results. A clause with no "&" at all (the common case, e.g. "Tue-Sat")
+// splits into exactly one group and behaves exactly as before this was
+// added. Deliberately routes each group through parseDayGroup separately
+// rather than handing the whole string to it - passing "Mon-Thu & Sun"
+// straight to a hyphen-splitting parser silently mis-parsed it (the "&
+// Sun" tail got swallowed into a startsWith match on "Thu") - see the
+// "Fixed 2026-09-17" note above.
+function parseDayRange(daysPart) {
+  const days = new Set();
+  for (const group of daysPart.split('&')) {
+    for (const d of parseDayGroup(group.trim())) days.add(d);
   }
   return days;
 }
@@ -185,9 +228,27 @@ export function isOpenNow(openingTimes, timezone) {
   if (clauses.length === 0) return null;
   const now = getZonedNow(timezone);
   if (!now) return null;
-  return clauses.some(
-    (clause) =>
-      clause.days.has(now.dayIndex) &&
-      clause.windows.some((w) => now.minutes >= w.startMin && now.minutes < w.endMin)
+  // Only needed for a window that crosses midnight (see below) - the day
+  // whose clause a wrapping window's spillover hours (after midnight,
+  // before endMin) would belong to.
+  const yesterday = (now.dayIndex + 6) % 7;
+  return clauses.some((clause) =>
+    clause.windows.some((w) => {
+      if (w.endMin > w.startMin) {
+        // Ordinary same-day window - unchanged from before 2026-09-17.
+        return clause.days.has(now.dayIndex) && now.minutes >= w.startMin && now.minutes < w.endMin;
+      }
+      // Crosses midnight (endMin <= startMin, e.g. "11.30am to 2.30am") -
+      // see the "Fixed 2026-09-17" file-level doc comment above. The
+      // clause's day is when the window *opens*; it stays open into the
+      // following calendar day until endMin. So "now" matches either the
+      // tail of today's window (today is in clause.days, already past
+      // startMin) or yesterday's spillover (yesterday is in clause.days,
+      // still before endMin).
+      return (
+        (clause.days.has(now.dayIndex) && now.minutes >= w.startMin) ||
+        (clause.days.has(yesterday) && now.minutes < w.endMin)
+      );
+    })
   );
 }

@@ -97,6 +97,27 @@
   backdrop-filter: blur(2px);
 }
 
+/* Favourite star/heart (2026-09-18) - sits over the photo's bottom-right
+   corner, the one corner of a 'photo' card not already claimed by the
+   open-now badge (top-left) or the status badge (top-right), so all three
+   can appear together without ever overlapping. */
+.entry-card-photo > .entry-card-favourite {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+}
+
+/* Groups the status badge and the inline favourite button together on the
+   right side of the name row (non-photo 'venue'/'reference' variants),
+   mirroring the space-between layout .entry-card-name-row already had
+   when it only held one thing on that side. */
+.entry-card-name-row-end {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 /* Non-photo variants (venue/group/reference) have no photo real estate for
    an overlaid badge, so it sits inline next to the name instead. */
 .entry-card-name-row {

@@ -1,0 +1,48 @@
+.bottom-nav {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  background: #fff;
+  border-top: 1px solid oklch(70% 0.02 150 / 0.3);
+  /* Safe-area padding for iOS home-indicator / Android gesture-bar clearance
+     (PWA/Capacitor target - see the project description) - falls back to a
+     plain 8px on devices/browsers without env() support. */
+  padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  z-index: 50;
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  color: oklch(62% 0.015 150);
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.bottom-nav-item.is-active {
+  color: oklch(49% 0.135 150);
+}
+
+@media (prefers-color-scheme: dark) {
+  .bottom-nav {
+    background: oklch(22% 0.01 150);
+    border-top-color: oklch(35% 0.01 150);
+  }
+
+  .bottom-nav-item {
+    color: oklch(60% 0.01 150);
+  }
+
+  .bottom-nav-item.is-active {
+    color: oklch(75% 0.09 150);
+  }
+}

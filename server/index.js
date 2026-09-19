@@ -981,6 +981,143 @@ app.get('/api/categories', async (req, res) => {
   res.json(categories);
 });
 
+// Favourites - a device's bookmarked Entries ("Favourites" feature, see
+// Favourite in schema.prisma). Deliberately public/unauthenticated on all
+// three endpoints below: this is a consumer-facing feature with no
+// consumer accounts yet (see claude/todo.md's "User accounts / login"
+// item), identified purely by a client-generated deviceId
+// (client/src/deviceId.js), not the team's requireAuth/requireRole - those
+// gate the team's own content-editing endpoints elsewhere in this file and
+// aren't relevant here. A caller can only ever read/write the rows for the
+// deviceId they themselves supply, same trust model the rest of the app's
+// write endpoints already have (see the no-write-auth gap logged in
+// claude/todo.md/dev-workflow.md) - not a hard security boundary, just
+// consistent with everything else at this app's current stage.
+//
+// isValidDeviceId is a light sanity check, not a security control -
+// deviceId is client-generated and never authenticated, this just guards
+// against an obviously malformed/missing value (e.g. a bug sending
+// "undefined" as a literal string) reaching the database.
+function isValidDeviceId(deviceId) {
+  return typeof deviceId === 'string' && deviceId.length > 0 && deviceId.length <= 100;
+}
+
+// A device's favourited entries, full Entry rows (same shape CategoryScreen/
+// Search already work with) so the Favourites screen can render them with
+// the existing EntryCard component and category-driven variant lookup -
+// see client/src/Favourites.jsx. Ordered most-recently-favourited first
+// (Favourite.createdAt, not Entry.sortOrder - a device's own bookmarking
+// order is the relevant one here, not each city's curated browse order).
+//
+// city (with its country, for currencySymbol/countryCode) is included
+// here specifically because, unlike every other Entry-list endpoint in
+// this file, favourites span every city at once - the Favourites screen
+// needs to know which city each result belongs to to group/label them and
+// to format price/phone correctly per entry, whereas CategoryScreen/Search
+// already have a single current city in context and don't need to ask.
+app.get('/api/favourites', async (req, res) => {
+  const { deviceId } = req.query;
+  if (!isValidDeviceId(deviceId)) {
+    return res.status(400).json({ error: 'A valid deviceId is required' });
+  }
+
+  const favourites = await prisma.favourite.findMany({
+    where: { deviceId },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      entry: {
+        include: {
+          category: true,
+          activityType: true,
+          shopType: true,
+          city: { include: { country: true } },
+        },
+      },
+    },
+  });
+
+  // A favourited entry can be unpublished (or, in principle, deleted -
+  // though onDelete: Cascade on Favourite.entry above means a deleted
+  // Entry's Favourite row is removed automatically, so `entry` should
+  // never actually be null here) after it was bookmarked. Anonymous
+  // (public-site) callers only ever see published content here, same as
+  // every other GET endpoint in this file (optionalAuth/req.user - see
+  // the "Draft visibility" decision in claude/todo.md) - never surface
+  // draft/awaiting-review content through this endpoint just because some
+  // earlier visitor happened to favourite it while logged in.
+  //
+  // Fixed 2026-09-19: this used to filter to PUBLISHED unconditionally,
+  // with no req.user check at all - unlike every other list endpoint here.
+  // That meant a logged-in team member favouriting their own still-draft
+  // content (normal while building it out) would see the save "succeed"
+  // (a real 201/204) but the entry would never appear back on the
+  // Favourites screen, because this filter silently dropped it regardless
+  // of who was asking - reported by Blake as favourites "not working".
+  // req.user here isn't a security check being loosened (deviceId still
+  // has no auth of its own - any deviceId can still only read its own
+  // rows) - it's just recognising that a logged-in team member should see
+  // their own bookmarks the same way they see everything else in this app.
+  const entries = favourites
+    .filter((f) => f.entry && (f.entry.status === 'PUBLISHED' || req.user))
+    .map((f) => f.entry);
+
+  res.json(entries);
+});
+
+// Add a favourite (idempotent - see Favourite.@@unique above). Body:
+// { deviceId, entryId }. Uses upsert rather than create so double-tapping
+// the star, or a retried request after a dropped connection, never throws
+// a unique-constraint error back at the client - it just confirms the
+// bookmark exists either way.
+app.post('/api/favourites', async (req, res) => {
+  const { deviceId, entryId } = req.body;
+  if (!isValidDeviceId(deviceId)) {
+    return res.status(400).json({ error: 'A valid deviceId is required' });
+  }
+  const id = Number(entryId);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'A valid entryId is required' });
+  }
+
+  try {
+    await prisma.favourite.upsert({
+      where: { deviceId_entryId: { deviceId, entryId: id } },
+      update: {},
+      create: { deviceId, entryId: id },
+    });
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    // entryId not matching a real Entry row throws Prisma's foreign-key
+    // violation (P2003) - a 400, not a 500, since it's a bad request, not
+    // a server fault.
+    if (err.code === 'P2003') {
+      return res.status(400).json({ error: 'No entry with that id' });
+    }
+    console.error('Failed to add favourite:', err);
+    res.status(500).json({ error: 'Failed to add favourite' });
+  }
+});
+
+// Remove a favourite. Query: ?deviceId=... (entryId is the route param,
+// matching the GET /api/entries/:id convention elsewhere in this file).
+// deleteMany rather than delete so removing something already not
+// favourited (a double-tap, a stale client) is a quiet no-op rather than
+// Prisma's "record not found" error on a plain delete().
+app.delete('/api/favourites/:entryId', async (req, res) => {
+  const { deviceId } = req.query;
+  if (!isValidDeviceId(deviceId)) {
+    return res.status(400).json({ error: 'A valid deviceId is required' });
+  }
+  const entryId = Number(req.params.entryId);
+  if (!Number.isInteger(entryId)) {
+    return res.status(400).json({ error: 'Invalid entry id' });
+  }
+
+  await prisma.favourite.deleteMany({ where: { deviceId, entryId } });
+  res.status(204).end();
+});
+
+
 // Returns only the categories that have at least one entry in this city -
 // this is what the home screen's icon grid uses to decide which icons to
 // show (an icon should never appear for an empty category).

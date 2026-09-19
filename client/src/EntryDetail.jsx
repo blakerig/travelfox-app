@@ -24,6 +24,7 @@ import { formatEntryAddress } from './address.js';
 // this import and the <EntryLocationMap ... /> block further down.
 // import EntryLocationMap from './EntryLocationMap.jsx';
 import EntryWalkingTime from './EntryWalkingTime.jsx';
+import FavouriteButton from './FavouriteButton.jsx';
 
 // Prefixes a bare domain (e.g. "restaurant.com", typed without a scheme -
 // see the hint on EntryEditor.jsx's Website field, which doesn't enforce
@@ -161,11 +162,14 @@ function EntryDetail() {
         <Link to={backTo} className="entry-detail-back" aria-label="Back">
           &larr;
         </Link>
-        {entry && isAuthenticated && (
-          <Link to={`/category/${slug}/entry/${entryId}/edit`} className="entry-detail-edit">
-            Edit
-          </Link>
-        )}
+        <div className="entry-detail-header-end">
+          {entry && <FavouriteButton entryId={entry.id} className="is-inline" />}
+          {entry && isAuthenticated && (
+            <Link to={`/category/${slug}/entry/${entryId}/edit`} className="entry-detail-edit">
+              Edit
+            </Link>
+          )}
+        </div>
       </div>
 
       {notFound && <div className="entry-detail-status">Couldn&apos;t find this entry.</div>}

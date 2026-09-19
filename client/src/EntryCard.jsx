@@ -10,6 +10,7 @@ import { isOpenNow } from './openingHours.js';
 import { formatPhoneNumber } from './phoneNumber.js';
 import { formatEntryAddress } from './address.js';
 import { formatWalkingMinutes } from './walkingDistance.js';
+import FavouriteButton from './FavouriteButton.jsx';
 
 // Strip common Markdown syntax for a plain-text card snippet. Entry.description
 // is authored as Markdown (see project notes), but full formatted rendering
@@ -307,6 +308,7 @@ function EntryCard({
           {photo}
           {openBadge}
           {statusBadge}
+          <FavouriteButton entryId={entry.id} className="entry-card-favourite" />
           {body}
         </div>
       );
@@ -317,6 +319,7 @@ function EntryCard({
         {photo}
         {openBadge}
         {statusBadge}
+        <FavouriteButton entryId={entry.id} className="entry-card-favourite" />
         {body}
       </div>
     );
@@ -326,7 +329,12 @@ function EntryCard({
     <div className={`entry-card${statusCardClass}`}>
       <div className="entry-card-name-row">
         <div className="entry-card-name">{entry.name}</div>
-        {statusBadge}
+        <div className="entry-card-name-row-end">
+          {statusBadge}
+          {variant !== 'group' && (
+            <FavouriteButton entryId={entry.id} className="is-inline" />
+          )}
+        </div>
       </div>
 
       {variant === 'venue' && (

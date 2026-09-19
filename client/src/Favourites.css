@@ -1,0 +1,60 @@
+.favourites-screen {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  /* Clears the fixed BottomNav (see BottomNav.css) so the last card in the
+     list is never hidden behind it. */
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+.favourites-header {
+  padding: 20px 20px 4px;
+}
+
+.favourites-header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.favourites-status {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.favourites-group {
+  padding: 12px 20px 4px;
+}
+
+.favourites-group-title {
+  margin: 8px 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.favourites-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.favourites-entry-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}

@@ -14,6 +14,7 @@ import iconSightseeing from './assets/icon-sightseeing.png';
 import iconLocalCuisine from './assets/icon-local-cuisine.png';
 import iconNeighbourhoods from './assets/icon-neighbourhoods.png';
 import iconShopping from './assets/icon-shopping.png';
+import BottomNav from './BottomNav.jsx';
 
 // Local display info for each category the home screen knows how to render.
 // `to` overrides the default `/category/:slug` destination - Neighbourhoods
@@ -147,6 +148,8 @@ function Home() {
       </div>
 
       {pickerOpen && <CityPicker onClose={() => setPickerOpen(false)} />}
+
+      <BottomNav />
     </div>
   );
 }

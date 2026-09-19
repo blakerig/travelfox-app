@@ -1,0 +1,46 @@
+/* Base circular tap target, shared by every host context (photo overlay,
+   inline next to a name, the entry-detail header) - each host only adds
+   positioning on top via its own modifier class (see EntryCard.css/
+   EntryDetail.css), never re-declares these base rules. */
+.favourite-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(20, 30, 25, 0.45);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.favourite-button:active {
+  transform: scale(0.9);
+}
+
+/* Filled heart colour once favourited - a warm red/pink reads as "saved"
+   distinctly from this app's green accent (used for confirmations like
+   walking time), which is intentional: favouriting is a personal action,
+   not the app telling you something is good/available. */
+.favourite-button.is-favourited {
+  color: #ef4470;
+}
+
+/* Inline placement (non-photo cards: 'venue'/'reference' variants, and the
+   entry-detail header) - sits on a plain background rather than over a
+   photo, so it drops the semi-transparent dark backdrop the photo overlay
+   variant needs for contrast. */
+.favourite-button.is-inline {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--muted, #6b6375);
+}
+
+.favourite-button.is-inline.is-favourited {
+  color: #ef4470;
+}
