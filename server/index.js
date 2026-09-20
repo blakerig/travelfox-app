@@ -177,6 +177,12 @@ app.post('/api/upload', requireAuth, upload.single('photo'), (req, res) => {
 // which would reintroduce the exact misleading-results problem this
 // endpoint exists to fix (see the "Suggested approach" note in
 // claude/todo.md).
+//
+// URL updated 2026-09-19: OpenRouteService is retiring api.openrouteservice.org
+// in favour of api.heigit.org (same API key, no re-signup needed - see
+// "OpenRouteService URL migration" in claude/todo.md). The old host is
+// already throttled to 10% quota and shuts off entirely on 2026-09-28, so
+// this had to move before ORS_API_KEY goes live, not after.
 const MAX_MATRIX_DESTINATIONS = 50; // well under ORS's ~3,500-routes-per-request cap - just a sane ceiling for this app's current city sizes
 app.post('/api/walking-distances', async (req, res) => {
   const { origin, destinations } = req.body ?? {};
@@ -215,7 +221,7 @@ app.post('/api/walking-distances', async (req, res) => {
   const destinationIndices = trimmed.map((_, i) => i + 1);
 
   try {
-    const orsRes = await fetch('https://api.openrouteservice.org/v2/matrix/foot-walking', {
+    const orsRes = await fetch('https://api.heigit.org/openrouteservice/v2/matrix/foot-walking', {
       method: 'POST',
       headers: {
         Authorization: process.env.ORS_API_KEY,
@@ -445,7 +451,7 @@ app.get('/api/entries/:id', async (req, res) => {
 // doesn't get called until the user actually hits Save there, so there's no
 // window where a half-empty stub entry exists in the database.
 app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
-  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, priceLevel, notes, activityTypeId, shopTypeId, address, latitude, longitude, status } = req.body;
+  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, icon, priceInfo, priceLevel, notes, activityTypeId, shopTypeId, address, latitude, longitude, status } = req.body;
 
   if (!cityId || !categoryId) {
     return res.status(400).json({ error: 'cityId and categoryId are required' });
@@ -504,6 +510,10 @@ app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'),
         website: website || null,
         openingTimes: openingTimes || null,
         photoUrl: photoUrl || null,
+        // Essentials-only card icon key (e.g. "airport") - see
+        // client/src/essentialsIcons.jsx. Blank/absent for every other
+        // category, same as every other optional field here.
+        icon: icon || null,
         priceInfo: priceInfo || null,
         priceLevel: resolvedPriceLevel,
         notes: notes || null,
@@ -543,7 +553,7 @@ app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'),
 // project notes if/when this needs to grow into a full editor.
 app.patch('/api/entries/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, summary, description, types, phone, website, openingTimes, photoUrl, priceInfo, priceLevel, notes, address, latitude, longitude, status } = req.body;
+  const { name, summary, description, types, phone, website, openingTimes, photoUrl, icon, priceInfo, priceLevel, notes, address, latitude, longitude, status } = req.body;
 
   const data = {};
   if (name !== undefined) {
@@ -559,6 +569,7 @@ app.patch('/api/entries/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADM
   if (website !== undefined) data.website = website === '' ? null : website;
   if (openingTimes !== undefined) data.openingTimes = openingTimes === '' ? null : openingTimes;
   if (photoUrl !== undefined) data.photoUrl = photoUrl === '' ? null : photoUrl;
+  if (icon !== undefined) data.icon = icon === '' ? null : icon;
   if (priceInfo !== undefined) data.priceInfo = priceInfo === '' ? null : priceInfo;
   // Same "reject rather than guess" validation as POST /api/entries above.
   if (priceLevel !== undefined) {

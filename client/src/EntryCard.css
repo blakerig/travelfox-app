@@ -108,7 +108,7 @@
 }
 
 /* Groups the status badge and the inline favourite button together on the
-   right side of the name row (non-photo 'venue'/'reference' variants),
+   right side of the name row (non-photo 'venue'/'group' variants),
    mirroring the space-between layout .entry-card-name-row already had
    when it only held one thing on that side. */
 .entry-card-name-row-end {
@@ -118,8 +118,8 @@
   flex-shrink: 0;
 }
 
-/* Non-photo variants (venue/group/reference) have no photo real estate for
-   an overlaid badge, so it sits inline next to the name instead. */
+/* Non-photo/non-reference variants (venue/group) have no photo real estate
+   for an overlaid badge, so it sits inline next to the name instead. */
 .entry-card-name-row {
   display: flex;
   align-items: center;
@@ -282,3 +282,110 @@
 .entry-card-full-text em {
   font-style: italic;
 }
+
+/* Reference variant (Essentials, 2026-09-19) - full-bleed background photo
+   with a left-to-right scrim so the name/snippet stay legible over any
+   photo, an accent-coloured icon circle (see essentialsIcons.jsx), and a
+   chevron button floating over the photo on the right - see the doc
+   comment on the 'reference' branch in EntryCard.jsx for the full design
+   rationale. Fixed height, not aspect-ratio like .entry-card-photo-img -
+   here the photo is a background behind the card's real content rather
+   than being the content itself, so a consistent card height across the
+   list matters more than preserving each source photo's proportions.
+   Heights/positions below are a first pass, not pixel-tuned against a
+   real rendered photo yet - easy to nudge once you see it live. */
+.entry-card-reference {
+  position: relative;
+  height: 100px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.entry-card-reference-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--line, #e5e4e7);
+}
+
+/* Opaque where the icon/text sit, fading to fully transparent toward the
+   right so the photo itself stays visible and un-dimmed there - see the
+   doc comment in EntryCard.jsx for why this differs from the dark
+   bottom-up gradient a photo-first card would normally use. */
+.entry-card-reference-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--card, #fff) 0%,
+    var(--card, #fff) 52%,
+    rgba(255, 255, 255, 0) 92%
+  );
+}
+
+.entry-card-reference-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  /* Capped at half the card (2026-09-19) - was unconstrained before,
+     which let a long name/snippet run past the scrim's opaque stop at
+     52% below and overlap the visible photo, making it unreadable.
+     A couple of points narrower than that stop so text never sits
+     right at the fade edge - matches the mock up: text confined to
+     the left half, photo clearly visible on the right. */
+  width: 50%;
+  padding: 0 14px;
+  box-sizing: border-box;
+}
+
+.entry-card-reference-icon {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(20, 30, 25, 0.15);
+}
+
+.entry-card-reference-text {
+  min-width: 0;
+}
+
+.entry-card-reference-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink, #08060d);
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-card-reference-snippet {
+  font-size: 12.5px;
+  color: var(--muted, #6b6375);
+  line-height: 1.35;
+  /* Two-line clamp - this card is short and fixed-height, so a long
+     snippet needs to stop cleanly rather than overflow the card or push
+     the icon out of vertical alignment. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+
+.entry-card-reference-status {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+}
+

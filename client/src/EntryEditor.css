@@ -302,3 +302,30 @@
   border: 1px solid var(--line);
   font-weight: 400;
 }
+
+.entry-editor-icon-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.entry-editor-icon-option {
+  appearance: none;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.55;
+  box-shadow: 0 1px 3px rgba(20, 30, 25, 0.12);
+}
+
+.entry-editor-icon-option.is-selected {
+  opacity: 1;
+  outline: 2px solid var(--ink, #08060d);
+  outline-offset: 2px;
+}

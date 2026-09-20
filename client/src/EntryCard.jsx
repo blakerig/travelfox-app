@@ -6,6 +6,7 @@ import { markdownComponents } from './markdownComponents.jsx';
 import './EntryCard.css';
 import photoPlaceholder from './assets/entry-photo-placeholder.svg';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
+import { getEssentialsIcon } from './essentialsIcons.jsx';
 import { isOpenNow } from './openingHours.js';
 import { formatPhoneNumber } from './phoneNumber.js';
 import { formatEntryAddress } from './address.js';
@@ -35,13 +36,20 @@ function snippet(text, max = 120) {
 // instead - no rating/address on the card itself (Eating Out, Sightseeing,
 // Local Cuisine); on Eating Out/Sightseeing those still show on
 // entry-detail, but Local Cuisine has no entry-detail screen in normal use
-// (see `expandable` below). 'reference' is text-only (Essentials). 'group'
-// (2026-08-28) is an ActivityType card on the Activities category screen
-// itself - name, a provider count, and the type's own optional description
-// as the snippet - see groupedByType in categoryConfig.js and ActivityType
-// in schema.prisma. ('photo' was named 'restaurant' until Sightseeing
-// started using the same layout, 2026-08-28 - see cardVariant in
-// categoryConfig.js.)
+// (see `expandable` below). 'group' (2026-08-28) is an ActivityType card on
+// the Activities category screen itself - name, a provider count, and the
+// type's own optional description as the snippet - see groupedByType in
+// categoryConfig.js and ActivityType in schema.prisma. ('photo' was named
+// 'restaurant' until Sightseeing started using the same layout, 2026-08-28
+// - see cardVariant in categoryConfig.js.)
+//
+// 'reference' (Essentials only) got its own dedicated photo-card treatment
+// 2026-09-19 - a full-bleed background photo with a left-to-right scrim,
+// an accent-coloured icon circle (see essentialsIcons.jsx and
+// Entry.icon), and a chevron button floating over the photo on the right,
+// replacing the earlier plain name+snippet block. It's its own `if`
+// branch below (not the shared venue/group/reference return at the
+// bottom) since the markup no longer has anything in common with those.
 //
 // showPrice (default true, 'photo' variant only) lets a category hide
 // priceLevel from the card even when it's set - Sightseeing/Local Cuisine
@@ -215,9 +223,8 @@ function EntryCard({
     const hasMeta = metaSegments.length > 0;
 
     // Only computed for the 'photo' variant - the badge has nowhere sensible
-    // to sit on the plain-text 'venue'/'reference'/'group' cards, and none
-    // of those variants pass showOpenStatus today anyway (see
-    // categoryConfig.js).
+    // to sit on the plain-text 'venue'/'group' cards, and neither passes
+    // showOpenStatus today anyway (see categoryConfig.js).
     const openStatus = showOpenStatus ? isOpenNow(entry.openingTimes, timezone) : null;
     const openBadge =
       openStatus != null ? (
@@ -321,6 +328,58 @@ function EntryCard({
         {statusBadge}
         <FavouriteButton entryId={entry.id} className="entry-card-favourite" />
         {body}
+      </div>
+    );
+  }
+
+  if (variant === 'reference') {
+    const { color: iconColor, Icon: IconComponent } = getEssentialsIcon(entry.icon);
+
+    return (
+      <div className={`entry-card entry-card-reference${statusCardClass}`}>
+        {/* No fallback placeholder image (2026-09-19, was
+            photoPlaceholder before) - an entry with no photo just shows
+            .entry-card's own plain white background instead, rather than
+            a generic stock photo. The scrim only makes sense layered over
+            a real photo, so it's skipped too when there isn't one. */}
+        {entry.photoUrl && (
+          <>
+            <img
+              src={getEntryPhotoUrl(entry.photoUrl)}
+              alt=""
+              className="entry-card-reference-photo"
+            />
+            {/* Left-to-right scrim, not the dark bottom-up gradient the
+                'photo' variant would use elsewhere - this card's text sits
+                beside the photo rather than on top of it, so the photo
+                stays visible and un-dimmed on the right rather than being
+                darkened everywhere. */}
+            <div className="entry-card-reference-scrim" />
+          </>
+        )}
+
+        {/* No favourite button on this variant (2026-09-19) - Essentials
+            is a dense list of small reference cards, and a heart on every
+            one read as clutter. Still favouritable from EntryDetail.jsx
+            once you tap into an individual entry. */}
+        {statusBadge && <div className="entry-card-reference-status">{statusBadge}</div>}
+
+        <div className="entry-card-reference-body">
+          <div
+            className="entry-card-reference-icon"
+            style={{ background: iconColor }}
+            aria-hidden="true"
+          >
+            <IconComponent />
+          </div>
+          <div className="entry-card-reference-text">
+            <div className="entry-card-reference-name">{entry.name}</div>
+            {previewText && (
+              <div className="entry-card-reference-snippet">{snippet(previewText, 70)}</div>
+            )}
+          </div>
+        </div>
+
       </div>
     );
   }

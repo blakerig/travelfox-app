@@ -438,6 +438,11 @@ model Entry {
   // the static placeholder image in EntryCard.jsx. See claude/todo.md for
   // the hosting-provider decision (2026-08-29: Cloudinary, free tier).
   photoUrl       String?
+  // Essentials-only card icon key (e.g. "airport") - see
+  // client/src/essentialsIcons.jsx. Free text at the DB level, but the
+  // editor only ever writes one of that file's option keys. Blank/null
+  // for every other category.
+  icon           String?
   // Free-text sub-classification labels for an entry - cuisines for
   // restaurant-variant entries (e.g. "Tapas", "Catalan" on one pinchos bar,
   // or "Japanese"/"Mexican" on a fusion place), or place types for
