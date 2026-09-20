@@ -142,6 +142,22 @@ export function CityDataProvider({ children }) {
     return promise;
   }, []);
 
+  // Fixed 2026-09-20: a failed/errored request here used to be swallowed
+  // into an empty array (`.catch(() => [])`), which looked identical to "the
+  // server has no categories" to every caller - EntryEditor.jsx's "+ Add"
+  // flow (the only caller, see below) couldn't tell "the network hiccuped"
+  // apart from "this category genuinely doesn't exist", so a transient
+  // failure (a cold Render free-tier instance waking up, most likely - see
+  // claude/services-and-costs.md - or any other momentary network blip)
+  // surfaced as a permanent-sounding "Couldn't find the 'eating-out'
+  // category" instead of an honest, retryable "couldn't load categories"
+  // message. Now rethrows instead, so the one caller can distinguish the
+  // two cases and word/handle them differently - same "don't claim
+  // precision you don't have" principle used throughout this app (see
+  // openingHours.js, the straight-line distance filter). Also deliberately
+  // does NOT cache the failure: `categories` state is only ever set on
+  // success (unchanged), so the next call - e.g. a "Try again" retry -
+  // genuinely re-fetches rather than replaying a cached miss.
   const ensureCategories = useCallback(() => {
     if (categories !== null) return Promise.resolve(categories);
     return fetch(`${import.meta.env.VITE_API_URL}/api/categories`)
@@ -152,7 +168,7 @@ export function CityDataProvider({ children }) {
       })
       .catch((err) => {
         console.error('Failed to fetch categories:', err);
-        return [];
+        throw err;
       });
   }, [categories]);
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -128,7 +128,15 @@ function EntryEditor() {
   // Create mode only: the category this new entry belongs to, resolved from
   // the :slug in the URL (city comes from CityProvider instead).
   const [categoryId, setCategoryId] = useState(null);
+  // categoryError: the categories list loaded fine but this slug genuinely
+  // isn't in it (a real data problem - wrong/renamed slug in the URL).
+  // categoryLoadError: the categories fetch itself failed (network blip,
+  // server waking up, etc.) - see the "Fixed 2026-09-20" note on
+  // ensureCategories in CityDataProvider.jsx. Kept as two separate states
+  // rather than one, since they mean different things and need different
+  // messages/actions (one is "this is broken", the other is "try again").
   const [categoryError, setCategoryError] = useState(false);
+  const [categoryLoadError, setCategoryLoadError] = useState(false);
 
   const [name, setName] = useState('');
   const [summary, setSummary] = useState('');
@@ -202,6 +210,7 @@ function EntryEditor() {
     setNotFound(false);
     setCategoryId(null);
     setCategoryError(false);
+    setCategoryLoadError(false);
     setError(null);
     setName('');
     setSummary('');
@@ -286,17 +295,36 @@ function EntryEditor() {
   // fetched-once category list (see CityDataProvider.jsx's
   // ensureCategories) instead of re-fetching /api/categories every time the
   // "+ Add" form opens.
+  //
+  // Fixed 2026-09-20: pulled out of the effect below (and given a
+  // categoryLoadError/categoryError split - see those states' doc comment
+  // above) so a failed fetch - most likely a cold Render free-tier instance
+  // waking up, see claude/services-and-costs.md - can be retried in place
+  // via the button rendered below, instead of only ever showing a
+  // permanent-looking "category not found" message that wasn't actually
+  // true. ensureCategories() itself doesn't cache a failure (see its own
+  // "Fixed 2026-09-20" comment), so calling this again genuinely re-fetches.
+  const loadCategory = useCallback(() => {
+    setCategoryError(false);
+    setCategoryLoadError(false);
+    ensureCategories()
+      .then((cats) => {
+        const match = cats.find((c) => c.slug === slug);
+        if (!match) {
+          setCategoryError(true);
+          return;
+        }
+        setCategoryId(match.id);
+      })
+      .catch(() => {
+        setCategoryLoadError(true);
+      });
+  }, [ensureCategories, slug]);
+
   useEffect(() => {
     if (!isCreate) return;
-    ensureCategories().then((cats) => {
-      const match = cats.find((c) => c.slug === slug);
-      if (!match) {
-        setCategoryError(true);
-        return;
-      }
-      setCategoryId(match.id);
-    });
-  }, [isCreate, slug, ensureCategories]);
+    loadCategory();
+  }, [isCreate, loadCategory]);
 
   const ready = isCreate ? Boolean(city) && categoryId != null : entry != null;
 
@@ -503,7 +531,15 @@ function EntryEditor() {
           Couldn&apos;t find the &quot;{slug}&quot; category.
         </div>
       )}
-      {!notFound && !categoryError && (cityLoading || !ready) && (
+      {categoryLoadError && (
+        <div className="entry-editor-status">
+          Couldn&apos;t load categories — the server may still be waking up.{' '}
+          <button type="button" onClick={loadCategory}>
+            Try again
+          </button>
+        </div>
+      )}
+      {!notFound && !categoryError && !categoryLoadError && (cityLoading || !ready) && (
         <div className="entry-editor-status">Loading…</div>
       )}
 
