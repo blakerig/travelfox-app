@@ -155,6 +155,17 @@ function parseWindow(windowStr) {
   return { startMin, endMin };
 }
 
+// All 7 day indices - the default day set for a clause that names no days
+// at all (see ALL_DAYS use in parseOpeningTimes below).
+const ALL_DAYS = new Set(DAY_NAMES.map((_, i) => i));
+
+// A day-range prefix is letters/whitespace/"&"/"-" only ("Mon", "Tue-Sat",
+// "Mon-Thu & Sun"). A time token always has a digit in it, so this is
+// enough to tell "Mon: 1pm to 5pm" (day prefix "Mon") apart from a bare
+// "1pm to 5pm" or "7:30pm to 11:30pm" (no day prefix - the colon there
+// belongs to the time itself, see below).
+const DAY_PREFIX_RE = /^[a-z\s&-]+$/i;
+
 // Returns an array of { days: Set<0-6>, windows: [{startMin, endMin}] } -
 // one entry per comma- (or semicolon-) separated clause that parsed
 // successfully. Clauses/windows that don't match the convention are
@@ -163,6 +174,17 @@ function parseWindow(windowStr) {
 // perfectly. Returns [] (not null) for a blank or entirely unparseable
 // string - callers treat an empty array the same as "unknown", see
 // isOpenNow below.
+//
+// A clause with no day range at all (e.g. just "1pm to 5pm") is assumed to
+// mean every day (added 2026-09-20, once a real entry was typed that way
+// and the omission needed a sensible default rather than being silently
+// dropped like an unparseable clause). Detecting "no day given" can't just
+// be "no colon in the clause": minutes are also allowed to use a colon
+// ("7:30pm"), so a clause like "7:30pm to 11:30pm" (no day prefix, but a
+// colon inside the time) must NOT be mistaken for a day/time split on that
+// colon. So the text before the first colon (if there is one) only counts
+// as a day prefix when it's letters/"&"/"-" only - see DAY_PREFIX_RE above
+// - otherwise the whole clause is treated as the time part.
 export function parseOpeningTimes(openingTimes) {
   if (!openingTimes) return [];
   const clauses = [];
@@ -170,11 +192,19 @@ export function parseOpeningTimes(openingTimes) {
     const clause = rawClause.trim();
     if (!clause) continue;
     const colonIndex = clause.indexOf(':');
-    if (colonIndex === -1) continue;
-    const days = parseDayRange(clause.slice(0, colonIndex));
-    if (days.size === 0) continue;
-    const windows = clause
-      .slice(colonIndex + 1)
+    const prefix = colonIndex === -1 ? null : clause.slice(0, colonIndex);
+    const hasDayPrefix = prefix != null && DAY_PREFIX_RE.test(prefix);
+    let days;
+    let timesPart;
+    if (hasDayPrefix) {
+      days = parseDayRange(prefix);
+      if (days.size === 0) continue;
+      timesPart = clause.slice(colonIndex + 1);
+    } else {
+      days = ALL_DAYS;
+      timesPart = clause;
+    }
+    const windows = timesPart
       .split('&')
       .map((w) => parseWindow(w))
       .filter(Boolean);
