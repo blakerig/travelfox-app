@@ -45,18 +45,29 @@ function normalizeWebsiteUrl(url) {
 // the "Directions to an Entry" item there for the fuller options
 // considered before landing on this as the first, cheapest part.
 //
-// Prefers the entry's own coordinates when set (more precise - lands on
-// the actual building rather than an interpolated point along the
-// street), falling back to the free-text address for entries that don't
-// have lat/long entered yet (see claude/todo.md's lat/long-lookup item -
-// entering coordinates is still a manual, occasionally-skipped step).
-// Returns null when neither is available, same "just omit it" pattern as
-// openStatus above.
+// Fixed 2026-09-22: coordinates alone used to be preferred whenever set,
+// which is precise but drops the place's identity - Maps opens on a bare
+// unlabeled pin, with no name/hours/reviews, since a lat/long pair carries
+// no business info of its own. Google's own guidance for linking to a
+// specific place without a Place ID (see the Maps URLs docs' "search"
+// pattern, applied here to directions) is to pass `name, address` as the
+// destination text instead of coordinates - Maps resolves that as a place
+// lookup and opens on the actual listing. No Place ID lookup needed (that
+// would mean pulling in the Places API, which this project has otherwise
+// steered away from - see claude/todo.md), so `name, address` is now
+// preferred whenever both exist. Coordinates remain the fallback for an
+// entry that has lat/long but no address text yet (still more precise
+// than nothing, just without the name attached), and bare address text is
+// the last resort for an entry with neither name-worthy data nor
+// coordinates. Returns null when nothing at all is available, same "just
+// omit it" pattern as openStatus above.
 function getDirectionsUrl(entry) {
   const destination =
-    entry.latitude != null && entry.longitude != null
-      ? `${entry.latitude},${entry.longitude}`
-      : entry.address;
+    entry.name && entry.address
+      ? `${entry.name}, ${entry.address}`
+      : entry.latitude != null && entry.longitude != null
+        ? `${entry.latitude},${entry.longitude}`
+        : entry.address;
   if (!destination) return null;
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }
