@@ -123,7 +123,7 @@
 .home-categories {
   padding: 18px 16px 28px;
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
 }
