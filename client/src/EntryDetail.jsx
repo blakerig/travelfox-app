@@ -10,7 +10,7 @@ import { useCityData } from './city-data-context.js';
 import { useAuth } from './auth-context.js';
 import photoPlaceholder from './assets/entry-photo-placeholder.svg';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
-import { isOpenNow } from './openingHours.js';
+import { isOpenNow, getWeekSchedule, getZonedNow } from './openingHours.js';
 import { formatPhoneNumber } from './phoneNumber.js';
 import { formatEntryAddress } from './address.js';
 // Disabled 2026-09-15 per Blake's request: the static "here's where it is"
@@ -110,6 +110,11 @@ function EntryDetail() {
   const [notFound, setNotFound] = useState(false);
   // Tracks which entryId `fetchedEntry`/`notFound` currently belong to.
   const [loadedEntryId, setLoadedEntryId] = useState(null);
+  // Hours section starts collapsed to the one-line "Today: ..." summary
+  // (2026-09-23) - only actually used once weekSchedule/todaySchedule
+  // exist below, but declared unconditionally up here with the rest of
+  // this component's state since hooks can't be called conditionally.
+  const [hoursExpanded, setHoursExpanded] = useState(false);
 
   // Reset to a loading state during render when we've navigated to a
   // different entry, rather than synchronously inside the effect - see
@@ -162,6 +167,23 @@ function EntryDetail() {
   // text, or no timezone set for this city yet) means "don't show a
   // status" - handled below by simply not rendering the badge.
   const openStatus = entry ? isOpenNow(entry.openingTimes, city?.timezone) : null;
+  // Per-day "Mon: 12pm to 3pm, 6pm to 9pm" / "Tue: Closed" breakdown
+  // (2026-09-23) - see getWeekSchedule's doc comment in openingHours.js.
+  // null when entry.openingTimes doesn't parse into anything at all
+  // (rare/malformed free text) - the JSX below falls back to the old
+  // raw-line-per-clause display in that case, same "don't claim structure
+  // you don't have" principle as openStatus above.
+  const weekSchedule = entry ? getWeekSchedule(entry.openingTimes) : null;
+  // Which of weekSchedule's 7 rows is "today," in the *venue's* timezone -
+  // same zoned-now logic isOpenNow uses internally, exported from
+  // openingHours.js so this screen can highlight the matching row and
+  // build the collapsed "Today: ..." summary without duplicating the
+  // timezone math. null when there's no usable city timezone yet - same
+  // case openStatus already handles by just not rendering, so the
+  // summary/highlight below simply don't render either rather than
+  // guessing which day is "today."
+  const zonedNow = entry ? getZonedNow(city?.timezone) : null;
+  const todaySchedule = weekSchedule?.find((day) => day.dayIndex === zonedNow?.dayIndex) ?? null;
   const directionsUrl = entry ? getDirectionsUrl(entry) : null;
   // See phoneNumber.js for the country-code rule (only filled in from
   // City.country.code when entry.phone doesn't already start with "+").
@@ -290,19 +312,68 @@ function EntryDetail() {
                       {openStatus ? 'Open now' : 'Closed'}
                     </span>
                   )}
-                  {/* Split on "," or ";" purely for display - one day-range
-                      clause per line, matching the convention documented on
-                      Entry.openingTimes in schema.prisma (comma is the
-                      current convention; semicolon still works too, see
-                      openingHours.js). This is not parsing in the sense of
-                      understanding what the values mean, just a
-                      readability win over one long run-on line - the
-                      actual parsing that drives openStatus above happens
-                      in openingHours.js. */}
+                  {/* Day-by-day view (2026-09-23) - see getWeekSchedule's
+                      doc comment in openingHours.js and the "Structured
+                      opening hours" item in claude/todo.md. Collapsed by
+                      default to just today's line when we know which day
+                      is "today" (todaySchedule, i.e. a usable city
+                      timezone) - Blake's call after weighing the full
+                      week against the screen space it takes up on this
+                      already-dense screen; tapping it expands to the full
+                      week, with today's row bolded (.is-today below) so
+                      it's easy to spot among the other six, and a "Hide"
+                      link to collapse back. Without a usable timezone
+                      there's no "today" to summarize or highlight, so it
+                      just shows the full week straight away instead of a
+                      toggle that would have nothing honest to collapse
+                      to. */}
                   <span className="entry-detail-contact-value entry-detail-hours-value">
-                    {entry.openingTimes.split(/[,;]/).map((line, i) => (
-                      <div key={i}>{line.trim()}</div>
-                    ))}
+                    {weekSchedule ? (
+                      todaySchedule && !hoursExpanded ? (
+                        <button
+                          type="button"
+                          className="entry-detail-hours-today"
+                          onClick={() => setHoursExpanded(true)}
+                        >
+                          <span>Today: {todaySchedule.text}</span>
+                          <span className="entry-detail-hours-chevron" aria-hidden="true">
+                            ▾
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="entry-detail-hours-week">
+                          {weekSchedule.map((day) => (
+                            <div
+                              key={day.dayIndex}
+                              className={`entry-detail-hours-day-row${
+                                day.dayIndex === zonedNow?.dayIndex ? ' is-today' : ''
+                              }`}
+                            >
+                              <span className="entry-detail-hours-day-label">{day.dayLabel}</span>
+                              <span>{day.text}</span>
+                            </div>
+                          ))}
+                          {todaySchedule && (
+                            <button
+                              type="button"
+                              className="entry-detail-hours-collapse"
+                              onClick={() => setHoursExpanded(false)}
+                            >
+                              Hide
+                            </button>
+                          )}
+                        </div>
+                      )
+                    ) : (
+                      // Fallback for opening-times text that doesn't parse
+                      // into anything - getWeekSchedule returned null
+                      // above. Splits on "," or ";" purely for display,
+                      // one day-range clause per line, same behaviour this
+                      // row had before the day-by-day view existed.
+                      entry.openingTimes.split(/[,;]/).map((line, i) => (
+                        <div key={i}>{line.trim()}</div>
+                      ))
+                    )}
                   </span>
                 </div>
               )}

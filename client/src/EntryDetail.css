@@ -176,6 +176,75 @@ a.entry-detail-contact-row .entry-detail-contact-value {
   background: var(--muted, #6b6375);
 }
 
+/* Day-by-day Hours breakdown (2026-09-23) - see getWeekSchedule in
+   openingHours.js and the JSX comment above the Hours row in
+   EntryDetail.jsx. Collapsed default is a single clickable "Today: ..."
+   line styled like the walking-time button above (green, underlined) so
+   it visibly reads as tappable; tapping it swaps in the full Mon-Sun
+   list below. */
+.entry-detail-hours-today {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--g-600);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+  text-align: left;
+}
+
+.entry-detail-hours-chevron {
+  text-decoration: none;
+  font-size: 11px;
+}
+
+.entry-detail-hours-week {
+  display: flex;
+  flex-direction: column;
+}
+
+.entry-detail-hours-day-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+
+.entry-detail-hours-day-label {
+  flex: 0 0 32px;
+  color: var(--faint);
+}
+
+/* Bolds both the day label and its hours text so today's row is easy to
+   pick out among the other six once the week is expanded (Blake's call -
+   see the Hours-row comment in EntryDetail.jsx). */
+.entry-detail-hours-day-row.is-today {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.entry-detail-hours-day-row.is-today .entry-detail-hours-day-label {
+  color: var(--ink);
+}
+
+.entry-detail-hours-collapse {
+  margin-top: 2px;
+  align-self: flex-start;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--g-600);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .entry-detail-markdown {
   font-size: 15px;
   line-height: 1.6;

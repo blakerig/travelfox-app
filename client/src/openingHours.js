@@ -222,7 +222,12 @@ export function parseOpeningTimes(openingTimes) {
 // would otherwise get a confidently wrong answer, the same lesson learned
 // from the straight-line distance filter). Returns null if timezone is
 // missing or isn't a real IANA identifier Intl recognises.
-function getZonedNow(timezone) {
+//
+// Exported (2026-09-23, previously internal-only) so EntryDetail.jsx can
+// work out which of getWeekSchedule's 7 rows is "today" - same zoned-now
+// math isOpenNow already relies on below, just needed one level up too
+// rather than duplicated.
+export function getZonedNow(timezone) {
   if (!timezone) return null;
   try {
     const parts = new Intl.DateTimeFormat('en-US', {
@@ -281,4 +286,60 @@ export function isOpenNow(openingTimes, timezone) {
       );
     })
   );
+}
+
+// "8am" -> "8am", "12pm" -> "12pm", 1170 (7.30pm) -> "7:30pm" - the
+// reverse of parseTimeToken above, for building display text rather than
+// parsing input. Minutes come back with a colon regardless of whether the
+// original text used a period or a colon, since this is generated output,
+// not something anyone re-types - see getWeekSchedule below. hour==0
+// displays as "12am" (midnight) and hour==12 as "12pm" (noon), the same
+// 12-hour convention the app's opening-times text already uses throughout.
+function formatTimeToken(minutes) {
+  const hour24 = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  const suffix = hour24 < 12 ? 'am' : 'pm';
+  let hour12 = hour24 % 12;
+  if (hour12 === 0) hour12 = 12;
+  return minute === 0 ? `${hour12}${suffix}` : `${hour12}:${String(minute).padStart(2, '0')}${suffix}`;
+}
+
+// Monday-first day order/labels for display (2026-09-23) - purely a
+// presentation remap, not a change to DAY_NAMES' indices (0=Sun..6=Sat,
+// matching JS's native Date/Intl weekday numbering, which getZonedNow
+// above relies on). Monday-first because that's how Blake's own
+// opening-times convention is always typed ("Mon: ... Tue: ...") and how
+// EntryDetail.jsx's day-by-day breakdown lists the week.
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Expands parseOpeningTimes' clause list into one row per calendar day,
+// Monday through Sunday - "Mon: 12pm to 3pm, 6pm to 9pm" / "Tue: Closed" /
+// ... - for EntryDetail.jsx's day-by-day Hours breakdown (2026-09-23,
+// replacing the old per-clause-not-per-day raw-text display; see the
+// "Structured opening hours" item in claude/todo.md). A day with no
+// clause covering it reads as Closed - deliberately not left blank or
+// omitted, since "no data for this day" and "confirmed closed" would
+// otherwise look identical to someone reading the list.
+//
+// Returns null (not an array of seven "Closed" rows) when
+// parseOpeningTimes finds nothing at all to work with, so callers fall
+// back to showing the raw openingTimes text instead of confidently
+// claiming every day is closed for an entry whose hours just don't match
+// the convention yet - same "don't claim structure you don't have"
+// principle as isOpenNow returning null above.
+export function getWeekSchedule(openingTimes) {
+  const clauses = parseOpeningTimes(openingTimes);
+  if (clauses.length === 0) return null;
+  return WEEK_ORDER.map((dayIndex) => {
+    const windows = clauses
+      .filter((clause) => clause.days.has(dayIndex))
+      .flatMap((clause) => clause.windows)
+      .sort((a, b) => a.startMin - b.startMin);
+    const text =
+      windows.length === 0
+        ? 'Closed'
+        : windows.map((w) => `${formatTimeToken(w.startMin)} to ${formatTimeToken(w.endMin)}`).join(', ');
+    return { dayIndex, dayLabel: DAY_LABELS[dayIndex], text };
+  });
 }
