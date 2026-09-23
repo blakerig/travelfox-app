@@ -133,14 +133,14 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  width: 72px;
+  width: 88px;
   text-decoration: none;
   color: inherit;
 }
 
 .home-category-icon {
-  width: 64px;
-  height: 64px;
+  width: 80px;
+  height: 80px;
   display: block;
 }
 
