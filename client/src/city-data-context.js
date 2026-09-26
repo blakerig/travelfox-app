@@ -10,15 +10,19 @@ import { createContext, useContext } from 'react';
 //     upsertShopType, refreshCity }
 //
 //   - cityData: the current city's cached bundle -
-//     { entries, activityTypes, shopTypes, homeCategorySlugs, neighbourhoods,
-//     fetchedAt } - or null until the first fetch for this city has landed
+//     { entries, activityTypes, shopTypes, homeCategorySlugs,
+//     homeCategoryIcons, neighbourhoods, fetchedAt } - or null until the
+//     first fetch for this city has landed
 //     (from the network or, on a repeat visit, hydrated from localStorage -
 //     see CityDataProvider.jsx). `entries` is every Entry in the city (not
 //     filtered by category - screens that only want one category's worth,
 //     e.g. CategoryScreen.jsx, filter it client-side by `entry.category.slug`
 //     rather than each firing their own `?category=` request). `shopTypes`
 //     (2026-09-15) is Shopping's equivalent of `activityTypes` below - see
-//     ShopType in schema.prisma.
+//     ShopType in schema.prisma. `homeCategoryIcons` (2026-09-26) is a
+//     slug -> URL map of this city's own icon art, only present for a
+//     category that has one - see CategoryIcon in schema.prisma - Home.jsx
+//     falls back to its bundled default icon for any slug missing here.
 //   - cityDataReady: true once cityData is non-null. Screens that used to
 //     gate their loading state on "have I fetched yet" gate it on this
 //     instead.

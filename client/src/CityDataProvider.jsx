@@ -60,6 +60,12 @@ async function fetchCityBundle(cityId) {
     activityTypes,
     shopTypes,
     homeCategorySlugs: homeCategories.map((c) => c.slug),
+    // slug -> Cloudinary URL for this city's own icon art, only present for
+    // a category that has one (see CategoryIcon in schema.prisma) - Home.jsx
+    // falls back to its bundled default icon for any slug missing here.
+    homeCategoryIcons: Object.fromEntries(
+      homeCategories.filter((c) => c.iconUrl).map((c) => [c.slug, c.iconUrl])
+    ),
     neighbourhoods,
     fetchedAt: Date.now(),
   };

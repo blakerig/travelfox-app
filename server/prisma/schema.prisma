@@ -124,6 +124,9 @@ model City {
   // Named areas/districts within this city, shown as pins on the
   // Neighbourhoods map screen - see Neighbourhood below.
   neighbourhoods Neighbourhood[]
+  // Opposite side of CategoryIcon.city - this city's own icon art for the
+  // home screen categories that have one. See CategoryIcon below.
+  categoryIcons  CategoryIcon[]
 }
 
 model Category {
@@ -131,6 +134,43 @@ model Category {
   slug    String  @unique
   name    String
   entries Entry[]
+  // Opposite side of CategoryIcon.category - per-city icon art overrides
+  // for this category. See CategoryIcon below.
+  iconOverrides CategoryIcon[]
+}
+
+// A city-specific home-screen icon for one category (e.g. Barcelona's own
+// hand-drawn Essentials/Activities/Eating Out art), added 2026-09-26 so a
+// destination can get its own icon set instead of every city sharing the
+// same bundled default. Same "optional per-row override, falls back to a
+// shared default" pattern already used elsewhere in this schema
+// (City.photoUrl falls back to a placeholder hero image, Entry.photoUrl
+// falls back to a placeholder card image) - here the "default" is the
+// static icon set bundled into the client (client/src/assets/icon-*.png,
+// see CATEGORY_DISPLAY in Home.jsx), used whenever a city has no row here
+// for a given category.
+//
+// A separate join table rather than a column on Category itself, since
+// Category is shared globally across every city (its slug/name mean the
+// same thing everywhere) - a per-city icon needs a place to vary by city
+// that a single Category row can't provide.
+//
+// iconUrl is a Cloudinary-hosted URL, same convention as City.photoUrl/
+// Entry.photoUrl - set via a one-off script (see
+// server/set-barcelona-category-icons.js) rather than an in-app uploader,
+// same as how City.photoUrl has no editor UI of its own yet.
+model CategoryIcon {
+  id         Int      @id @default(autoincrement())
+  city       City     @relation(fields: [cityId], references: [id])
+  cityId     Int
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId Int
+  iconUrl    String
+  createdAt  DateTime @default(now())
+
+  // One icon override per category per city - re-running the setup script
+  // updates the existing row instead of creating a duplicate.
+  @@unique([cityId, categoryId])
 }
 
 // A named area/district within a city, shown as a pin on the dedicated

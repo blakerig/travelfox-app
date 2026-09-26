@@ -5,6 +5,7 @@ import remarkBreaks from 'remark-breaks';
 import { markdownComponents } from './markdownComponents.jsx';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import { geocodeAddress } from './geocode.js';
+import { fetchOsmOpeningHours } from './osmOpeningHours.js';
 import { ESSENTIALS_ICON_OPTIONS } from './essentialsIcons.jsx';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
@@ -196,6 +197,21 @@ function EntryEditor() {
   const [longitude, setLongitude] = useState('');
   const [geocodeStatus, setGeocodeStatus] = useState('idle');
   const [geocodeSuggestion, setGeocodeSuggestion] = useState(null);
+
+  // Opening-hours lookup (2026-09-26) - see "Structured opening hours" in
+  // claude/todo.md and GET /api/opening-hours-lookup in server/index.js
+  // (OpenStreetMap's Overpass API, not Google Places - see that endpoint's
+  // comment for why). 'idle' | 'loading' | 'suggestion' | 'raw-only' |
+  // 'not-found' | 'error'. hoursLookupSuggestion holds { name, converted }
+  // in the 'suggestion' state or { name, raw } in the 'raw-only' state
+  // (OSM had hours but this app couldn't confidently translate them into
+  // its own convention - see convertOsmOpeningHours in osmOpeningHours.js).
+  // Unlike the coordinates suggestion above, this is never auto-filled
+  // even when openingTimes starts out empty - a name-matched OSM result is
+  // a good guess, not a verified one the way a geocode hit is, so it
+  // always needs an explicit "Use this" tap.
+  const [hoursLookupStatus, setHoursLookupStatus] = useState('idle');
+  const [hoursLookupSuggestion, setHoursLookupSuggestion] = useState(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -414,6 +430,60 @@ function EntryEditor() {
   function dismissGeocodeSuggestion() {
     setGeocodeSuggestion(null);
     setGeocodeStatus('idle');
+  }
+
+  // Looks up opening hours for this entry's coordinates via GET
+  // /api/opening-hours-lookup (OpenStreetMap's Overpass API, proxied
+  // server-side - see that endpoint's comment in server/index.js and the
+  // hoursLookupStatus doc comment above). Needs coordinates already set -
+  // the button below is disabled without them - since Overpass searches by
+  // location, not name; the name is only used server-side to pick the
+  // right result out of everything nearby, not to search on its own.
+  function handleHoursLookup() {
+    if (!latitude.trim() || !longitude.trim()) return;
+
+    setHoursLookupStatus('loading');
+    setHoursLookupSuggestion(null);
+
+    fetchOsmOpeningHours(import.meta.env.VITE_API_URL, {
+      name,
+      latitude: latitude.trim(),
+      longitude: longitude.trim(),
+    })
+      .then((result) => {
+        if (!result) {
+          setHoursLookupStatus('not-found');
+          return;
+        }
+        if (result.converted) {
+          setHoursLookupSuggestion({ name: result.name, converted: result.converted });
+          setHoursLookupStatus('suggestion');
+        } else {
+          // OSM had something, but it used a construct this app doesn't
+          // attempt to auto-translate (see convertOsmOpeningHours) - shown
+          // as reference text to translate by hand, not a "Use this"
+          // suggestion, since inserting raw OSM syntax into openingTimes
+          // would silently break this app's own hours parser.
+          setHoursLookupSuggestion({ name: result.name, raw: result.raw });
+          setHoursLookupStatus('raw-only');
+        }
+      })
+      .catch((err) => {
+        console.error('Opening-hours lookup failed:', err);
+        setHoursLookupStatus('error');
+      });
+  }
+
+  function acceptHoursSuggestion() {
+    if (!hoursLookupSuggestion?.converted) return;
+    setOpeningTimes(hoursLookupSuggestion.converted);
+    setHoursLookupStatus('idle');
+    setHoursLookupSuggestion(null);
+  }
+
+  function dismissHoursSuggestion() {
+    setHoursLookupSuggestion(null);
+    setHoursLookupStatus('idle');
   }
 
   function handleSave(e) {
@@ -774,6 +844,76 @@ function EntryEditor() {
                   rows={2}
                 />
               </label>
+
+              {/* Opening-hours lookup (2026-09-26) - see the
+                  hoursLookupStatus doc comment above and "Structured
+                  opening hours" in claude/todo.md for why this pulls from
+                  OpenStreetMap rather than Google Places (Google's terms
+                  don't allow storing opening hours long-term the way this
+                  field needs). A separate field block from Opening times
+                  above, same split as Address/Coordinates above it -
+                  needs its own button/hint/suggestion UI, not just a plain
+                  label+textarea. Disabled until coordinates exist, since
+                  Overpass searches by location, not name. */}
+              <div className="entry-editor-field">
+                <button
+                  type="button"
+                  className="entry-editor-geocode-button"
+                  onClick={handleHoursLookup}
+                  disabled={!latitude.trim() || !longitude.trim() || hoursLookupStatus === 'loading'}
+                >
+                  Find opening hours
+                </button>
+
+                {!latitude.trim() || !longitude.trim() ? (
+                  <p className="entry-editor-hint">
+                    Find coordinates above first - opening hours are looked up by location, not name.
+                  </p>
+                ) : (
+                  <p className="entry-editor-hint">
+                    Pulled from OpenStreetMap, which can be patchy or out of date - always double-check
+                    against the real hours before saving.
+                  </p>
+                )}
+                {hoursLookupStatus === 'loading' && (
+                  <p className="entry-editor-hint">Looking up opening hours…</p>
+                )}
+                {hoursLookupStatus === 'not-found' && (
+                  <p className="entry-editor-hint">
+                    No opening hours found on OpenStreetMap near this location - enter them manually.
+                  </p>
+                )}
+                {hoursLookupStatus === 'error' && (
+                  <p className="entry-editor-hint">
+                    Opening-hours lookup failed - try again, or enter them manually.
+                  </p>
+                )}
+                {hoursLookupStatus === 'suggestion' && hoursLookupSuggestion && (
+                  <div className="entry-editor-geocode-suggestion">
+                    <span>
+                      Found for &quot;{hoursLookupSuggestion.name}&quot;: {hoursLookupSuggestion.converted}
+                    </span>
+                    <button type="button" onClick={acceptHoursSuggestion}>
+                      Use this
+                    </button>
+                    <button type="button" onClick={dismissHoursSuggestion}>
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+                {hoursLookupStatus === 'raw-only' && hoursLookupSuggestion && (
+                  <div className="entry-editor-geocode-suggestion">
+                    <span>
+                      Found for &quot;{hoursLookupSuggestion.name}&quot;, but couldn&apos;t auto-format it
+                      into our convention - OpenStreetMap&apos;s raw text: &quot;{hoursLookupSuggestion.raw}
+                      &quot;. Translate it into the format above by hand if it looks right.
+                    </span>
+                    <button type="button" onClick={dismissHoursSuggestion}>
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Eating Out gets priceLevel (a $/$$/$$/$$$$ select) instead
                   of priceInfo - see the isEatingOut doc comment near the top

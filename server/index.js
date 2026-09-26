@@ -346,6 +346,105 @@ app.get('/api/geocode', async (req, res) => {
   }
 });
 
+// Opening-hours lookup for the entry editor (2026-09-26) - see
+// "Structured opening hours" in claude/todo.md. Google's Places API can
+// return opening hours, but its Terms of Service
+// (developers.google.com/maps/documentation/places/web-service/policies)
+// forbid storing/caching most Place Details fields long-term - only the
+// Place ID itself is exempt - so pulling hours in once and keeping them in
+// Entry.openingTimes (exactly what this needs, same as every other field
+// in this app) isn't something Google's terms actually allow, on top of
+// opening hours falling under Google's priciest "Enterprise" pricing SKU.
+// OpenStreetMap's `opening_hours` tag is free, genuinely structured, and
+// carries no such caching restriction - so this queries OSM's Overpass API
+// instead, same OSM ecosystem already used for geocoding above.
+//
+// Needs coordinates, not a free-text query - Overpass finds things by
+// location, not name, so this can't run until "Find coordinates" above has
+// found something for this entry. Searches a small radius (75m - tight
+// enough that a match is very likely the actual venue, not a different
+// place a short walk away) for anything OSM has tagged with opening_hours
+// at all, then keeps only a result whose OSM name matches this entry's own
+// name (accent/case-insensitively - see foldAccents further down this
+// file) - never just offers the nearest tagged thing regardless of name,
+// since several unrelated venues can easily sit within 75m of each other.
+//
+// Query: GET /api/opening-hours-lookup?name=<entry name>&latitude=<>&longitude=<>
+// Response: { found: true, name, raw } on a name-matched result - raw is
+//   OSM's own opening_hours syntax (e.g. "Mo-Fr 08:00-17:00"), translated
+//   into this app's own convention client-side (see
+//   client/src/osmOpeningHours.js's convertOsmOpeningHours - kept out of
+//   the server since it's pure string logic nothing else here needs), or
+//   { found: false } when nothing nearby has opening hours tagged at all,
+//   or nothing nearby matches this entry's name - a real "nothing there"
+//   answer given how patchy OSM's hours coverage genuinely is, not an
+//   error.
+// Failure (network error, Overpass error): non-2xx with { error }.
+app.get('/api/opening-hours-lookup', async (req, res) => {
+  const name = (req.query.name ?? '').toString().trim();
+  const latitude = parseFloat(req.query.latitude);
+  const longitude = parseFloat(req.query.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return res.status(400).json({ error: 'Query parameters "latitude" and "longitude" are required' });
+  }
+
+  const overpassQuery = `[out:json][timeout:15];(nwr["opening_hours"](around:75,${latitude},${longitude}););out tags;`;
+
+  try {
+    const overpassRes = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain',
+        // Overpass's own usage policy, like Nominatim's (see the geocode
+        // comment above), asks automated clients to identify themselves -
+        // https://dev.overpass-api.de/overpass-doc/en/preface/commons.html
+        'User-Agent': 'travelfox-app (opening-hours lookup; contact via app owner)',
+      },
+      body: overpassQuery,
+    });
+
+    if (!overpassRes.ok) {
+      const body = await overpassRes.text();
+      console.error('Overpass opening-hours request failed:', overpassRes.status, body);
+      return res.status(502).json({ error: 'Opening-hours lookup failed' });
+    }
+
+    const data = await overpassRes.json();
+    const elements = Array.isArray(data?.elements) ? data.elements : [];
+
+    // Bidirectional substring match (2026-09-26 fix) - a one-directional
+    // check (does OSM's name contain the entry's name) missed the very
+    // common case of an entry name being *more* descriptive than OSM's own
+    // (e.g. entry "Cerveceria Catalana - Eixample" vs OSM's plain
+    // "Cerveceria Catalana"), which was silently surfacing as "not found"
+    // even when OSM had a genuine, well-tagged match nearby. Checking both
+    // directions catches that case too, while still requiring a real
+    // substring relationship rather than a fuzzy/typo-tolerant match, which
+    // risks matching the wrong nearby venue.
+    const needle = name ? foldAccents(name) : '';
+    const match = needle
+      ? elements.find((el) => {
+          if (!el.tags?.name) return false;
+          const osmName = foldAccents(el.tags.name);
+          return osmName.includes(needle) || needle.includes(osmName);
+        })
+      : null;
+
+    if (!match) {
+      return res.json({ found: false });
+    }
+
+    res.json({
+      found: true,
+      name: match.tags.name,
+      raw: match.tags.opening_hours,
+    });
+  } catch (err) {
+    console.error('Overpass opening-hours request errored:', err);
+    res.status(502).json({ error: 'Opening-hours lookup failed' });
+  }
+});
+
 app.get('/api/cities', async (req, res) => {
   // include country so the client has currencyName/currencySymbol (and
   // country name) without a second round-trip - see Country model in
@@ -1180,7 +1279,19 @@ app.get('/api/cities/:cityId/home-categories', async (req, res) => {
     }
   }
 
-  res.json(categories);
+  // Attach this city's own icon art where it has any (see CategoryIcon in
+  // schema.prisma) - iconUrl is null for a category with no override, and
+  // the client falls back to its bundled default icon in that case (see
+  // CATEGORY_DISPLAY in Home.jsx), so this never needs its own "is there an
+  // override" flag.
+  const iconOverrides = await prisma.categoryIcon.findMany({ where: { cityId } });
+  const iconUrlByCategoryId = new Map(iconOverrides.map((o) => [o.categoryId, o.iconUrl]));
+  const categoriesWithIcons = categories.map((c) => ({
+    ...c,
+    iconUrl: iconUrlByCategoryId.get(c.id) ?? null,
+  }));
+
+  res.json(categoriesWithIcons);
 });
 
 // Neighbourhood pins for the Neighbourhoods map screen (client/src/

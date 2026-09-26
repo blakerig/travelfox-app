@@ -141,7 +141,15 @@ function Home() {
       <div className="home-categories">
         {visibleCategories.map((cat) => (
           <Link to={cat.to ?? `/category/${cat.slug}`} className="home-category" key={cat.slug}>
-            <img src={cat.icon} alt="" className="home-category-icon" />
+            <img
+              // A city with its own icon art for this category (see
+              // CategoryIcon in schema.prisma) uses that instead of the
+              // shared bundled default - see homeCategoryIcons in
+              // city-data-context.js.
+              src={cityData?.homeCategoryIcons?.[cat.slug] ?? cat.icon}
+              alt=""
+              className="home-category-icon"
+            />
             <div className="home-category-label">{cat.label}</div>
           </Link>
         ))}
