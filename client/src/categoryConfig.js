@@ -299,6 +299,81 @@ export const CATEGORY_CONFIG = {
     itemLabel: 'dish',
     itemLabelPlural: 'dishes',
   },
+  // The categories below (2026-09-26) have no content in any city yet -
+  // see the Category rows created by server/create-additional-categories.js
+  // and the "Add a section" discovery list on Home.jsx. Given an explicit
+  // entry here (rather than relying on DEFAULT_CATEGORY_CONFIG's fallback)
+  // purely so CategoryScreen shows a proper title ("Day Trips") instead of
+  // the raw slug the fallback uses - getCategoryConfig() only ever returns
+  // one config object whole, not a merge, so a partial override isn't an
+  // option; every field DEFAULT_CATEGORY_CONFIG would have set still needs
+  // setting explicitly here. Plain 'venue' cards (location/rating/price)
+  // with no sort/filter controls for now, same as DEFAULT_CATEGORY_CONFIG -
+  // revisit per-category once each one actually has real content and it's
+  // clear what filtering/sorting would actually help.
+  itineraries: {
+    title: 'Itineraries',
+    cardVariant: 'venue',
+    cardShowPrice: true,
+    sortOptions: null,
+    filterOptions: null,
+    itemLabel: 'itinerary',
+    itemLabelPlural: 'itineraries',
+  },
+  'day-trips': {
+    title: 'Day Trips',
+    cardVariant: 'venue',
+    cardShowPrice: true,
+    sortOptions: null,
+    filterOptions: null,
+    itemLabel: 'day trip',
+    itemLabelPlural: 'day trips',
+  },
+  'whats-on': {
+    title: "What's On",
+    cardVariant: 'venue',
+    cardShowPrice: true,
+    sortOptions: null,
+    filterOptions: null,
+    itemLabel: 'event',
+    itemLabelPlural: 'events',
+  },
+  tours: {
+    title: 'Tours',
+    cardVariant: 'venue',
+    cardShowPrice: true,
+    sortOptions: null,
+    filterOptions: null,
+    itemLabel: 'tour',
+    itemLabelPlural: 'tours',
+  },
+  'short-stay': {
+    title: 'Short Stay',
+    cardVariant: 'venue',
+    cardShowPrice: true,
+    sortOptions: null,
+    filterOptions: null,
+    itemLabel: 'entry',
+    itemLabelPlural: 'entries',
+  },
+  'long-stay': {
+    title: 'Long Stay',
+    cardVariant: 'venue',
+    cardShowPrice: true,
+    sortOptions: null,
+    filterOptions: null,
+    itemLabel: 'entry',
+    itemLabelPlural: 'entries',
+  },
+  accommodations: {
+    title: 'Accommodations',
+    cardVariant: 'venue',
+    cardShowPrice: true,
+    sortOptions: null,
+    filterOptions: null,
+    itemLabel: 'place',
+    itemLabelPlural: 'places',
+  },
 };
 
 const DEFAULT_CATEGORY_CONFIG = {

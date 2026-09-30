@@ -150,3 +150,52 @@
   text-align: center;
   line-height: 1.2;
 }
+
+/* "Add a section" - staff-only discovery list for a category this city has
+   no entries in yet (see the doc comment in Home.jsx). Deliberately muted/
+   dashed rather than matching the main colourful grid above - visually
+   reads as "not live yet, tap to start it" rather than a normal, equally-
+   weighted home-screen option. */
+.home-add-section {
+  padding: 4px 16px 28px;
+  border-top: 1px solid var(--line);
+  margin: 0 16px;
+}
+
+.home-add-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 16px 0 12px;
+}
+
+.home-add-section-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.home-add-section-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  border: 1.4px dashed var(--line);
+  border-radius: 14px;
+  text-decoration: none;
+  color: var(--faint);
+}
+
+.home-add-section-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: block;
+  opacity: 0.55;
+}
+
+.home-add-section-label {
+  font-size: 12.5px;
+}

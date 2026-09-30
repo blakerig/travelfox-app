@@ -14,6 +14,20 @@ import iconSightseeing from './assets/icon-sightseeing.png';
 import iconLocalCuisine from './assets/icon-local-cuisine.png';
 import iconNeighbourhoods from './assets/icon-neighbourhoods.png';
 import iconShopping from './assets/icon-shopping.png';
+// Sections with no content in any city yet (2026-09-26) - Category rows
+// created by server/create-additional-categories.js, icons cropped from the
+// same sheet as Barcelona's icon set (see client/src/assets/city-icons/
+// barcelona/). Included in CATEGORY_DISPLAY below like every other
+// category so they're ready to go the moment any city gets its first entry
+// in one - see the "discovery" section further down for how a team member
+// actually gets to an empty one to add that first entry.
+import iconItineraries from './assets/icon-itineraries.png';
+import iconDayTrips from './assets/icon-day-trips.png';
+import iconWhatsOn from './assets/icon-whats-on.png';
+import iconTours from './assets/icon-tours.png';
+import iconShortStay from './assets/icon-short-stay.png';
+import iconLongStay from './assets/icon-long-stay.png';
+import iconAccommodations from './assets/icon-accommodations.png';
 import BottomNav from './BottomNav.jsx';
 
 // Local display info for each category the home screen knows how to render.
@@ -38,6 +52,17 @@ const CATEGORY_DISPLAY = [
   // why), this is a display-copy change only.
   { slug: 'neighbourhoods', label: 'Areas', icon: iconNeighbourhoods, to: '/neighbourhoods' },
   { slug: 'shopping', label: 'Shopping', icon: iconShopping },
+  // The as-yet-content-free sections from the import comment above - same
+  // shape as every other entry, nothing special about them once their
+  // Category row exists. Order here also decides their order in the
+  // "Add a section" discovery list below.
+  { slug: 'itineraries', label: 'Itineraries', icon: iconItineraries },
+  { slug: 'day-trips', label: 'Day Trips', icon: iconDayTrips },
+  { slug: 'whats-on', label: "What's On", icon: iconWhatsOn },
+  { slug: 'tours', label: 'Tours', icon: iconTours },
+  { slug: 'short-stay', label: 'Short Stay', icon: iconShortStay },
+  { slug: 'long-stay', label: 'Long Stay', icon: iconLongStay },
+  { slug: 'accommodations', label: 'Accommodations', icon: iconAccommodations },
 ];
 
 function Home() {
@@ -58,6 +83,16 @@ function Home() {
 
   const visibleCategories = availableSlugs
     ? CATEGORY_DISPLAY.filter((c) => availableSlugs.has(c.slug))
+    : [];
+
+  // Categories that exist but have no content in this city yet (see the
+  // import comment above CATEGORY_DISPLAY) - only ever shown to a logged-in
+  // team member, as a way to jump straight to one and add its first entry,
+  // same "only staff ever sees this" gating as the "+ Add" link on
+  // CategoryScreen.jsx. A public visitor never sees an empty section, same
+  // as before this existed.
+  const hiddenCategories = availableSlugs
+    ? CATEGORY_DISPLAY.filter((c) => !availableSlugs.has(c.slug))
     : [];
 
   return (
@@ -154,6 +189,27 @@ function Home() {
           </Link>
         ))}
       </div>
+
+      {/* "Add a section" - lets a logged-in team member jump straight to a
+          category this city has no entries in yet (CategoryScreen.jsx
+          already renders a working empty state + "+ Add" link for any
+          category, see the doc comment on hiddenCategories above) without
+          needing to know/type its URL by hand. Never rendered for a public
+          visitor, and not rendered at all once every known category
+          already has content here. */}
+      {isAuthenticated && hiddenCategories.length > 0 && (
+        <div className="home-add-section">
+          <div className="home-add-section-title">Add a section</div>
+          <div className="home-add-section-list">
+            {hiddenCategories.map((cat) => (
+              <Link to={cat.to ?? `/category/${cat.slug}`} className="home-add-section-item" key={cat.slug}>
+                <img src={cat.icon} alt="" className="home-add-section-icon" />
+                <div className="home-add-section-label">{cat.label}</div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {pickerOpen && <CityPicker onClose={() => setPickerOpen(false)} />}
 
