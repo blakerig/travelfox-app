@@ -24,7 +24,21 @@ import EntryCard from './EntryCard.jsx';
 // ActivityTypeDetail.jsx's doc comment for the fuller reasoning, which
 // applies here unchanged.
 function ShopTypeDetail() {
-  const { slug, typeId } = useParams();
+  // Hardcoded, not read via useParams() - this screen is only ever reached
+  // through the literal "/category/shopping/type/:typeId" route in App.jsx
+  // (see that route's comment for why Shopping doesn't share Activities'
+  // generic "/category/:slug/type/:typeId" route), which has no :slug
+  // segment to capture at all. This used to be destructured from
+  // useParams() anyway, which silently evaluated to undefined - every link
+  // built from it below (Back, Edit, +Add provider) pointed at
+  // "/category/undefined/...", and the Edit link's target happened to still
+  // match the *generic* /category/:slug/type/:typeId/edit route, just
+  // routing to ActivityTypeEditor instead of ShopTypeEditor (occasionally
+  // even finding a real ActivityType there, when its id happened to match
+  // the ShopType's). Fixed 2026-09-30 - see the matching fix in
+  // ShopTypeEditor.jsx.
+  const slug = 'shopping';
+  const { typeId } = useParams();
   const config = getCategoryConfig(slug);
   const { city } = useCity();
   const { cityData, cityDataReady } = useCityData();

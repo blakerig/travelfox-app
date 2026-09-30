@@ -35,7 +35,19 @@ import './ShopTypeEditor.css';
 // mistake behind either way, see the matching comment on
 // POST /api/shop-types in server/index.js).
 function ShopTypeEditor() {
-  const { slug, typeId } = useParams();
+  // Hardcoded, not read via useParams() - both of this screen's routes
+  // ("/category/shopping/type/new/edit" and
+  // "/category/shopping/type/:typeId/edit" in App.jsx) are literal-slug
+  // routes with no :slug segment to capture (see ShopTypeDetail.jsx's file
+  // comment for why Shopping doesn't share Activities' generic routes).
+  // This used to be destructured from useParams() anyway, which silently
+  // evaluated to undefined - cancelTo and the post-save navigate() below
+  // both pointed at "/category/undefined/...", and the latter happened to
+  // still match the *generic* /category/:slug/type/:typeId route, landing
+  // on ActivityTypeDetail instead of ShopTypeDetail right after saving.
+  // Fixed 2026-09-30 - see the matching fix in ShopTypeDetail.jsx.
+  const slug = 'shopping';
+  const { typeId } = useParams();
   const navigate = useNavigate();
   const isCreate = typeId === 'new';
   const { city, loading: cityLoading } = useCity();
