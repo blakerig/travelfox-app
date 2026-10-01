@@ -42,11 +42,41 @@
    Home.css), so the height matches exactly without measuring anything in
    JS - both are driven by the same container width. No pointer-events
    rule needed here anymore now that the parent (.search-overlay above)
-   disclaims pointer events itself - this element just inherits that. */
+   disclaims pointer events itself - this element just inherits that.
+
+   Height transitions from this full aspect-ratio box down to a short
+   strip once search is active (see .is-expanded below) - requested so
+   the hero doesn't eat space that could go to results. The spacer itself
+   never draws anything either way (still fully transparent); shrinking
+   it just gives .search-panel (opaque, flex: 1) more room to rise into,
+   which is what actually covers the rest of Home's hero - same "let the
+   opaque panel do the covering" mechanism the spacer has used from the
+   start, just with a shorter window left transparent. Deliberately crops
+   to photo-only rather than preserving Home's city name/chevron lower in
+   the hero (user's explicit choice over keeping those visible, or adding
+   a second switcher into the search header) - switching city while
+   searching now means cancelling out of search first, same as most
+   mobile search UIs. No separate "shrink back" rule is needed for
+   .is-exiting: the panel's own opacity fade on exit (see .is-exiting
+   below) reveals Home's full hero again regardless of this element's
+   height, since the panel covering it fades to transparent at the same
+   time. */
 .search-overlay-spacer {
   width: 100%;
   aspect-ratio: 390 / 270;
   flex-shrink: 0;
+  transition: height 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* The strip height once search is active - tall enough to still read as
+   "a photo strip" rather than vanishing outright, short enough to free
+   up most of the hero's space for results. 72px rather than something
+   tied to Home's own elements (e.g. matching the edit/logout buttons'
+   ~46px footprint) since those stay visible/tappable either way as long
+   as the strip is taller than their own bottom edge - this is purely a
+   visual choice for how much photo peeks through. */
+.search-overlay.is-expanded .search-overlay-spacer {
+  height: 72px;
 }
 
 /* Takes over the space below the hero - where Home's search bar and icon
@@ -208,6 +238,10 @@
    end state instead of animating. */
 @media (prefers-reduced-motion: reduce) {
   .search-panel {
+    transition: none;
+  }
+
+  .search-overlay-spacer {
     transition: none;
   }
 }
