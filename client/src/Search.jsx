@@ -4,6 +4,7 @@ import './Search.css';
 import { useCity } from './city-context.js';
 import { getCategoryConfig } from './categoryConfig.js';
 import { activityTypeHref } from './activityTypeHref.js';
+import { authHeaders } from './auth.js';
 import EntryCard from './EntryCard.jsx';
 
 // How long to wait after the last keystroke before firing a request -
@@ -132,7 +133,8 @@ function Search() {
 
     const timer = setTimeout(() => {
       fetch(
-        `${import.meta.env.VITE_API_URL}/api/cities/${city.id}/search?q=${encodeURIComponent(trimmedQuery)}`
+        `${import.meta.env.VITE_API_URL}/api/cities/${city.id}/search?q=${encodeURIComponent(trimmedQuery)}`,
+        { headers: authHeaders() }
       )
         .then((res) => res.json())
         .then((data) => {
