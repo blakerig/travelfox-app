@@ -312,10 +312,12 @@ function EntryCard({
             }
           }}
         >
-          {photo}
-          {openBadge}
-          {statusBadge}
-          <FavouriteButton entryId={entry.id} className="entry-card-favourite" />
+          <div className="entry-card-photo-frame">
+            {photo}
+            {openBadge}
+            {statusBadge}
+            <FavouriteButton entryId={entry.id} className="entry-card-favourite" />
+          </div>
           {body}
         </div>
       );
@@ -323,10 +325,12 @@ function EntryCard({
 
     return (
       <div className={`entry-card entry-card-photo${statusCardClass}`}>
-        {photo}
-        {openBadge}
-        {statusBadge}
-        <FavouriteButton entryId={entry.id} className="entry-card-favourite" />
+        <div className="entry-card-photo-frame">
+          {photo}
+          {openBadge}
+          {statusBadge}
+          <FavouriteButton entryId={entry.id} className="entry-card-favourite" />
+        </div>
         {body}
       </div>
     );

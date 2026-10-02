@@ -20,10 +20,23 @@
 .entry-card-photo {
   padding: 0;
   overflow: hidden;
-  /* Positioning context for .entry-card-open-badge below - the badge sits
-     over the photo's top-left corner via position: absolute, and since
-     this element has zero padding and the <img> is its first child, this
-     element's own top-left corner coincides exactly with the photo's. */
+}
+
+/* Positioning context for the open/status badges and the favourite button
+   below (2026-10-02 fix) - previously that context was .entry-card-photo
+   itself (the whole card), which worked fine for top-anchored badges but
+   broke bottom-anchored ones: .entry-card-favourite's `bottom: 8px` was
+   measured from the *card's* bottom edge, not the photo's, so on Local
+   Cuisine's expandable card (the one 'photo' card whose height actually
+   changes - see expandInPlace in categoryConfig.js) expanding the
+   description pushed the card's bottom edge down and dragged the
+   favourite button down with it, landing it on top of (and swallowing
+   clicks meant for) the "Edit" link in .entry-card-expand-row. Wrapping
+   just the photo + its overlays in their own relatively-positioned frame
+   - sized to the photo alone, since the <img> is its only non-absolute
+   child - keeps them pinned to the photo's corners regardless of how
+   tall the rest of the card (.entry-card-body) grows. */
+.entry-card-photo-frame {
   position: relative;
 }
 
@@ -90,7 +103,7 @@
   background: rgba(191, 107, 6, 0.9);
 }
 
-.entry-card-photo > .entry-card-status-badge {
+.entry-card-photo-frame > .entry-card-status-badge {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -100,8 +113,10 @@
 /* Favourite star/heart (2026-09-18) - sits over the photo's bottom-right
    corner, the one corner of a 'photo' card not already claimed by the
    open-now badge (top-left) or the status badge (top-right), so all three
-   can appear together without ever overlapping. */
-.entry-card-photo > .entry-card-favourite {
+   can appear together without ever overlapping. Scoped to
+   .entry-card-photo-frame, not the whole card (2026-10-02 fix) - see that
+   rule's doc comment for why. */
+.entry-card-photo-frame > .entry-card-favourite {
   position: absolute;
   bottom: 8px;
   right: 8px;
