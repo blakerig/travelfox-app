@@ -12,6 +12,7 @@ import { useUserLocation } from './useUserLocation.js';
 import { activityTypeHref } from './activityTypeHref.js';
 import { isOpenNow } from './openingHours.js';
 import EssentialsHolidaysRow from './EssentialsHolidaysRow.jsx';
+import FilterSheet from './FilterSheet.jsx';
 
 // Radius choices for the Eating Out distance filter (2026-08-28) - single
 // select (tapping the active one again clears it), not the OR-multi-select
@@ -314,7 +315,18 @@ function CategoryScreen() {
   const [selectedActivityGroup, setSelectedActivityGroup] = useState(
     initialPrefs?.activityGroup ?? null
   );
-  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  // Which filter-dimension sheet (if any) is currently open - null, or one
+  // of config.filterOptions' values ('types'/'priceLevel'/'distance'/
+  // 'openNow'). Replaces the old single filterPanelOpen boolean (2026-10-02
+  // redesign, see the horizontal category-screen-filter-bar row and
+  // FilterSheet.jsx below): Blake found the previous design - one "Filters"
+  // toggle that, once opened, stacked every dimension into one long panel -
+  // overwhelming and unclear how to back out of, and asked for a Michelin-
+  // Guide-style pattern instead (a horizontal row of filter-category pills,
+  // each opening a focused sheet for just that one dimension, dismissed by
+  // swiping it down). Only one dimension's sheet can be open at a time, so
+  // a single nullable value is enough - no need for four separate booleans.
+  const [openFilterSheet, setOpenFilterSheet] = useState(null);
   // Tracks whether this component instance has completed at least one
   // "key settled" pass yet - see the loadedKey block below. Plain state
   // (not a ref) because it's read and written during render, in that same
@@ -394,7 +406,7 @@ function CategoryScreen() {
     setWalkingDistancesStatus('idle');
     walkingFetchKeyRef.current = null;
 
-    setFilterPanelOpen(false);
+    setOpenFilterSheet(null);
     setHasSettledKey(true);
   }
 
@@ -628,6 +640,15 @@ function CategoryScreen() {
     selectedPriceLevels.size +
     (selectedRadiusKm != null ? 1 : 0) +
     (selectedOpenNowOnly ? 1 : 0);
+  // Per-dimension "does this pill have an active selection" flags, for the
+  // filter-bar pill fill state and for deciding whether that dimension's
+  // sheet gets a "Clear" action - a dimension with nothing selected has
+  // nothing to clear, same as the old panel's single clear button only
+  // appearing once activeFilterCount > 0.
+  const typesActive = selectedTypes.size > 0;
+  const priceActive = selectedPriceLevels.size > 0;
+  const distanceActive = selectedRadiusKm != null;
+  const openNowActive = selectedOpenNowOnly;
 
   const filteredItems = useMemo(
     () =>
@@ -696,6 +717,25 @@ function CategoryScreen() {
     setSelectedRadiusKm(null);
     setSelectedOpenNowOnly(false);
     setSelectedActivityGroup(null);
+  }
+
+  // Per-dimension clears for each FilterSheet's own "Clear" action (2026-
+  // 10-02) - deliberately separate from clearFilters above (which clears
+  // every dimension at once, still used by the "Clear filters" link in the
+  // sort/controls row and the "No matches" empty state) since clearing the
+  // sheet you're actually looking at shouldn't silently reset dimensions
+  // you can't currently see.
+  function clearTypesFilter() {
+    setSelectedTypes(new Set());
+  }
+  function clearPriceLevelsFilter() {
+    setSelectedPriceLevels(new Set());
+  }
+  function clearDistanceFilter() {
+    setSelectedRadiusKm(null);
+  }
+  function clearOpenNowFilter() {
+    setSelectedOpenNowOnly(false);
   }
 
   return (
@@ -804,16 +844,73 @@ function CategoryScreen() {
             </div>
           )}
 
-          {config.filterOptions && hasFilterableData && (
-            <button
-              type="button"
-              className="category-screen-filter-toggle"
-              aria-expanded={filterPanelOpen}
-              onClick={() => setFilterPanelOpen((open) => !open)}
-            >
-              Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
+          {/* The "Filters" toggle that used to live here is gone - each
+              dimension now has its own always-visible pill in
+              category-screen-filter-bar below, so there's no single
+              open/closed panel state left to show a toggle button for.
+              This just surfaces a quick way to reset everything at once
+              without opening each sheet in turn, mirroring where the old
+              panel's own "Clear filters" button lived. */}
+          {config.filterOptions && hasFilterableData && activeFilterCount > 0 && (
+            <button type="button" className="category-screen-filter-clear" onClick={clearFilters}>
+              Clear filters
             </button>
           )}
+        </div>
+      )}
+
+      {/* Filter-category pill row (2026-10-02) - see the openFilterSheet
+          doc comment above for the redesign this is part of. One pill per
+          filter dimension this category actually offers data for (same
+          per-dimension gating the old panel used: availableTypes.length,
+          availablePriceLevels.length, showDistanceFilter,
+          showOpenNowFilter), each opening that one dimension's FilterSheet
+          below rather than a shared stacked panel. */}
+      {config.filterOptions && hasFilterableData && (
+        <div className="category-screen-filter-bar">
+          <div className="category-screen-filter-bar-chips">
+            {config.filterOptions.includes('types') && availableTypes.length > 0 && (
+              <button
+                type="button"
+                className="category-screen-filter-bar-chip"
+                aria-pressed={typesActive}
+                onClick={() => setOpenFilterSheet('types')}
+              >
+                {config.typeFilterLabel ?? 'Type'}
+                {selectedTypes.size > 0 ? ` · ${selectedTypes.size}` : ''}
+              </button>
+            )}
+            {config.filterOptions.includes('priceLevel') && availablePriceLevels.length > 0 && (
+              <button
+                type="button"
+                className="category-screen-filter-bar-chip"
+                aria-pressed={priceActive}
+                onClick={() => setOpenFilterSheet('priceLevel')}
+              >
+                Price{selectedPriceLevels.size > 0 ? ` · ${selectedPriceLevels.size}` : ''}
+              </button>
+            )}
+            {showDistanceFilter && (
+              <button
+                type="button"
+                className="category-screen-filter-bar-chip"
+                aria-pressed={distanceActive}
+                onClick={() => setOpenFilterSheet('distance')}
+              >
+                Distance
+              </button>
+            )}
+            {showOpenNowFilter && (
+              <button
+                type="button"
+                className="category-screen-filter-bar-chip"
+                aria-pressed={openNowActive}
+                onClick={() => setOpenFilterSheet('openNow')}
+              >
+                Hours
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -878,52 +975,72 @@ function CategoryScreen() {
         </div>
       )}
 
-      {config.filterOptions && filterPanelOpen && hasFilterableData && (
-        <div className="category-screen-filter-panel">
-          {config.filterOptions.includes('types') && availableTypes.length > 0 && (
-            <div className="category-screen-filter-group">
-              <div className="category-screen-filter-group-label">
-                {config.typeFilterLabel ?? 'Type'}
-              </div>
-              <div className="category-screen-filter-chips">
-                {availableTypes.map((type) => (
-                  <button
-                    type="button"
-                    key={type}
-                    className="category-screen-filter-chip"
-                    aria-pressed={selectedTypes.has(type)}
-                    onClick={() => setSelectedTypes((prev) => toggleSetValue(prev, type))}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
+      {/* The focused per-dimension sheet itself (2026-10-02) - one
+          FilterSheet instance whose title/content swap based on
+          openFilterSheet, rather than a separate sheet per dimension, since
+          only one can ever be open at a time anyway. Content below is the
+          same chip markup the old stacked panel used (same
+          category-screen-filter-chips/-chip classes), just shown one
+          dimension at a time instead of all four stacked together - see
+          FilterSheet.jsx for the sheet mechanics (slide-up, swipe-to-
+          dismiss, backdrop tap, close button). */}
+      {config.filterOptions && (
+        <FilterSheet
+          isOpen={openFilterSheet !== null}
+          onClose={() => setOpenFilterSheet(null)}
+          title={
+            openFilterSheet === 'types'
+              ? (config.typeFilterLabel ?? 'Type')
+              : openFilterSheet === 'priceLevel'
+                ? 'Price'
+                : openFilterSheet === 'distance'
+                  ? 'Distance'
+                  : openFilterSheet === 'openNow'
+                    ? 'Hours'
+                    : ''
+          }
+          onClear={
+            (openFilterSheet === 'types' && typesActive && clearTypesFilter) ||
+            (openFilterSheet === 'priceLevel' && priceActive && clearPriceLevelsFilter) ||
+            (openFilterSheet === 'distance' && distanceActive && clearDistanceFilter) ||
+            (openFilterSheet === 'openNow' && openNowActive && clearOpenNowFilter) ||
+            undefined
+          }
+        >
+          {openFilterSheet === 'types' && (
+            <div className="category-screen-filter-chips">
+              {availableTypes.map((type) => (
+                <button
+                  type="button"
+                  key={type}
+                  className="category-screen-filter-chip"
+                  aria-pressed={selectedTypes.has(type)}
+                  onClick={() => setSelectedTypes((prev) => toggleSetValue(prev, type))}
+                >
+                  {type}
+                </button>
+              ))}
             </div>
           )}
 
-          {config.filterOptions.includes('priceLevel') && availablePriceLevels.length > 0 && (
-            <div className="category-screen-filter-group">
-              <div className="category-screen-filter-group-label">Price</div>
-              <div className="category-screen-filter-chips">
-                {availablePriceLevels.map((level) => (
-                  <button
-                    type="button"
-                    key={level}
-                    className="category-screen-filter-chip"
-                    aria-pressed={selectedPriceLevels.has(level)}
-                    onClick={() => setSelectedPriceLevels((prev) => toggleSetValue(prev, level))}
-                  >
-                    {currencySymbol.repeat(level)}
-                  </button>
-                ))}
-              </div>
+          {openFilterSheet === 'priceLevel' && (
+            <div className="category-screen-filter-chips">
+              {availablePriceLevels.map((level) => (
+                <button
+                  type="button"
+                  key={level}
+                  className="category-screen-filter-chip"
+                  aria-pressed={selectedPriceLevels.has(level)}
+                  onClick={() => setSelectedPriceLevels((prev) => toggleSetValue(prev, level))}
+                >
+                  {currencySymbol.repeat(level)}
+                </button>
+              ))}
             </div>
           )}
 
-          {showDistanceFilter && (
-            <div className="category-screen-filter-group">
-              <div className="category-screen-filter-group-label">Distance</div>
-
+          {openFilterSheet === 'distance' && (
+            <>
               {locationStatus === 'idle' && (
                 <button
                   type="button"
@@ -985,31 +1102,22 @@ function CategoryScreen() {
                   )}
                 </>
               )}
-            </div>
+            </>
           )}
 
-          {showOpenNowFilter && (
-            <div className="category-screen-filter-group">
-              <div className="category-screen-filter-group-label">Hours</div>
-              <div className="category-screen-filter-chips">
-                <button
-                  type="button"
-                  className="category-screen-filter-chip"
-                  aria-pressed={selectedOpenNowOnly}
-                  onClick={() => setSelectedOpenNowOnly((prev) => !prev)}
-                >
-                  Open now
-                </button>
-              </div>
+          {openFilterSheet === 'openNow' && (
+            <div className="category-screen-filter-chips">
+              <button
+                type="button"
+                className="category-screen-filter-chip"
+                aria-pressed={selectedOpenNowOnly}
+                onClick={() => setSelectedOpenNowOnly((prev) => !prev)}
+              >
+                Open now
+              </button>
             </div>
           )}
-
-          {activeFilterCount > 0 && (
-            <button type="button" className="category-screen-filter-clear" onClick={clearFilters}>
-              Clear filters
-            </button>
-          )}
-        </div>
+        </FilterSheet>
       )}
 
       {(cityLoading || items === null) && (

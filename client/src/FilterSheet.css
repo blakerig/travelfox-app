@@ -1,0 +1,125 @@
+/* Generic bottom sheet used by CategoryScreen's per-filter-dimension
+   panels (2026-10-02) - see FilterSheet.jsx's file comment for the
+   redesign this replaces (a single stacked "Filters" panel) and why.
+   Defines its own copies of this app's ink/muted/faint/line color tokens
+   rather than relying on .category-screen's custom properties, same
+   pattern EntryDetail.css/EntryWalkingTime.jsx etc. already use for a
+   component that isn't guaranteed to render inside that specific wrapper. */
+
+.filter-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: oklch(20% 0.02 150 / 0);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 50;
+  transition: background-color 220ms ease;
+}
+
+.filter-sheet-backdrop.is-visible {
+  background: oklch(20% 0.02 150 / 0.45);
+}
+
+/* Capped to the same 480px max-width as .category-screen and centered, so
+   on a wider browser window (desktop testing, a tablet) the sheet lines up
+   with the screen it's covering instead of stretching edge-to-edge while
+   the content behind it stays narrow. */
+.filter-sheet {
+  width: 100%;
+  max-width: 480px;
+  max-height: 80svh;
+  display: flex;
+  flex-direction: column;
+  background: oklch(99% 0.004 150);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -4px 24px oklch(20% 0.02 150 / 0.18);
+  transform: translateY(100%);
+  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.filter-sheet.is-open {
+  transform: translateY(0);
+}
+
+/* While actively being dragged, FilterSheet.jsx sets the transform as an
+   inline style (following the pointer 1:1 each frame) - this just drops
+   the CSS transition so it doesn't fight/lag behind that live drag.
+   Releasing the drag removes the inline style and this class together, so
+   the transition above picks back up for the snap-back (or the close
+   animation, if the drag passed the dismiss threshold). */
+.filter-sheet.is-dragging {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-sheet,
+  .filter-sheet-backdrop {
+    transition-duration: 0.01ms;
+  }
+}
+
+.filter-sheet-drag-area {
+  flex: 0 0 auto;
+  padding-top: 8px;
+  cursor: grab;
+  /* Stops the browser's own touch-scroll/pan gestures from competing with
+     the pointer handlers tracking the drag - without this, a drag can feel
+     laggy or get intercepted on some mobile browsers. */
+  touch-action: none;
+}
+
+.filter-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: oklch(70% 0.02 150 / 0.35);
+  margin: 0 auto 10px;
+}
+
+.filter-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 18px 12px;
+  border-bottom: 1px solid oklch(70% 0.02 150 / 0.3);
+}
+
+.filter-sheet-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: oklch(22% 0.02 150);
+}
+
+.filter-sheet-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.filter-sheet-clear {
+  font-size: 13px;
+  font-weight: 600;
+  color: oklch(48% 0.02 150);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.filter-sheet-close {
+  font-size: 22px;
+  line-height: 1;
+  color: oklch(48% 0.02 150);
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.filter-sheet-body {
+  padding: 16px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}

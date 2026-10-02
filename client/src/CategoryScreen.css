@@ -158,48 +158,57 @@
   justify-content: flex-start;
 }
 
-/* Filters (2026-08-28): a single toggle button rather than always-visible
-   filter controls, so the controls row stays to one line even once a
-   category has both a sort dropdown and filters - the chips themselves only
-   take up space when the panel is actually open. */
-.category-screen-filter-toggle {
+/* Filter-category pill row (2026-10-02) - replaces the old single
+   "Filters · N" toggle button above (which, once tapped, opened one long
+   panel stacking every dimension at once - see the removed
+   .category-screen-filter-panel rule this used to sit above). Blake found
+   that overwhelming and unclear how to back out of, and pointed at the
+   Michelin Guide app as the pattern he wanted instead: a horizontal row of
+   one pill per filter dimension, each opening a focused bottom sheet
+   (FilterSheet.jsx/.css) for just that dimension. Same horizontal-scroll-
+   with-hidden-scrollbar treatment as .category-screen-group-filter-chips
+   above, for the same reason - stays a fixed one-line height regardless of
+   how many dimensions a category offers, rather than wrapping and pushing
+   the list down further as more get added. */
+.category-screen-filter-bar {
+  padding: 0 20px 14px;
+}
+
+.category-screen-filter-bar-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.category-screen-filter-bar-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.category-screen-filter-bar-chip {
+  flex: 0 0 auto;
   font-size: 13px;
   font-weight: 600;
-  color: var(--g-600);
+  color: var(--muted);
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 5px 14px;
+  padding: 6px 14px;
   white-space: nowrap;
   cursor: pointer;
 }
 
-.category-screen-filter-toggle[aria-expanded='true'] {
+.category-screen-filter-bar-chip[aria-pressed='true'] {
   background: var(--g-600);
   color: var(--card);
   border-color: var(--g-600);
 }
 
-.category-screen-filter-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 20px 14px;
-  padding: 14px 14px 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--card);
-}
-
-.category-screen-filter-group-label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--faint);
-  margin-bottom: 6px;
-}
-
+/* Reused inside each FilterSheet's body for the actual chip options
+   (cuisine/price/radius/"Open now") - unchanged from the old panel, these
+   chips just render one group at a time now instead of all stacked
+   together. Also still used by the "Nearest" sort hint row above. */
 .category-screen-filter-chips {
   display: flex;
   flex-wrap: wrap;
