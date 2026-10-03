@@ -28,7 +28,15 @@
 .filter-sheet {
   width: 100%;
   max-width: 480px;
-  max-height: 80svh;
+  /* Fixed height (2026-10-03, Blake's call after seeing the Michelin Guide
+     app do the same) rather than hugging content - every sheet is the same
+     size regardless of which dimension it's showing (one "Open now" chip
+     vs. a long cuisine list), so the dismiss handle/backdrop/overall shape
+     never shifts around depending on what's inside. See the sizing
+     discussion logged in claude/todo.md for the content-hugging trade-offs
+     this gives up in exchange (mainly: a thin dimension now shows real
+     empty space below its content instead of a shorter sheet). */
+  height: 80svh;
   display: flex;
   flex-direction: column;
   background: oklch(99% 0.004 150);
@@ -120,6 +128,16 @@
 }
 
 .filter-sheet-body {
+  /* flex: 1 1 auto + min-height: 0 lets this fill whatever space is left
+     under the fixed-height header above - a short dimension (e.g. "Open
+     now", one chip) just leaves real empty space below its content within
+     the sheet, same as the Michelin Guide reference; a long one (a big
+     cuisine list) scrolls within this area instead of growing the sheet,
+     same as before. min-height: 0 is required here - without it a flex
+     child won't shrink below its content's natural height, which would
+     silently break the overflow-y scroll for a tall chip list. */
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 16px 18px calc(18px + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
 }

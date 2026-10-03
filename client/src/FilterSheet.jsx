@@ -116,7 +116,21 @@ function FilterSheet({ title, isOpen, onClose, onClear, clearLabel = 'Clear', ch
   // wraps content that itself needs to scroll internally, a finger drag
   // starting inside that content scrolls it rather than being eaten by the
   // sheet's own dismiss gesture.
+  //
+  // Fixed 2026-10-03: the Clear/Close buttons sit inside this same drag
+  // area (they're part of the header), and setPointerCapture below was
+  // unconditionally grabbing every pointerdown that started on them too -
+  // that capture retargets the browser's synthetic click away from the
+  // button, so neither button's onClick ever fired, even on a plain tap
+  // with no actual drag. Blake caught this on the "x" close button
+  // specifically ("clicking the X does nothing"); Clear had the exact same
+  // bug, just not yet noticed. Fix: bail out before starting a drag (and
+  // before capturing the pointer) whenever the press itself began on a
+  // button - lets both buttons receive their normal click, while a press
+  // anywhere else in the handle/header (the title text, the empty space)
+  // still starts the swipe-to-dismiss drag as before.
   function handlePointerDown(e) {
+    if (e.target.closest('button')) return;
     dragStateRef.current = {
       startY: e.clientY,
       lastY: e.clientY,
