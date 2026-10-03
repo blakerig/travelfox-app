@@ -124,32 +124,16 @@
   padding: 0 20px 12px;
 }
 
-.category-screen-sort {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.category-screen-sort select {
-  font-size: 13px;
-  padding: 4px 8px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--ink);
-}
-
-/* "Nearest" hint row (2026-09-15) - sits directly under the sort control
-   itself (see the doc comment above the JSX block that renders this), so it
+/* "Nearest" hint row (2026-09-15) - sits directly under the sort+filter
+   pill row now (moved there 2026-10-03 when the sort control itself moved
+   from a standalone <select> row into a pill in that row - see the
+   openFilterSheet === 'sort' doc comment in CategoryScreen.jsx), so it
    reuses .category-screen-controls' row layout/horizontal padding rather
-   than a one-off. Only overrides what needs to differ: no bottom padding of
-   its own (immediately follows a row that already has some), a tighter gap,
-   and wrapping allowed since "Couldn't access your location — showing
-   Recommended order. Try again" is long enough to wrap on a narrow phone
-   screen where .category-screen-controls' own two items (a select and a
-   short button) never needed to. */
+   than a one-off. Only overrides what needs to differ: no top padding of
+   its own (immediately follows a row that already has bottom padding), a
+   tighter gap, and wrapping allowed since "Couldn't access your location —
+   showing Recommended order. Try again" is long enough to wrap on a narrow
+   phone screen. */
 .category-screen-sort-hint-row {
   padding-top: 0;
   padding-bottom: 12px;
@@ -158,23 +142,32 @@
   justify-content: flex-start;
 }
 
-/* Filter-category pill row (2026-10-02) - replaces the old single
-   "Filters · N" toggle button above (which, once tapped, opened one long
-   panel stacking every dimension at once - see the removed
-   .category-screen-filter-panel rule this used to sit above). Blake found
+/* Sort + filter-category pill row (2026-10-02, replaces the old single
+   "Filters · N" toggle button that, once tapped, opened one long panel
+   stacking every dimension at once - see the removed
+   .category-screen-filter-panel rule this used to sit above. Blake found
    that overwhelming and unclear how to back out of, and pointed at the
    Michelin Guide app as the pattern he wanted instead: a horizontal row of
    one pill per filter dimension, each opening a focused bottom sheet
-   (FilterSheet.jsx/.css) for just that dimension. Same horizontal-scroll-
-   with-hidden-scrollbar treatment as .category-screen-group-filter-chips
-   above, for the same reason - stays a fixed one-line height regardless of
-   how many dimensions a category offers, rather than wrapping and pushing
-   the list down further as more get added. */
+   (FilterSheet.jsx/.css) for just that dimension.
+   Combined 2026-10-03 with what used to be a separate sort <select> row
+   above this one, per Blake's request to put "Sort by" on the same row as
+   the filters - the row is now flex: the chips themselves stay in their
+   own horizontally-scrolling inner container (same hidden-scrollbar
+   treatment as .category-screen-group-filter-chips, so it stays a fixed
+   one-line height regardless of how many dimensions a category offers),
+   while the "Clear" button (see .category-screen-filter-bar-clear below)
+   sits outside that scrolling area so it never scrolls out of reach. */
 .category-screen-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 0 20px 14px;
 }
 
 .category-screen-filter-bar-chips {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   gap: 8px;
   overflow-x: auto;
@@ -205,6 +198,40 @@
   border-color: var(--g-600);
 }
 
+/* Sort pill (2026-10-03) - unlike the filter-dimension pills above, sort
+   always has exactly one active value (there's no such thing as "no
+   sort"), so it deliberately doesn't use the aria-pressed green fill those
+   use for "this dimension has a selection" - that fill would always be
+   "on" for sort and read as noise rather than signal. A distinct outlined
+   treatment instead, so it's visually its own kind of pill (orders the
+   list) rather than a filter (narrows it). */
+.category-screen-filter-bar-chip--sort {
+  color: var(--g-600);
+  border-color: var(--g-600);
+  font-weight: 700;
+}
+
+/* "Clear filters" (2026-10-03) - moved into this same row from its old
+   standalone controls row above, as a fixed/non-scrolling action (flex:
+   0 0 auto) at the end of the row, so it's always reachable regardless of
+   how far the dimension pills have been scrolled. Shortened from "Clear
+   filters" to "Clear" to fit comfortably in the tighter space this row
+   now has to share with the pills; .category-screen-filter-clear-inline
+   (used elsewhere, e.g. the "No matches" empty state) keeps the longer
+   label since it isn't competing for room in this row. */
+.category-screen-filter-bar-clear {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 /* Reused inside each FilterSheet's body for the actual chip options
    (cuisine/price/radius/"Open now") - unchanged from the old panel, these
    chips just render one group at a time now instead of all stacked
@@ -230,18 +257,6 @@
   color: var(--card);
   border-color: var(--g-600);
   font-weight: 600;
-}
-
-.category-screen-filter-clear {
-  align-self: flex-start;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--muted);
-  background: none;
-  border: none;
-  padding: 0;
-  text-decoration: underline;
-  cursor: pointer;
 }
 
 .category-screen-filter-clear-inline {

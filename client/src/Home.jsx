@@ -97,6 +97,19 @@ function Home() {
 
   return (
     <div className="home">
+      {/* Trust statement (2026-10-03) - Blake wanted something at the top
+          of Home making two things explicit: reviews here are independent
+          (not paid placements - the sponsored-content plan logged in
+          claude/todo.md only ever buys a guaranteed/labeled slot, never
+          the review content itself, so this stays true once that ships
+          too), and the app doesn't try to list every restaurant/place in
+          a city, only ones that clear its own bar. Deliberately plain/
+          quiet (no icon, no dismiss, no badge styling) and sits above the
+          hero photo so it's the very first thing on the page rather than
+          something to scroll to. */}
+      <div className="home-trust-line">
+        100% independent reviews — we only include places that meet our standards.
+      </div>
       <div className="home-hero">
         {city && (
           <img

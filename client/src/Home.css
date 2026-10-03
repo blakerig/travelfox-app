@@ -22,6 +22,20 @@
   padding-bottom: calc(64px + env(safe-area-inset-bottom));
 }
 
+/* Trust statement (2026-10-03) - see the doc comment above it in Home.jsx
+   for what it's for. Sits above the hero photo, so it's the very first
+   thing on the page. Kept deliberately quiet - small text, no icon/badge -
+   it's a trust statement, not a promo banner, so a soft tint (the same
+   --g-100 the brand's green tokens use elsewhere) is as far as this goes
+   toward visual weight. */
+.home-trust-line {
+  padding: 10px 20px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  background: var(--g-100);
+}
+
 .home-hero {
   position: relative;
   width: 100%;

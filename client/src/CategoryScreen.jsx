@@ -829,47 +829,41 @@ function CategoryScreen() {
         </div>
       )}
 
-      {(config.sortOptions || (config.filterOptions && hasFilterableData)) && (
-        <div className="category-screen-controls">
-          {config.sortOptions && (
-            <div className="category-screen-sort">
-              <label htmlFor="sort-select">Sort by</label>
-              <select id="sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                {config.sortOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* The "Filters" toggle that used to live here is gone - each
-              dimension now has its own always-visible pill in
-              category-screen-filter-bar below, so there's no single
-              open/closed panel state left to show a toggle button for.
-              This just surfaces a quick way to reset everything at once
-              without opening each sheet in turn, mirroring where the old
-              panel's own "Clear filters" button lived. */}
-          {config.filterOptions && hasFilterableData && activeFilterCount > 0 && (
-            <button type="button" className="category-screen-filter-clear" onClick={clearFilters}>
-              Clear filters
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Filter-category pill row (2026-10-02) - see the openFilterSheet
-          doc comment above for the redesign this is part of. One pill per
-          filter dimension this category actually offers data for (same
+      {/* Sort + filter-category pill row (2026-10-02, combined 2026-10-03
+          per Blake's request to put "Sort by" on the same row as the
+          filter pills rather than its own row above - the full-width
+          <select> that used to live in a separate category-screen-controls
+          row was too wide to just drop in here as-is). One pill per filter
+          dimension this category actually offers data for (same
           per-dimension gating the old panel used: availableTypes.length,
           availablePriceLevels.length, showDistanceFilter,
           showOpenNowFilter), each opening that one dimension's FilterSheet
-          below rather than a shared stacked panel. */}
-      {config.filterOptions && hasFilterableData && (
+          below. Sort is now a pill too - shows the current sort's label
+          (e.g. "Nearest") and opens the same FilterSheet with a
+          single-select list of sort options (see the openFilterSheet ===
+          'sort' branch below) instead of a native dropdown. Unlike the
+          filter pills, which can be "off" (nothing selected), there's
+          always exactly one active sort, so the sort pill gets its own
+          distinct look (category-screen-filter-bar-chip--sort) rather than
+          the green aria-pressed fill the filter pills use when active -
+          that fill would otherwise always be "on" for the sort pill and
+          read as noise rather than signal. "Clear filters" moved into this
+          same row too, as a fixed (non-scrolling) button at the end of the
+          row - flex: 0 0 auto in the CSS, so it never scrolls out of reach
+          alongside the dimension pills, which do scroll. */}
+      {(config.sortOptions || (config.filterOptions && hasFilterableData)) && (
         <div className="category-screen-filter-bar">
           <div className="category-screen-filter-bar-chips">
-            {config.filterOptions.includes('types') && availableTypes.length > 0 && (
+            {config.sortOptions && (
+              <button
+                type="button"
+                className="category-screen-filter-bar-chip category-screen-filter-bar-chip--sort"
+                onClick={() => setOpenFilterSheet('sort')}
+              >
+                {config.sortOptions.find((opt) => opt.value === sortBy)?.label ?? 'Sort'}
+              </button>
+            )}
+            {config.filterOptions?.includes('types') && availableTypes.length > 0 && (
               <button
                 type="button"
                 className="category-screen-filter-bar-chip"
@@ -880,7 +874,7 @@ function CategoryScreen() {
                 {selectedTypes.size > 0 ? ` · ${selectedTypes.size}` : ''}
               </button>
             )}
-            {config.filterOptions.includes('priceLevel') && availablePriceLevels.length > 0 && (
+            {config.filterOptions?.includes('priceLevel') && availablePriceLevels.length > 0 && (
               <button
                 type="button"
                 className="category-screen-filter-bar-chip"
@@ -911,13 +905,18 @@ function CategoryScreen() {
               </button>
             )}
           </div>
+          {config.filterOptions && hasFilterableData && activeFilterCount > 0 && (
+            <button type="button" className="category-screen-filter-bar-clear" onClick={clearFilters}>
+              Clear
+            </button>
+          )}
         </div>
       )}
 
-      {/* "Nearest" hint (2026-09-15) - shown right under the sort control
-          itself, not inside the collapsible Filters panel below, since the
-          sort dropdown is always visible while the filter panel usually
-          isn't. Only rendered while "Nearest" is actually selected, and
+      {/* "Nearest" hint (2026-09-15) - shown right under the sort+filter
+          pill row itself, not inside the FilterSheet below, since the pill
+          row is always visible while a given sheet usually isn't open.
+          Only rendered while "Nearest" is actually selected, and
           explains whichever state is stopping it from sorting yet - never
           silently shows Recommended order with the dropdown reading
           "Nearest" and no explanation, since that would look like a bug
@@ -984,20 +983,22 @@ function CategoryScreen() {
           dimension at a time instead of all four stacked together - see
           FilterSheet.jsx for the sheet mechanics (slide-up, swipe-to-
           dismiss, backdrop tap, close button). */}
-      {config.filterOptions && (
+      {(config.filterOptions || config.sortOptions) && (
         <FilterSheet
           isOpen={openFilterSheet !== null}
           onClose={() => setOpenFilterSheet(null)}
           title={
-            openFilterSheet === 'types'
-              ? (config.typeFilterLabel ?? 'Type')
-              : openFilterSheet === 'priceLevel'
-                ? 'Price'
-                : openFilterSheet === 'distance'
-                  ? 'Distance'
-                  : openFilterSheet === 'openNow'
-                    ? 'Hours'
-                    : ''
+            openFilterSheet === 'sort'
+              ? 'Sort by'
+              : openFilterSheet === 'types'
+                ? (config.typeFilterLabel ?? 'Type')
+                : openFilterSheet === 'priceLevel'
+                  ? 'Price'
+                  : openFilterSheet === 'distance'
+                    ? 'Distance'
+                    : openFilterSheet === 'openNow'
+                      ? 'Hours'
+                      : ''
           }
           onClear={
             (openFilterSheet === 'types' && typesActive && clearTypesFilter) ||
@@ -1007,6 +1008,32 @@ function CategoryScreen() {
             undefined
           }
         >
+          {openFilterSheet === 'sort' && (
+            <div className="category-screen-filter-chips">
+              {config.sortOptions.map((opt) => (
+                <button
+                  type="button"
+                  key={opt.value}
+                  className="category-screen-filter-chip"
+                  aria-pressed={sortBy === opt.value}
+                  onClick={() => {
+                    setSortBy(opt.value);
+                    // Single-select, and always has exactly one active
+                    // value - unlike the multi-select dimensions below,
+                    // where the sheet stays open so more than one chip can
+                    // be picked in one visit, there's nothing more to
+                    // adjust once a sort is chosen, so the sheet closes
+                    // immediately rather than waiting for an explicit
+                    // dismiss.
+                    setOpenFilterSheet(null);
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {openFilterSheet === 'types' && (
             <div className="category-screen-filter-chips">
               {availableTypes.map((type) => (
