@@ -6,7 +6,7 @@ import { markdownComponents } from './markdownComponents.jsx';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
 import { useAuth } from './auth-context.js';
-import { authHeaders } from './auth.js';
+import { authHeaders, responseError, describeSaveError } from './auth.js';
 import './ActivityTypeEditor.css';
 
 // Editor for an ActivityType (e.g. "Laser Tag", "Padel") itself - name,
@@ -158,7 +158,7 @@ function ActivityTypeEditor() {
 
     request
       .then((res) => {
-        if (!res.ok) throw new Error(`Save failed (${res.status})`);
+        if (!res.ok) throw responseError(res);
         return res.json();
       })
       .then((saved) => {
@@ -170,7 +170,7 @@ function ActivityTypeEditor() {
       })
       .catch((err) => {
         console.error('Failed to save activity type:', err);
-        setError('Could not save - check the server is running and try again.');
+        setError(describeSaveError(err));
       })
       .finally(() => setSaving(false));
   }

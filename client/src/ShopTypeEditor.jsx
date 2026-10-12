@@ -6,7 +6,7 @@ import { markdownComponents } from './markdownComponents.jsx';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
 import { useAuth } from './auth-context.js';
-import { authHeaders } from './auth.js';
+import { authHeaders, responseError, describeSaveError } from './auth.js';
 import './ShopTypeEditor.css';
 
 // Editor for a ShopType (e.g. "Local Markets", "Souvenirs") itself - name,
@@ -153,7 +153,7 @@ function ShopTypeEditor() {
 
     request
       .then((res) => {
-        if (!res.ok) throw new Error(`Save failed (${res.status})`);
+        if (!res.ok) throw responseError(res);
         return res.json();
       })
       .then((saved) => {
@@ -165,7 +165,7 @@ function ShopTypeEditor() {
       })
       .catch((err) => {
         console.error('Failed to save shop type:', err);
-        setError('Could not save - check the server is running and try again.');
+        setError(describeSaveError(err));
       })
       .finally(() => setSaving(false));
   }

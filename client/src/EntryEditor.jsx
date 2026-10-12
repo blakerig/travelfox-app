@@ -10,7 +10,7 @@ import { ESSENTIALS_ICON_OPTIONS } from './essentialsIcons.jsx';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
 import { useAuth } from './auth-context.js';
-import { authHeaders } from './auth.js';
+import { authHeaders, responseError, describeSaveError } from './auth.js';
 import './EntryEditor.css';
 
 // Text-only editor for an entry: name, summary, types, phone, website,
@@ -87,6 +87,18 @@ function EntryEditor() {
   // select) for Eating Out, priceInfo (free text) for every other
   // non-Essentials category - see the priceLevel doc comment above.
   const isEatingOut = slug === 'eating-out';
+  // Hides Type and Price for Shopping (2026-10-12, Blake's call) - neither
+  // field really applies to a shop the way it does to a restaurant/
+  // sightseeing entry (no cuisine/place-type tag, no single headline
+  // price for a whole store), and shops are grouped by ShopType already
+  // (see groupedByType in categoryConfig.js), which is the "what kind of
+  // shop is this" signal here instead. Same "hide, don't remove" approach
+  // as isEssentials above - still fully supported server-side, and Save
+  // still sends whatever typesInput/priceInfo state was last loaded (see
+  // the file comment at the top) rather than clearing either field. Phone/
+  // Website/Address/Coordinates/Opening times stay shown - those do apply
+  // to a shop.
+  const isShopping = slug === 'shopping';
   const { city, loading: cityLoading } = useCity();
   const { cityData, cityDataReady, ensureCategories, upsertEntry } = useCityData();
   const { user, isAuthenticated } = useAuth();
@@ -365,13 +377,13 @@ function EntryEditor() {
       body: formData,
     })
       .then((res) => {
-        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+        if (!res.ok) throw responseError(res, 'Upload');
         return res.json();
       })
       .then((data) => setPhotoUrl(data.url))
       .catch((err) => {
         console.error('Failed to upload photo:', err);
-        setPhotoError('Could not upload photo - check the server is running and try again.');
+        setPhotoError(describeSaveError(err, 'upload the photo'));
       })
       .finally(() => setUploadingPhoto(false));
   }
@@ -552,7 +564,7 @@ function EntryEditor() {
 
     request
       .then((res) => {
-        if (!res.ok) throw new Error(`Save failed (${res.status})`);
+        if (!res.ok) throw responseError(res);
         return res.json();
       })
       .then((saved) => {
@@ -565,7 +577,7 @@ function EntryEditor() {
       })
       .catch((err) => {
         console.error('Failed to save entry:', err);
-        setError('Could not save - check the server is running and try again.');
+        setError(describeSaveError(err));
       })
       .finally(() => setSaving(false));
   }
@@ -711,20 +723,24 @@ function EntryEditor() {
               here rather than removed, see the file comment at the top. */}
           {!isEssentials && (
             <>
-              <label className="entry-editor-field">
-                <span className="entry-editor-label">
-                  Type (optional - shown on the card, e.g. cuisine for restaurants or a place type
-                  like &quot;Museum&quot; for sightseeing. Separate more than one with a comma, e.g.
-                  &quot;Pinchos, Catalan&quot;)
-                </span>
-                <input
-                  type="text"
-                  value={typesInput}
-                  onChange={(e) => setTypesInput(e.target.value)}
-                  className="entry-editor-input"
-                  placeholder="e.g. Tapas, Catalan"
-                />
-              </label>
+              {/* Also hidden for Shopping - see the isShopping doc comment
+                  near the top of this file. */}
+              {!isShopping && (
+                <label className="entry-editor-field">
+                  <span className="entry-editor-label">
+                    Type (optional - shown on the card, e.g. cuisine for restaurants or a place type
+                    like &quot;Museum&quot; for sightseeing. Separate more than one with a comma, e.g.
+                    &quot;Pinchos, Catalan&quot;)
+                  </span>
+                  <input
+                    type="text"
+                    value={typesInput}
+                    onChange={(e) => setTypesInput(e.target.value)}
+                    className="entry-editor-input"
+                    placeholder="e.g. Tapas, Catalan"
+                  />
+                </label>
+              )}
 
               <label className="entry-editor-field">
                 <span className="entry-editor-label">
@@ -917,43 +933,46 @@ function EntryEditor() {
 
               {/* Eating Out gets priceLevel (a $/$$/$$/$$$$ select) instead
                   of priceInfo - see the isEatingOut doc comment near the top
-                  of this file for why the two don't both show at once. */}
-              {isEatingOut ? (
-                <label className="entry-editor-field">
-                  <span className="entry-editor-label">
-                    Price level (optional - shown on the card and used for the price filter,
-                    from {currencySymbol} (budget) to {currencySymbol.repeat(4)} (top end))
-                  </span>
-                  <select
-                    value={priceLevel}
-                    onChange={(e) => setPriceLevel(e.target.value)}
-                    className="entry-editor-input"
-                  >
-                    <option value="">Not set</option>
-                    {[1, 2, 3, 4].map((level) => (
-                      <option key={level} value={level}>
-                        {currencySymbol.repeat(level)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : (
-                <label className="entry-editor-field">
-                  <span className="entry-editor-label">
-                    Price (optional - keep it short, e.g. &quot;€12, kids free&quot; or
-                    &quot;Free&quot;. This is a headline price, not a full tariff table -
-                    put a full breakdown in the description instead if you want one
-                    on record)
-                  </span>
-                  <input
-                    type="text"
-                    value={priceInfo}
-                    onChange={(e) => setPriceInfo(e.target.value)}
-                    className="entry-editor-input"
-                    placeholder="e.g. €12, kids free"
-                  />
-                </label>
-              )}
+                  of this file for why the two don't both show at once.
+                  Neither renders for Shopping - see the isShopping doc
+                  comment near the top of this file. */}
+              {!isShopping &&
+                (isEatingOut ? (
+                  <label className="entry-editor-field">
+                    <span className="entry-editor-label">
+                      Price level (optional - shown on the card and used for the price filter,
+                      from {currencySymbol} (budget) to {currencySymbol.repeat(4)} (top end))
+                    </span>
+                    <select
+                      value={priceLevel}
+                      onChange={(e) => setPriceLevel(e.target.value)}
+                      className="entry-editor-input"
+                    >
+                      <option value="">Not set</option>
+                      {[1, 2, 3, 4].map((level) => (
+                        <option key={level} value={level}>
+                          {currencySymbol.repeat(level)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <label className="entry-editor-field">
+                    <span className="entry-editor-label">
+                      Price (optional - keep it short, e.g. &quot;€12, kids free&quot; or
+                      &quot;Free&quot;. This is a headline price, not a full tariff table -
+                      put a full breakdown in the description instead if you want one
+                      on record)
+                    </span>
+                    <input
+                      type="text"
+                      value={priceInfo}
+                      onChange={(e) => setPriceInfo(e.target.value)}
+                      className="entry-editor-input"
+                      placeholder="e.g. €12, kids free"
+                    />
+                  </label>
+                ))}
             </>
           )}
 

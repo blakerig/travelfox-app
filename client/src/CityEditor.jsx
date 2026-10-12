@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useCity } from './city-context.js';
 import { useAuth } from './auth-context.js';
-import { authHeaders } from './auth.js';
+import { authHeaders, responseError, describeSaveError } from './auth.js';
 import { getCityPhotoUrl } from './cloudinaryUrl.js';
 import './CityEditor.css';
 
@@ -50,13 +50,13 @@ function CityEditor() {
       body: formData,
     })
       .then((res) => {
-        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+        if (!res.ok) throw responseError(res, 'Upload');
         return res.json();
       })
       .then((data) => setPhotoUrl(data.url))
       .catch((err) => {
         console.error('Failed to upload photo:', err);
-        setPhotoError('Could not upload photo - check the server is running and try again.');
+        setPhotoError(describeSaveError(err, 'upload the photo'));
       })
       .finally(() => setUploadingPhoto(false));
   }
@@ -72,7 +72,7 @@ function CityEditor() {
       body: JSON.stringify({ photoUrl }),
     })
       .then((res) => {
-        if (!res.ok) throw new Error(`Save failed (${res.status})`);
+        if (!res.ok) throw responseError(res);
         return res.json();
       })
       .then((saved) => {
@@ -81,7 +81,7 @@ function CityEditor() {
       })
       .catch((err) => {
         console.error('Failed to save city:', err);
-        setError('Could not save - check the server is running and try again.');
+        setError(describeSaveError(err));
       })
       .finally(() => setSaving(false));
   }
