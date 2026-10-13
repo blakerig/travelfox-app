@@ -40,7 +40,26 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, isAuthenticated: user != null, login, logout }),
+    () => ({
+      user,
+      isAuthenticated: user != null,
+      // Tester (2026-10-13, see schema.prisma's Role enum) is a logged-in
+      // team role that can see everything a normal logged-in team member
+      // can - including Draft/Awaiting Review content, per optionalAuth's
+      // "any logged-in role sees every status" rule in server/auth.js -
+      // but has no write access anywhere (every write endpoint's
+      // requireRole(...) list in server/index.js simply omits 'TESTER').
+      // canEdit mirrors that split client-side: every "+ Add"/"Edit"
+      // affordance that used to check isAuthenticated now checks this
+      // instead, so a Tester account sees the same Draft/Awaiting Review
+      // cards and badges as any other team role, just with no way to
+      // create or change anything. isAuthenticated itself is left as-is
+      // for things that are genuinely just "is someone logged in at all"
+      // (the logout button, draft visibility) rather than "can they edit."
+      canEdit: user != null && user.role !== 'TESTER',
+      login,
+      logout,
+    }),
     [user, login, logout]
   );
 

@@ -74,8 +74,15 @@ app.post('/api/users', requireAuth, requireRole('ADMIN'), async (req, res) => {
   if (!email || !password || !role) {
     return res.status(400).json({ error: 'email, password, and role are required' });
   }
-  if (!['ADMIN', 'EDITOR', 'CREATOR'].includes(role)) {
-    return res.status(400).json({ error: 'role must be ADMIN, EDITOR, or CREATOR' });
+  // Hardcoded on purpose rather than derived from Prisma's generated Role
+  // enum (importing/introspecting that here isn't worth it for a 4-item
+  // list) - but that does mean adding a role means updating it here too.
+  // Missed when TESTER was added 2026-10-13 (see claude/todo.md) since this
+  // endpoint is about *validating the role value itself*, not about who's
+  // allowed to call a write endpoint - the requireRole(...) audit done for
+  // the Tester rollout only looked at the latter.
+  if (!['ADMIN', 'EDITOR', 'CREATOR', 'TESTER'].includes(role)) {
+    return res.status(400).json({ error: 'role must be ADMIN, EDITOR, CREATOR, or TESTER' });
   }
   try {
     const user = await prisma.user.create({
@@ -130,7 +137,16 @@ app.patch('/api/users/:id/password', requireAuth, requireRole('ADMIN'), async (r
 // (`photoUrl`) alongside name/summary/etc - the entry endpoints never see
 // raw file data. See claude/todo.md for the hosting-provider decision
 // (2026-08-29: Cloudinary, free tier).
-app.post('/api/upload', requireAuth, upload.single('photo'), (req, res) => {
+//
+// requireRole added 2026-10-13 alongside the Tester role - this was
+// previously requireAuth only (any logged-in account, any role), which
+// predates Tester existing at all and was never a deliberate "every team
+// role can upload" decision, just nobody having a reason to restrict it
+// yet. Same role list every other write endpoint in this file already
+// uses, so a Tester can't spend Cloudinary quota even though they'd have
+// nowhere to attach the resulting URL anyway (every endpoint that *saves*
+// a photoUrl already rejects them).
+app.post('/api/upload', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), upload.single('photo'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }

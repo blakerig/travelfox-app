@@ -278,7 +278,7 @@ function loadScrollY(key) {
 function CategoryScreen() {
   const { slug } = useParams();
   const { city, loading: cityLoading } = useCity();
-  const { isAuthenticated } = useAuth();
+  const { canEdit } = useAuth();
   const { cityData } = useCityData();
   const config = getCategoryConfig(slug);
   // Coarser than showDistanceFilter below (doesn't also require
@@ -747,9 +747,10 @@ function CategoryScreen() {
           </Link>
           <h1 className="category-screen-title">{config.title ?? slug}</h1>
         </div>
-        {/* Only a logged-in team member ever sees "+ Add" - not just
-            visually hidden, this is the only place the link is rendered
-            at all for a public visitor. See claude/todo.md.
+        {/* Only a team member who can actually edit ever sees "+ Add" -
+            not just visually hidden, this is the only place the link is
+            rendered at all for a public visitor or a Tester account (see
+            canEdit in auth-context.js). See claude/todo.md.
             Grouped categories (Activities) get their own differently-
             labeled link that creates a new ActivityType (e.g. "Escape
             Rooms") via ActivityTypeEditor.jsx, rather than a bare Entry -
@@ -757,7 +758,7 @@ function CategoryScreen() {
             Studio (see ActivityType in schema.prisma). Adding a
             *provider* within an existing type is still a separate action,
             via "+ Add provider" on ActivityTypeDetail.jsx. */}
-        {isAuthenticated && (
+        {canEdit && (
           <Link
             to={
               config.groupedByType
@@ -1189,7 +1190,7 @@ function CategoryScreen() {
                 city={city}
                 walkingMinutes={walkingMinutesFor(item)}
                 expandable
-                editHref={isAuthenticated ? `/category/${slug}/entry/${item.id}/edit` : undefined}
+                editHref={canEdit ? `/category/${slug}/entry/${item.id}/edit` : undefined}
               />
             ) : (
               <Link

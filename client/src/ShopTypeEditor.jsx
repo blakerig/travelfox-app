@@ -52,7 +52,7 @@ function ShopTypeEditor() {
   const isCreate = typeId === 'new';
   const { city, loading: cityLoading } = useCity();
   const { cityData, cityDataReady, upsertShopType } = useCityData();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   const [shopType, setShopType] = useState(null);
   const [notFound, setNotFound] = useState(false);
@@ -176,6 +176,12 @@ function ShopTypeEditor() {
   // renders. See claude/todo.md.
   if (!isAuthenticated) {
     return <Navigate to="/admin" replace />;
+  }
+  // See the matching Tester redirect in EntryEditor.jsx/ActivityTypeEditor.jsx
+  // - same reasoning: a Tester can see every ShopType, but the server's
+  // requireRole(...) on POST/PATCH /api/shop-types would reject their save.
+  if (user.role === 'TESTER') {
+    return <Navigate to={`/category/${slug}`} replace />;
   }
 
   const cancelTo = isCreate ? `/category/${slug}` : `/category/${slug}/type/${typeId}`;

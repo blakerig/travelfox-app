@@ -21,11 +21,21 @@ generator client {
 // Roles for team accounts - Admin manages users and has full Editor
 // capabilities; Editor can edit and publish any entry; Creator can create
 // and edit entries but can never set status to PUBLISHED (enforced
-// server-side, not just hidden in the UI). See claude/todo.md.
+// server-side, not just hidden in the UI). Tester (added 2026-10-13) has
+// no write access anywhere - every requireRole(...) call in server/index.js
+// that gates a write endpoint simply omits it, so it's blocked the same
+// way an anonymous caller would be, just with a real logged-in account.
+// What it DOES get is full read access: optionalAuth's "any logged-in role
+// sees every status" rule (server/auth.js) isn't scoped to the other three
+// roles, so a Tester sees every Draft/Awaiting Review entry, ActivityType,
+// and ShopType exactly as an Editor would - the point of the role is to
+// let someone review in-progress content without being able to touch it.
+// See claude/todo.md.
 enum Role {
   ADMIN
   EDITOR
   CREATOR
+  TESTER
 }
 
 // Entry.status below - Draft is the safe default (new entries start

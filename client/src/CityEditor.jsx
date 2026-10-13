@@ -86,14 +86,14 @@ function CityEditor() {
       .finally(() => setSaving(false));
   }
 
-  // Not just visually hidden - creators never see this screen's markup
-  // at all (city settings are editor/admin only, see PATCH
-  // /api/cities/:id in server/index.js), and neither does anyone logged
-  // out. Placed after every hook above so hook order never changes.
+  // Not just visually hidden - creators and testers never see this
+  // screen's markup at all (city settings are editor/admin only, see
+  // PATCH /api/cities/:id in server/index.js), and neither does anyone
+  // logged out. Placed after every hook above so hook order never changes.
   if (!isAuthenticated) {
     return <Navigate to="/admin" replace />;
   }
-  if (user.role === 'CREATOR') {
+  if (user.role === 'CREATOR' || user.role === 'TESTER') {
     return <Navigate to="/" replace />;
   }
 

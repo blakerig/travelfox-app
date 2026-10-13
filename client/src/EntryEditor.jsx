@@ -589,6 +589,16 @@ function EntryEditor() {
   if (!isAuthenticated) {
     return <Navigate to="/admin" replace />;
   }
+  // Tester (2026-10-13, see schema.prisma's Role enum) can see Draft/
+  // Awaiting Review entries everywhere they're shown, but has no edit
+  // access at all - same "redirect a role that isn't allowed here" pattern
+  // CityEditor.jsx already uses for Creator. The server's own
+  // requireRole(...) on POST/PATCH /api/entries would reject a Tester's
+  // save too, but there's no reason to let them reach a form they can
+  // never submit in the first place.
+  if (user.role === 'TESTER') {
+    return <Navigate to={`/category/${slug}`} replace />;
+  }
 
   const cancelTo = isCreate
     ? groupedTypeId

@@ -4,7 +4,12 @@ import { useAuth } from './auth-context.js';
 import { authHeaders } from './auth.js';
 import './AdminUsers.css';
 
-const ROLES = ['CREATOR', 'EDITOR', 'ADMIN'];
+// TESTER (2026-10-13, see schema.prisma's Role enum) can see every Entry/
+// ActivityType/ShopType regardless of status - including Draft/Awaiting
+// Review - but has no write access anywhere; every write endpoint's
+// requireRole(...) in server/index.js simply omits it. Listed last since
+// it's not part of the content-ownership chain the other three roles form.
+const ROLES = ['CREATOR', 'EDITOR', 'ADMIN', 'TESTER'];
 
 // Admin-only: list team accounts and create new ones. Reached via the
 // "Manage team" link on /admin (see AdminLogin.jsx) - not linked from

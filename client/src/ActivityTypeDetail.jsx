@@ -34,7 +34,7 @@ function ActivityTypeDetail() {
   const config = getCategoryConfig(slug);
   const { city } = useCity();
   const { cityData, cityDataReady } = useCityData();
-  const { isAuthenticated } = useAuth();
+  const { canEdit } = useAuth();
   const currencySymbol = city?.country?.currencySymbol || '$';
   const countryCode = city?.country?.code;
 
@@ -89,7 +89,7 @@ function ActivityTypeDetail() {
         <Link to={`/category/${slug}`} className="activity-type-detail-back" aria-label="Back">
           &larr;
         </Link>
-        {activityType && isAuthenticated && (
+        {activityType && canEdit && (
           <div className="activity-type-detail-header-actions">
             {/* Edits the type itself (name/group/summary/description) via
                 ActivityTypeEditor.jsx - added 2026-09-14, distinct from

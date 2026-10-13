@@ -68,7 +68,7 @@ const CATEGORY_DISPLAY = [
 function Home() {
   const { city } = useCity();
   const { cityData } = useCityData();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, canEdit, logout } = useAuth();
   const canEditCity = isAuthenticated && (user.role === 'EDITOR' || user.role === 'ADMIN');
   const location = useLocation();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -86,11 +86,13 @@ function Home() {
     : [];
 
   // Categories that exist but have no content in this city yet (see the
-  // import comment above CATEGORY_DISPLAY) - only ever shown to a logged-in
-  // team member, as a way to jump straight to one and add its first entry,
-  // same "only staff ever sees this" gating as the "+ Add" link on
-  // CategoryScreen.jsx. A public visitor never sees an empty section, same
-  // as before this existed.
+  // import comment above CATEGORY_DISPLAY) - only ever shown to a team
+  // member who can actually add something, as a way to jump straight to
+  // one and add its first entry, same canEdit gating as the "+ Add" link
+  // on CategoryScreen.jsx (a Tester following this link would just land on
+  // an empty category with nothing to add and nothing to review, so there's
+  // no reason to show it to them). A public visitor never sees an empty
+  // section, same as before this existed.
   const hiddenCategories = availableSlugs
     ? CATEGORY_DISPLAY.filter((c) => !availableSlugs.has(c.slug))
     : [];
@@ -210,7 +212,7 @@ function Home() {
           needing to know/type its URL by hand. Never rendered for a public
           visitor, and not rendered at all once every known category
           already has content here. */}
-      {isAuthenticated && hiddenCategories.length > 0 && (
+      {canEdit && hiddenCategories.length > 0 && (
         <div className="home-add-section">
           <div className="home-add-section-title">Add a section</div>
           <div className="home-add-section-list">

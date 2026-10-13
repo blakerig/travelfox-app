@@ -97,7 +97,7 @@ function EntryDetail() {
   const config = getCategoryConfig(slug);
   const { city } = useCity();
   const { cityData, cityDataReady } = useCityData();
-  const { isAuthenticated } = useAuth();
+  const { canEdit } = useAuth();
   const currencySymbol = city?.country?.currencySymbol || '$';
 
   // Read straight out of the current city's cache first (see
@@ -197,7 +197,7 @@ function EntryDetail() {
         </Link>
         <div className="entry-detail-header-end">
           {entry && <FavouriteButton entryId={entry.id} className="is-inline" />}
-          {entry && isAuthenticated && (
+          {entry && canEdit && (
             <Link to={`/category/${slug}/entry/${entryId}/edit`} className="entry-detail-edit">
               Edit
             </Link>

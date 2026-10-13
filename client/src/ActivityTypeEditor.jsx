@@ -201,6 +201,14 @@ function ActivityTypeEditor() {
   if (!isAuthenticated) {
     return <Navigate to="/admin" replace />;
   }
+  // See the matching Tester redirect in EntryEditor.jsx - same reasoning:
+  // a Tester can see every ActivityType regardless of status (per
+  // optionalAuth's "any logged-in role sees every status" rule), but has
+  // no write access, and the server's requireRole(...) on POST/PATCH
+  // /api/activity-types would reject their save anyway.
+  if (user.role === 'TESTER') {
+    return <Navigate to={`/category/${slug}`} replace />;
+  }
 
   const cancelTo = isCreate ? `/category/${slug}` : `/category/${slug}/type/${typeId}`;
 

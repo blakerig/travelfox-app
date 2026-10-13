@@ -42,7 +42,7 @@ function ShopTypeDetail() {
   const config = getCategoryConfig(slug);
   const { city } = useCity();
   const { cityData, cityDataReady } = useCityData();
-  const { isAuthenticated } = useAuth();
+  const { canEdit } = useAuth();
   const currencySymbol = city?.country?.currencySymbol || '$';
   const countryCode = city?.country?.code;
 
@@ -97,7 +97,7 @@ function ShopTypeDetail() {
         <Link to={`/category/${slug}`} className="shop-type-detail-back" aria-label="Back">
           &larr;
         </Link>
-        {shopType && isAuthenticated && (
+        {shopType && canEdit && (
           <div className="shop-type-detail-header-actions">
             {/* Edits the type itself (name/summary/description) via
                 ShopTypeEditor.jsx - distinct from "+ Add provider" below
