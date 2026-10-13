@@ -32,11 +32,10 @@ import './ActivityTypeEditor.css';
 // reasoning as EntryEditor.jsx's create mode.
 //
 // Open to every team role, not just Editor/Admin (2026-09-14 decision) -
-// unlike Entry, ActivityType has no draft/review status to catch a
-// Creator's mistake behind, but this was a deliberate call rather than an
-// oversight (see the matching comment on POST /api/activity-types in
-// server/index.js). Revisit if that turns out to cause problems, e.g.
-// near-duplicate types piling up - see claude/todo.md.
+// every role can still create/edit a type. What changed (2026-10-13, see
+// ActivityType.status in schema.prisma) is the Status field below: a
+// Creator's save can only ever be Draft/Awaiting Review, same restriction
+// EntryEditor.jsx already enforces for Entry - see canPublish.
 function ActivityTypeEditor() {
   const { slug, typeId } = useParams();
   const navigate = useNavigate();
@@ -44,7 +43,12 @@ function ActivityTypeEditor() {
   const { city, loading: cityLoading } = useCity();
   const { cityData, cityDataReady, activityGroups, ensureActivityGroups, upsertActivityType } =
     useCityData();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  // Publish workflow (2026-10-13) - see ActivityType.status in
+  // schema.prisma, and the identical canPublish in EntryEditor.jsx. A
+  // Creator can save as Draft/Awaiting Review but never Published; the
+  // server enforces this independently regardless of what the client sends.
+  const canPublish = isAuthenticated && (user.role === 'EDITOR' || user.role === 'ADMIN');
 
   const [activityType, setActivityType] = useState(null);
   const [notFound, setNotFound] = useState(false);
@@ -58,6 +62,10 @@ function ActivityTypeEditor() {
 
   const [name, setName] = useState('');
   const [groupId, setGroupId] = useState(''); // '' = no group, else the ActivityGroup id as a string
+  // Publish workflow (2026-10-13) - see canPublish above. Draft is the safe
+  // default for a brand-new type, same reasoning as EntryEditor.jsx's
+  // status default.
+  const [status, setStatus] = useState('DRAFT');
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
   const [descTab, setDescTab] = useState('write'); // 'write' | 'preview'
@@ -75,6 +83,7 @@ function ActivityTypeEditor() {
     setError(null);
     setName('');
     setGroupId('');
+    setStatus('DRAFT');
     setSummary('');
     setDescription('');
     setDescTab('write');
@@ -100,6 +109,7 @@ function ActivityTypeEditor() {
       setActivityType(data);
       setName(data.name ?? '');
       setGroupId(data.groupId != null ? String(data.groupId) : '');
+      setStatus(data.status ?? 'DRAFT');
       setSummary(data.summary ?? '');
       setDescription(data.description ?? '');
     }
@@ -148,12 +158,21 @@ function ActivityTypeEditor() {
       ? fetch(`${import.meta.env.VITE_API_URL}/api/activity-types`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify({ ...body, cityId: city.id }),
+          body: JSON.stringify({ ...body, status, cityId: city.id }),
         })
       : fetch(`${import.meta.env.VITE_API_URL}/api/activity-types/${typeId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify(body),
+          body: JSON.stringify({
+            ...body,
+            // Omitted (not just re-sent as PUBLISHED) when a creator is
+            // looking at an already-published type they can't touch the
+            // status of - see the read-only display below. Sending it back
+            // unchanged would still trip the server's creator-can't-publish
+            // check and block the rest of the save too. Same pattern as
+            // EntryEditor.jsx.
+            status: canPublish || status !== 'PUBLISHED' ? status : undefined,
+          }),
         });
 
     request
@@ -215,6 +234,30 @@ function ActivityTypeEditor() {
               autoFocus={isCreate}
             />
           </label>
+
+          <div className="activity-type-editor-field">
+            <span className="activity-type-editor-label">Status</span>
+            {!canPublish && status === 'PUBLISHED' ? (
+              <div className="activity-type-editor-status-readonly">
+                Published — only an editor can change this.
+              </div>
+            ) : (
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="activity-type-editor-select"
+              >
+                <option value="DRAFT">Draft</option>
+                <option value="AWAITING_REVIEW">Awaiting Review</option>
+                {canPublish && <option value="PUBLISHED">Published</option>}
+              </select>
+            )}
+            <p className="activity-type-editor-hint">
+              {canPublish
+                ? 'Only Published activity types show in the app.'
+                : "Flag this as Awaiting Review once it's ready for an editor to look at - only an editor can publish it."}
+            </p>
+          </div>
 
           <label className="activity-type-editor-field">
             <span className="activity-type-editor-label">

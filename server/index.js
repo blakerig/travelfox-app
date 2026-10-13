@@ -735,8 +735,11 @@ app.patch('/api/entries/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADM
 // ActivityType simply comes back with group: null.
 app.get('/api/cities/:cityId/activity-types', async (req, res) => {
   const cityId = Number(req.params.cityId);
+  // Published-only for an anonymous caller, every status for any logged-in
+  // team role - same ActivityType.status filter as every Entry endpoint
+  // already applies (2026-10-13, see schema.prisma).
   const activityTypes = await prisma.activityType.findMany({
-    where: { cityId },
+    where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
     include: {
       group: true,
       entries: {
@@ -781,7 +784,11 @@ app.get('/api/activity-types/:id', async (req, res) => {
         },
       },
     });
-    if (!activityType) {
+    // Treat a non-published type as not-found for anonymous callers, same
+    // rule GET /api/entries/:id already applies (2026-10-13) - never leak
+    // draft/awaiting-review content via a guessed/bookmarked url. Any
+    // logged-in team role sees every status.
+    if (!activityType || (activityType.status !== 'PUBLISHED' && !req.user)) {
       return res.status(404).json({ error: 'Activity type not found' });
     }
     res.json(activityType);
@@ -828,12 +835,14 @@ async function uniqueActivityTypeSlug(name, cityId, excludeId) {
 // "+ Add type" link on CategoryScreen.jsx for the Activities category (see
 // groupedByType in categoryConfig.js and ActivityTypeEditor.jsx). Open to
 // every team role rather than gated to Editor/Admin the way the City photo
-// PATCH below is (2026-09-14 decision) - unlike Entry, ActivityType has no
-// draft/review status to catch a Creator's mistake behind, but this was a
-// deliberate call, not an oversight; revisit if near-duplicate types start
-// piling up (see claude/todo.md).
+// PATCH below is (2026-09-14 decision) - every role can still create/edit
+// a type, same as before. What changed (2026-10-13, see
+// ActivityType.status in schema.prisma) is that it now carries the same
+// Draft/Awaiting Review/Published workflow Entry already has, so a
+// Creator's new type no longer goes live unreviewed - same
+// ALLOWED_STATUSES/can't-publish check as POST /api/entries above.
 app.post('/api/activity-types', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
-  const { cityId, name, summary, description, groupId } = req.body;
+  const { cityId, name, summary, description, groupId, status } = req.body;
 
   if (!cityId) {
     return res.status(400).json({ error: 'cityId is required' });
@@ -842,12 +851,25 @@ app.post('/api/activity-types', requireAuth, requireRole('CREATOR', 'EDITOR', 'A
     return res.status(400).json({ error: 'Name cannot be empty' });
   }
 
+  const ALLOWED_STATUSES = ['DRAFT', 'AWAITING_REVIEW', 'PUBLISHED'];
+  let resolvedStatus = 'DRAFT';
+  if (status !== undefined) {
+    if (!ALLOWED_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    if (req.user.role === 'CREATOR' && status === 'PUBLISHED') {
+      return res.status(403).json({ error: 'Creators cannot publish activity types' });
+    }
+    resolvedStatus = status;
+  }
+
   try {
     const slug = await uniqueActivityTypeSlug(name, Number(cityId));
     const activityType = await prisma.activityType.create({
       data: {
         name,
         slug,
+        status: resolvedStatus,
         summary: summary || null,
         description: description || null,
         city: { connect: { id: Number(cityId) } },
@@ -871,7 +893,7 @@ app.post('/api/activity-types', requireAuth, requireRole('CREATOR', 'EDITOR', 'A
 // out from under an edit that didn't touch the name at all.
 app.patch('/api/activity-types/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, summary, description, groupId } = req.body;
+  const { name, summary, description, groupId, status } = req.body;
 
   if (!Number.isInteger(id)) {
     return res.status(400).json({ error: 'Invalid activity type id' });
@@ -897,6 +919,18 @@ app.patch('/api/activity-types/:id', requireAuth, requireRole('CREATOR', 'EDITOR
     if (description !== undefined) data.description = description === '' ? null : description;
     if (groupId !== undefined) {
       data.group = groupId ? { connect: { id: Number(groupId) } } : { disconnect: true };
+    }
+    // Same ALLOWED_STATUSES/can't-publish rule as PATCH /api/entries/:id
+    // (2026-10-13) - see ActivityType.status in schema.prisma.
+    if (status !== undefined) {
+      const ALLOWED_STATUSES = ['DRAFT', 'AWAITING_REVIEW', 'PUBLISHED'];
+      if (!ALLOWED_STATUSES.includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
+      if (req.user.role === 'CREATOR' && status === 'PUBLISHED') {
+        return res.status(403).json({ error: 'Creators cannot publish activity types' });
+      }
+      data.status = status;
     }
 
     const activityType = await prisma.activityType.update({
@@ -1245,7 +1279,12 @@ app.get('/api/cities/:cityId/home-categories', async (req, res) => {
   // would wrongly hide the Activities icon for a city whose only Activities
   // content right now is a description-only type.
   if (!categories.some((c) => c.slug === 'activities')) {
-    const hasActivityType = await prisma.activityType.findFirst({ where: { cityId } });
+    // Same status filter as the Entry-based check above (2026-10-13) - an
+    // anonymous visitor shouldn't see the Activities icon appear on Home
+    // just because a still-Draft type exists with nothing else published.
+    const hasActivityType = await prisma.activityType.findFirst({
+      where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
+    });
     if (hasActivityType) {
       const activitiesCategory = await prisma.category.findUnique({ where: { slug: 'activities' } });
       if (activitiesCategory) categories.push(activitiesCategory);
@@ -1501,7 +1540,10 @@ app.get('/api/cities/:cityId/search', async (req, res) => {
       include: { category: true },
     }),
     prisma.activityType.findMany({
-      where: { cityId },
+      // Same ActivityType.status filter as every other activity-types
+      // endpoint (2026-10-13) - a still-Draft type shouldn't surface in
+      // search results for an anonymous visitor.
+      where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
       // Just the id of each provider Entry - enough for the client to show
       // a "N providers" count on the group card (see EntryCard.jsx's
       // 'group' variant), without pulling every provider field along for

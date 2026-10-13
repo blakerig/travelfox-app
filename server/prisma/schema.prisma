@@ -375,6 +375,19 @@ model ActivityType {
   // screen - same mechanism/rationale as Entry.sortOrder below.
   sortOrder   Float   @default(0)
   entries     Entry[]
+  // Same Draft / Awaiting Review / Published workflow as Entry.status
+  // below, reusing EntryStatus rather than a second identical enum
+  // (2026-10-13) - the type itself (the "what is Padel" description, which
+  // group it's in) could sit in exactly the same curation states a
+  // provider Entry already can, and until now had none: any team role
+  // could create/edit one and it was visible to everyone immediately, with
+  // no draft or review step. See the matching GET-endpoint filtering and
+  // POST/PATCH role checks in server/index.js, and ActivityTypeEditor.jsx's
+  // Status field. The migration backfills every row that exists before
+  // this field is added to PUBLISHED (NOT the DRAFT default) so nothing
+  // already live on the public site goes dark the moment this ships - see
+  // that migration's own comment for why.
+  status      EntryStatus @default(DRAFT)
 
   // Slugs are unique per city rather than globally, since types are
   // per-city - e.g. a "padel" slug can exist independently in both

@@ -171,6 +171,17 @@
   margin: 0;
 }
 
+/* Status field's read-only state (2026-10-13) - a Creator viewing an
+   already-Published type, mirroring entry-editor-status-readonly. */
+.activity-type-editor-status-readonly {
+  font-size: 14.5px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
 .activity-type-editor-error {
   font-size: 13px;
   color: oklch(50% 0.18 25);
