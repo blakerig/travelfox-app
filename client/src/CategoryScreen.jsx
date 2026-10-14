@@ -360,8 +360,25 @@ function CategoryScreen() {
   // than passed unconditionally) so Essentials/Activities/Shopping/Local
   // Cuisine don't fire a pointless geolocation lookup on every visit for a
   // number they'd never use.
+  //
+  // highAccuracy/maxCacheAgeMs (2026-10-14, see the doc comments on each
+  // in useUserLocation.js) - tightened after Blake reported inaccurate
+  // walking-time readings; this filter/card data has the same "how close
+  // am I right now" requirement EntryWalkingTime.jsx does, so it gets the
+  // same real-GPS, short-cache treatment. Deliberately NOT also opting
+  // into refreshOnVisible here, unlike EntryWalkingTime.jsx - a refreshed
+  // position on this screen re-triggers the walking-distances effect below
+  // and spends a fresh OpenRouteService Matrix call, and this screen can
+  // legitimately stay open and in the background for a long browsing
+  // session (unlike a single entry-detail view), so auto-refreshing it on
+  // every tab-refocus is a real cadence/quota decision worth making
+  // deliberately rather than bundling in here - logged as a follow-up in
+  // claude/todo.md if the card-level numbers turn out to go stale in
+  // practice the same way.
   const { status: locationStatus, coords: userCoords, requestLocation } = useUserLocation({
     autoFetchIfGranted: categoryHasDistanceFilter,
+    highAccuracy: true,
+    maxCacheAgeMs: 60 * 1000,
   });
   // Tracks which (city, slug) pair the state above currently belongs to.
   const [loadedKey, setLoadedKey] = useState(null);

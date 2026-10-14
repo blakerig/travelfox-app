@@ -29,6 +29,15 @@ import { fetchWalkingDistances, formatWalkingMinutes } from './walkingDistance.j
 // once it's already been granted) and why it's opt-in there rather than the
 // hook's default.
 //
+// Also opts into highAccuracy, a short maxCacheAgeMs, and refreshOnVisible
+// (2026-10-14, see the doc comment on each in useUserLocation.js) after
+// Blake reported this line reading "10 min" while he was standing inside
+// the restaurant - a coarse, up-to-5-minute-old position that never
+// re-checked itself was the root cause. This is exactly the feature where
+// "how far away, right now" needs to be as true as the device can make it,
+// so it's worth the (small, event-driven, not continuous) extra GPS cost.
+//
+
 // Prefers real walking duration from the same OpenRouteService Matrix
 // endpoint the Eating Out distance filter uses (`POST /api/walking-
 // distances`, see walkingDistance.js/CategoryScreen.jsx) - this was
@@ -56,6 +65,9 @@ function estimateMinutes(km) {
 function EntryWalkingTime({ latitude, longitude }) {
   const { status: locationStatus, coords: userCoords, requestLocation } = useUserLocation({
     autoFetchIfGranted: true,
+    highAccuracy: true,
+    maxCacheAgeMs: 30 * 1000,
+    refreshOnVisible: true,
   });
   // 'idle' | 'loading' | 'real' | 'estimate' - 'idle' until userCoords
   // arrives, then either resolves to a real ORS duration or falls back to
