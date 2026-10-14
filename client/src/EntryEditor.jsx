@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -175,6 +175,10 @@ function EntryEditor() {
   const [priceLevel, setPriceLevel] = useState('');
   const [description, setDescription] = useState('');
   const [descTab, setDescTab] = useState('write'); // 'write' | 'preview'
+  // Ref to the live Description <textarea> DOM node, used by the Ctrl/Cmd
+  // formatting shortcuts below so they can read the current cursor/selection
+  // and restore it after the wrapped text is inserted.
+  const descriptionRef = useRef(null);
   // Internal-only - see Entry.notes in schema.prisma. Never read by any
   // user-facing screen, only shown here at the bottom of the form.
   const [notes, setNotes] = useState('');
@@ -496,6 +500,72 @@ function EntryEditor() {
   function dismissHoursSuggestion() {
     setHoursLookupSuggestion(null);
     setHoursLookupStatus('idle');
+  }
+
+  // Wraps the current selection in the Description textarea with `before`/
+  // `after` markers (e.g. '*'/'*' for italic, '**'/'**' for bold). With text
+  // selected, the selection becomes the wrapped text and stays selected
+  // afterwards. With nothing selected, this just inserts the two marker
+  // pairs side by side with the cursor left in between them, ready to type
+  // the word to be formatted.
+  function wrapDescriptionSelection(before, after) {
+    const el = descriptionRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const value = el.value;
+    const selected = value.slice(start, end);
+    const newValue = value.slice(0, start) + before + selected + after + value.slice(end);
+    setDescription(newValue);
+    const selStart = start + before.length;
+    const selEnd = selStart + selected.length;
+    // The textarea is a controlled component, so its DOM value only catches
+    // up with `newValue` after React re-renders. Restoring the selection has
+    // to wait for that, hence the next animation frame rather than doing it
+    // synchronously here.
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(selStart, selEnd);
+    });
+  }
+
+  // Inserts Markdown link syntax at the cursor in the Description textarea.
+  // With text selected, that text becomes the link label - [label]() - and
+  // the cursor lands inside the parens ready for the URL/path. With nothing
+  // selected, it inserts the literal []() with the cursor placed between the
+  // square brackets, ready to type the link text first.
+  function insertDescriptionLink() {
+    const el = descriptionRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const value = el.value;
+    const selected = value.slice(start, end);
+    const newValue = value.slice(0, start) + '[' + selected + '](' + ')' + value.slice(end);
+    setDescription(newValue);
+    const cursorPos = selected ? start + selected.length + 3 : start + 1;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(cursorPos, cursorPos);
+    });
+  }
+
+  // Ctrl/Cmd+I -> italic (*text*), Ctrl/Cmd+B -> bold (**text**), Ctrl/Cmd+L ->
+  // link ([text](url)). Only fires with the modifier held, so plain typing is
+  // untouched.
+  function handleDescriptionKeyDown(e) {
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+    if (e.key === 'i' || e.key === 'I') {
+      e.preventDefault();
+      wrapDescriptionSelection('*', '*');
+    } else if (e.key === 'b' || e.key === 'B') {
+      e.preventDefault();
+      wrapDescriptionSelection('**', '**');
+    } else if (e.key === 'l' || e.key === 'L') {
+      e.preventDefault();
+      insertDescriptionLink();
+    }
   }
 
   function handleSave(e) {
@@ -1037,11 +1107,16 @@ function EntryEditor() {
 
             {descTab === 'write' ? (
               <textarea
+                ref={descriptionRef}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                onKeyDown={handleDescriptionKeyDown}
                 className="entry-editor-textarea entry-editor-textarea-long"
                 rows={10}
-                placeholder={'# Heading\n\n**bold** *italic*\n\n- bullet one\n- bullet two'}
+                placeholder={
+                  '# Heading\n\n**bold** *italic*\n\n- bullet one\n- bullet two\n\n'
+                  + 'Ctrl/Cmd+B bold, Ctrl/Cmd+I italic, Ctrl/Cmd+L link'
+                }
               />
             ) : (
               <div className="entry-editor-preview">
@@ -1056,7 +1131,11 @@ function EntryEditor() {
             )}
             <p className="entry-editor-hint">
               One Enter starts a new line, a blank line starts a new paragraph. Use **bold**,
-              *italic*, # headings, and - bullets.
+              *italic*, # headings, and - bullets. Link to another entry with{' '}
+              [text](/category/slug/entry/id) - the id is in that entry's own edit URL.
+              Shortcuts (select text first to wrap it, or use with nothing selected to
+              start typing formatted text): Ctrl/Cmd+I italic, Ctrl/Cmd+B bold, Ctrl/Cmd+L
+              link.
             </p>
           </div>
 
