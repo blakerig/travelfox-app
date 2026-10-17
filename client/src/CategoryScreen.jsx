@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useParams } from 'react-router-dom';
 import './CategoryScreen.css';
 import { useCity } from './city-context.js';
@@ -327,6 +328,72 @@ function CategoryScreen() {
   // swiping it down). Only one dimension's sheet can be open at a time, so
   // a single nullable value is enough - no need for four separate booleans.
   const [openFilterSheet, setOpenFilterSheet] = useState(null);
+  // Current sort's label, shown on the pill itself (see the render below).
+  const sortLabel = config.sortOptions?.find((opt) => opt.value === sortBy)?.label ?? '';
+  // Sort's own small dropdown panel (2026-10-17, replacing the native
+  // <select>-overlay approach - see the .category-screen-filter-bar-chip--
+  // sort doc comment in CategoryScreen.css for the full history of why:
+  // the <select>'s open popup is a separate browser/OS-rendered surface
+  // that this app's CSS can't reliably reach - padding on its <option>s
+  // was confirmed not honored on Blake's real Windows Chrome/Edge, and
+  // that was the one piece of spacing Blake actually needed control over.
+  // This is a fully custom, app-rendered list instead: a plain styled
+  // panel of option rows, positioned with real CSS this app does control.
+  //
+  // sortMenuOpen/sortMenuPos: whether the panel is open, and (while open)
+  // its on-screen position - computed once, on open, from the trigger
+  // button's own getBoundingClientRect(), rather than relying on normal
+  // CSS layout flow. That's deliberate: the trigger lives inside
+  // .category-screen-filter-bar-chips, which needs its own horizontal
+  // scrolling (overflow-x: auto) for the filter-dimension pills next to
+  // it - and setting overflow-x without overflow-y makes a browser treat
+  // overflow-y as auto too (not visible), so a panel positioned as a
+  // normal absolutely-positioned child of that row would get clipped the
+  // moment it extended below the row's own one-line height. Rendering the
+  // panel through a portal straight onto <body>, positioned with
+  // `position: fixed` at coordinates read directly off the trigger,
+  // sidesteps that clipping entirely rather than fighting it with CSS.
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [sortMenuPos, setSortMenuPos] = useState(null);
+  const sortTriggerRef = useRef(null);
+  const sortMenuRef = useRef(null);
+  const openSortMenu = () => {
+    const rect = sortTriggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setSortMenuPos({ top: rect.bottom + 6, left: rect.left, minWidth: rect.width });
+    setSortMenuOpen(true);
+  };
+  const chooseSortOption = (value) => {
+    setSortBy(value);
+    setSortMenuOpen(false);
+  };
+  // Closes on an outside tap/click, Escape, or the page scrolling under
+  // it (simplest correct behaviour for a panel whose position is
+  // computed once rather than tracked live - re-opening after a scroll
+  // is one tap away, same as any other dropdown). Checked against both
+  // the trigger and the panel itself, since the panel is portaled onto
+  // <body> and so isn't inside the trigger's own DOM subtree for a plain
+  // .contains() check on the trigger alone to cover it.
+  useEffect(() => {
+    if (!sortMenuOpen) return;
+    const handlePointerDown = (e) => {
+      if (sortTriggerRef.current?.contains(e.target)) return;
+      if (sortMenuRef.current?.contains(e.target)) return;
+      setSortMenuOpen(false);
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setSortMenuOpen(false);
+    };
+    const handleScroll = () => setSortMenuOpen(false);
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [sortMenuOpen]);
   // Tracks whether this component instance has completed at least one
   // "key settled" pass yet - see the loadedKey block below. Plain state
   // (not a ref) because it's read and written during render, in that same
@@ -856,29 +923,82 @@ function CategoryScreen() {
           per-dimension gating the old panel used: availableTypes.length,
           availablePriceLevels.length, showDistanceFilter,
           showOpenNowFilter), each opening that one dimension's FilterSheet
-          below. Sort is now a pill too - shows the current sort's label
-          (e.g. "Nearest") and opens the same FilterSheet with a
-          single-select list of sort options (see the openFilterSheet ===
-          'sort' branch below) instead of a native dropdown. Unlike the
-          filter pills, which can be "off" (nothing selected), there's
-          always exactly one active sort, so the sort pill gets its own
-          distinct look (category-screen-filter-bar-chip--sort) rather than
-          the green aria-pressed fill the filter pills use when active -
-          that fill would otherwise always be "on" for the sort pill and
-          read as noise rather than signal. "Clear filters" moved into this
-          same row too, as a fixed (non-scrolling) button at the end of the
-          row - flex: 0 0 auto in the CSS, so it never scrolls out of reach
-          alongside the dimension pills, which do scroll. */}
+          below. "Clear filters" moved into this same row too, as a fixed
+          (non-scrolling) button at the end of the row - flex: 0 0 auto in
+          the CSS, so it never scrolls out of reach alongside the dimension
+          pills, which do scroll.
+
+          Sort itself (2026-10-02, chevron added the same day) originally
+          opened the same FilterSheet-style full-screen bottom sheet as the
+          filter-dimension pills; once the chevron made it obvious this
+          pill opens *something*, that felt like the wrong amount of UI
+          for a plain three-item single-select list, so it moved (still
+          2026-10-02) to a dropdown anchored right under the pill instead.
+
+          That dropdown went through a native <select> first (2026-10-17),
+          then a custom-built panel the same day, after the <select>'s own
+          open popup turned out to be a dead end for one specific thing
+          Blake needed: comfortable padding around each option row. Along
+          the way the <select> approach was made to visually match the
+          other pills exactly (a div carrying the same
+          category-screen-filter-bar-chip class as every other pill, with
+          the <select> itself reduced to an invisible full-pill tap
+          overlay) - see the .category-screen-filter-bar-chip--sort doc
+          comment in CategoryScreen.css for that whole saga - but a
+          <select>'s open list is a separate browser/OS-rendered surface
+          outside the page's own box model, and padding on its <option>s
+          was confirmed not honored on Blake's real Windows Chrome/Edge.
+          Since that's precisely the thing being asked for, no amount of
+          further CSS tweaking was going to get there.
+
+          Final approach: the pill is now a plain <button> (still sharing
+          category-screen-filter-bar-chip/--sort, so its box model is
+          identical to the rest of the row, same as before) that opens a
+          fully custom, app-rendered dropdown panel on click -
+          .category-screen-sort-menu below, portaled onto <body> and
+          positioned from the button's own getBoundingClientRect() (see
+          the sortMenuOpen/openSortMenu doc comment above the state
+          declarations for why a portal rather than a normal nested div).
+          Every pixel of that panel - including the option padding this
+          whole rebuild was for - is this app's own CSS now, nothing left
+          to a browser/OS popup's own rendering. The filter-dimension
+          pills below (types/price/distance/openNow) are unchanged - a
+          bottom sheet still suits those, since several hold more content
+          (a cuisine grid, radius options plus a location-permission
+          state) than this small a panel could present well, and they can
+          be "off" (nothing selected) unlike sort, which always has
+          exactly one active value - that's also why they keep the green
+          aria-pressed fill sort never used. */}
       {(config.sortOptions || (config.filterOptions && hasFilterableData)) && (
         <div className="category-screen-filter-bar">
           <div className="category-screen-filter-bar-chips">
             {config.sortOptions && (
               <button
                 type="button"
+                ref={sortTriggerRef}
                 className="category-screen-filter-bar-chip category-screen-filter-bar-chip--sort"
-                onClick={() => setOpenFilterSheet('sort')}
+                aria-label={`Sort by: ${sortLabel}`}
+                aria-haspopup="listbox"
+                aria-expanded={sortMenuOpen}
+                onClick={() => (sortMenuOpen ? setSortMenuOpen(false) : openSortMenu())}
               >
-                {config.sortOptions.find((opt) => opt.value === sortBy)?.label ?? 'Sort'}
+                {sortLabel}
+                <svg
+                  className="category-screen-filter-bar-chip-chevron"
+                  viewBox="0 0 24 24"
+                  width="12"
+                  height="12"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M6 9l6 6 6-6"
+                    stroke="currentColor"
+                    strokeWidth="2.25"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </button>
             )}
             {config.filterOptions?.includes('types') && availableTypes.length > 0 && (
@@ -992,31 +1112,73 @@ function CategoryScreen() {
         </div>
       )}
 
-      {/* The focused per-dimension sheet itself (2026-10-02) - one
-          FilterSheet instance whose title/content swap based on
-          openFilterSheet, rather than a separate sheet per dimension, since
-          only one can ever be open at a time anyway. Content below is the
-          same chip markup the old stacked panel used (same
-          category-screen-filter-chips/-chip classes), just shown one
+      {/* Sort's own custom dropdown panel (2026-10-17) - see the
+          sortMenuOpen/openSortMenu doc comment above the state
+          declarations, and the pill-row comment above, for why this is a
+          portal onto <body> with a JS-computed position rather than a
+          normal nested absolutely-positioned div. Rendered conditionally
+          on sortMenuPos too, not just sortMenuOpen, so there's never a
+          frame where it's mounted at a stale/default position. */}
+      {config.sortOptions &&
+        sortMenuOpen &&
+        sortMenuPos &&
+        createPortal(
+          <div
+            ref={sortMenuRef}
+            className="category-screen-sort-menu"
+            role="listbox"
+            aria-label="Sort by"
+            style={{
+              top: sortMenuPos.top,
+              left: sortMenuPos.left,
+              minWidth: sortMenuPos.minWidth,
+            }}
+          >
+            {config.sortOptions.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={opt.value === sortBy}
+                className="category-screen-sort-menu-option"
+                onClick={() => chooseSortOption(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+
+      {/* The focused per-dimension sheet itself (2026-10-02; sort split back
+          out to its own custom dropdown panel 2026-10-17, no longer opens
+          this sheet at all - see the pill-row comment above) - one FilterSheet
+          instance whose title/content swap based on openFilterSheet,
+          rather than a separate sheet per dimension, since only one filter
+          dimension can ever be open at a time anyway. Gated on
+          config.filterOptions alone now that sort doesn't use it; every
+          current category with sortOptions also has filterOptions (Eating
+          Out, Sightseeing), so this hasn't changed which categories render
+          it, just made the gate honest about what it's actually for.
+          Content below is the same chip markup the old stacked panel used
+          (same category-screen-filter-chips/-chip classes), just shown one
           dimension at a time instead of all four stacked together - see
           FilterSheet.jsx for the sheet mechanics (slide-up, swipe-to-
           dismiss, backdrop tap, close button). */}
-      {(config.filterOptions || config.sortOptions) && (
+      {config.filterOptions && (
         <FilterSheet
           isOpen={openFilterSheet !== null}
           onClose={() => setOpenFilterSheet(null)}
           title={
-            openFilterSheet === 'sort'
-              ? 'Sort by'
-              : openFilterSheet === 'types'
-                ? (config.typeFilterLabel ?? 'Type')
-                : openFilterSheet === 'priceLevel'
-                  ? 'Price'
-                  : openFilterSheet === 'distance'
-                    ? 'Distance'
-                    : openFilterSheet === 'openNow'
-                      ? 'Hours'
-                      : ''
+            openFilterSheet === 'types'
+              ? (config.typeFilterLabel ?? 'Type')
+              : openFilterSheet === 'priceLevel'
+                ? 'Price'
+                : openFilterSheet === 'distance'
+                  ? 'Distance'
+                  : openFilterSheet === 'openNow'
+                    ? 'Hours'
+                    : ''
           }
           onClear={
             (openFilterSheet === 'types' && typesActive && clearTypesFilter) ||
@@ -1026,32 +1188,6 @@ function CategoryScreen() {
             undefined
           }
         >
-          {openFilterSheet === 'sort' && (
-            <div className="category-screen-filter-chips">
-              {config.sortOptions.map((opt) => (
-                <button
-                  type="button"
-                  key={opt.value}
-                  className="category-screen-filter-chip"
-                  aria-pressed={sortBy === opt.value}
-                  onClick={() => {
-                    setSortBy(opt.value);
-                    // Single-select, and always has exactly one active
-                    // value - unlike the multi-select dimensions below,
-                    // where the sheet stays open so more than one chip can
-                    // be picked in one visit, there's nothing more to
-                    // adjust once a sort is chosen, so the sheet closes
-                    // immediately rather than waiting for an explicit
-                    // dismiss.
-                    setOpenFilterSheet(null);
-                  }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-
           {openFilterSheet === 'types' && (
             <div className="category-screen-filter-chips">
               {availableTypes.map((type) => (

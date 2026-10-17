@@ -179,10 +179,45 @@
   display: none;
 }
 
+/* font-family: inherit (2026-10-17) - fixes a height mismatch found after
+   the sort pill became a native <select> (see .category-screen-sort-select
+   below): a plain <button>, unlike a <select>, was never given an explicit
+   font-family here, so every button-based pill (this one, used by
+   type/price/distance/open-now, and previously by the sort pill too, before
+   it became a <select>) was silently rendering in the browser's own default
+   form-control font (observed as Arial) rather than this app's actual font
+   stack - invisible before now because every pill shared that same default,
+   nothing to contrast it against. The new <select> explicitly inherits the
+   real font via `font: inherit`, which has different line-height metrics
+   at the same font-size/weight than the Arial fallback - so once the sort
+   pill switched from a plain button to that <select>, it ended up visibly
+   taller than its sibling pills even with identical padding/border. Giving
+   every button pill the same explicit font-family removes the mismatch at
+   its root rather than patching around it with a magic line-height number -
+   confirmed via Playwright measurement that all pills (button and select
+   alike) now render at an identical height.
+
+   line-height: 1.2 (2026-10-17, later the same day) - the font-family fix
+   above correctly made every pill match each other again (confirmed on
+   Blake's real device: Nearest and Type both measured 94.1x36.8/57.46x36.8
+   - same height, different width), but it had a side effect nobody had
+   caught yet: it also changed every pill's *default* line-height, since
+   "normal" line-height is computed from whichever font is actually active,
+   and the app's real font (Segoe UI/system-ui) has taller default line
+   spacing than the browser's plain Arial fallback did at the same
+   font-size. So the whole row - not just the sort pill relative to its
+   neighbors - ended up taller than it looked before today's font-family
+   fix, which is what Blake was still seeing after that fix resolved the
+   original Nearest-vs-siblings mismatch. An explicit line-height removes
+   the dependency on "whichever font happens to be active" entirely, so
+   this row's height stays fixed and predictable even if the font stack
+   ever changes again later. */
 .category-screen-filter-bar-chip {
   flex: 0 0 auto;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 600;
+  line-height: 1.2;
   color: var(--muted);
   background: var(--card);
   border: 1px solid var(--line);
@@ -204,11 +239,137 @@
    use for "this dimension has a selection" - that fill would always be
    "on" for sort and read as noise rather than signal. A distinct outlined
    treatment instead, so it's visually its own kind of pill (orders the
-   list) rather than a filter (narrows it). */
+   list) rather than a filter (narrows it).
+
+   Rebuilt 2026-10-17, after two follow-up rounds of trying to make a
+   native <select> itself LOOK like a pill (see git history/todo.md for
+   the width and height bugs hit along the way) kept surfacing new box-
+   model inconsistencies - a <select>'s width defaults to its widest
+   option regardless of which is selected, and even after padding/
+   border/font were made byte-identical to the other pills, real-device
+   testing still showed it rendering taller than its siblings, most
+   likely some extra intrinsic sizing a browser/OS applies to native
+   form controls that appearance: none doesn't fully strip everywhere.
+   Fixed via the div-pill-plus-invisible-select-overlay pattern described
+   above, then further fixed (text-color, row-wide line-height) over the
+   next couple of rounds the same day - see git history for the full
+   blow-by-blow.
+
+   Rebuilt a second time, still 2026-10-17: once the <select>'s width/
+   height genuinely matched its siblings and its open list was readable,
+   the one thing left - giving the open dropdown's option rows some
+   breathing room - turned out to be unreachable too. A <select>'s open
+   popup is a separate browser/OS-rendered surface outside the page's own
+   box model; `padding` on its <option>s is a commonly-cited "usually
+   works" trick that in fact wasn't honored on Blake's real Windows
+   Chrome/Edge. Rather than keep guessing at more CSS for a surface this
+   app's stylesheet doesn't actually control, the <select> was dropped
+   entirely in favor of a fully custom, app-rendered dropdown panel (see
+   .category-screen-sort-menu below) - every pixel of it, padding
+   included, is ordinary CSS on ordinary elements this page owns.
+
+   This div/button is still the visible pill, carrying the exact same
+   .category-screen-filter-bar-chip class/markup as every other pill (see
+   the JSX) so its box model can't diverge from theirs - that part of the
+   2026-10-17 rebuild stays. It's a plain <button> now rather than a div
+   with an invisible <select> stacked on top, since there's no native
+   form control left to overlay - clicking it just toggles the custom
+   panel's own open state. */
 .category-screen-filter-bar-chip--sort {
+  position: relative;
   color: var(--g-600);
   border-color: var(--g-600);
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* currentColor on the chevron's stroke picks up the pill's own `color`
+   (set above), so it always matches with no separate color rule to keep
+   in sync. */
+.category-screen-filter-bar-chip-chevron {
+  flex: 0 0 auto;
+  color: var(--g-600);
+  pointer-events: none;
+}
+
+/* Sort's custom dropdown panel (2026-10-17) - replaces the native
+   <select>'s own open popup, which this app's CSS couldn't reliably
+   reach (see the .category-screen-filter-bar-chip--sort doc comment
+   above for the full story, in particular the option-padding dead end
+   that prompted this rebuild). Rendered via a React portal straight onto
+   <body> (see CategoryScreen.jsx's sortMenuOpen/openSortMenu), with
+   `position: fixed` and its top/left read directly off the trigger
+   button's own getBoundingClientRect() at open time - not a normal
+   nested absolutely-positioned child of the pill, because the pill lives
+   inside .category-screen-filter-bar-chips, which needs overflow-x: auto
+   for its own horizontal scrolling, and setting only overflow-x on an
+   element makes a browser treat its overflow-y as auto too (not
+   visible) - so anything positioned to extend below that one-line row,
+   nested inside it, would get clipped by the row's own scroll box
+   rather than ever reaching the screen. A fixed-position portal sidesteps
+   that entirely. z-index: 50 matches FilterSheet.css's own panel, which
+   is the only other floating surface in this screen - the two are never
+   open at the same time, so this just keeps both comfortably above the
+   normal page content without the two needing to coordinate.
+
+   Redeclares --g-600/--ink/--line/--card itself, same values as the
+   .category-screen root rule above: because this panel is portaled onto
+   <body> rather than nested inside .category-screen, it sits outside
+   that rule's subtree, so the var()s it would otherwise inherit (--ink
+   etc.) aren't in scope here and would silently fall back to nothing.
+   Redeclaring them locally is also exactly what every other screen in
+   this app already does at its own root (ActivityTypeDetail.css,
+   EntryDetail.css, Search.css, …) rather than relying on one shared
+   global scope - this panel is just one more "root" for its own small
+   subtree, for the same reason. */
+.category-screen-sort-menu {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+}
+
+/* Each option row - a plain <button>, not a styled <select>'s <option>,
+   so padding/hover/selected states are all ordinary CSS this app
+   controls directly rather than hoping a browser/OS popup honors them.
+   The 10px/12px padding here is the actual fix for what prompted this
+   whole rebuild - Blake's "a few pixels of extra space" request that
+   `padding` on a native <select>'s <option> wouldn't deliver. */
+.category-screen-sort-menu-option {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--ink);
+  padding: 10px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.category-screen-sort-menu-option:hover {
+  background: rgb(0 0 0 / 0.04);
+}
+
+.category-screen-sort-menu-option[aria-selected='true'] {
+  background: var(--g-600);
+  color: var(--card);
+  font-weight: 600;
 }
 
 /* "Clear filters" (2026-10-03) - moved into this same row from its old
