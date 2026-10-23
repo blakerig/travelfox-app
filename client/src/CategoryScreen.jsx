@@ -162,24 +162,19 @@ function sortItems(items, sortBy, nearestContext) {
 // cardShowOpenStatus/'openNow' doc comments for why this filter is only
 // offered when the city has a timezone set at all.
 //
-// A grouped category (Activities) only ever has the `activityGroup`
-// dimension active (2026-09-10, see categoryConfig.js) - every other
-// dimension stays permanently empty/null for it, since ActivityType rows
-// don't carry `types`/`priceLevel`/coordinates/openingTimes, so typeOk/
-// priceOk/distanceOk/openNowOk below all just pass through as true for
-// them, same as before this dimension existed.
+// Activities (see categoryConfig.js) has no filter dimension at all any
+// more (2026-10-23) - its one dimension, 'activityGroup', was replaced by
+// always-on sectioning (see CategoryScreen's activityGroupSections and
+// categoryConfig.js's sectionByGroup) rather than a chip that hides every
+// other group. ActivityType rows still don't carry `types`/`priceLevel`/
+// coordinates/openingTimes, so typeOk/priceOk/distanceOk/openNowOk below
+// all just pass through as true for them, same as before either dimension
+// existed.
 function filterItems(
   items,
-  { types, priceLevels, radiusKm, origin, openNowOnly, timezone, walkingDistances, activityGroup }
+  { types, priceLevels, radiusKm, origin, openNowOnly, timezone, walkingDistances }
 ) {
-  if (
-    types.size === 0 &&
-    priceLevels.size === 0 &&
-    radiusKm == null &&
-    !openNowOnly &&
-    !activityGroup
-  )
-    return items;
+  if (types.size === 0 && priceLevels.size === 0 && radiusKm == null && !openNowOnly) return items;
   return items.filter((entry) => {
     const typeOk = types.size === 0 || (entry.types ?? []).some((t) => types.has(t));
     const priceOk =
@@ -208,12 +203,7 @@ function filterItems(
     // while the filter is active, same as priceOk/distanceOk excluding an
     // entry missing that data rather than guessing.
     const openNowOk = !openNowOnly || isOpenNow(entry.openingTimes, timezone) === true;
-    // ActivityType-shaped items only (see categoryConfig.js's 'activityGroup'
-    // doc comment) - an ungrouped ActivityType (entry.group is null) never
-    // matches an active group filter, same as any other dimension excluding
-    // data it doesn't have rather than guessing.
-    const groupOk = !activityGroup || entry.group?.slug === activityGroup;
-    return typeOk && priceOk && distanceOk && openNowOk && groupOk;
+    return typeOk && priceOk && distanceOk && openNowOk;
   });
 }
 
@@ -225,6 +215,57 @@ function toggleSetValue(set, value) {
     next.add(value);
   }
   return next;
+}
+
+// Collapses sibling ActivityType rows that share an ActivityTypeCluster
+// (e.g. Padel/Squash/Tennis/Badminton under "Racquet Sports") into one row
+// rendered as a single navigable card, instead of each getting its own
+// top-level card - added 2026-10-17, see ActivityTypeCluster in
+// schema.prisma. Tapping that card goes to ActivityClusterDetail.jsx,
+// which lists the members. Grouped by first-occurrence position in
+// `items` (not a separate pass over cluster.sortOrder) so a cluster's
+// position in the list is wherever its first/highest-sorted member would
+// have landed on its own - correct regardless of which sort is active,
+// same as any other row.
+//
+// A cluster with only one member actually present renders as a plain
+// standalone item instead (see the single-member rows re-flattened below)
+// - nesting pays off once there's something to collapse, not before. A
+// city can have "Padel" clustered under "Racquet Sports" long before
+// "Squash" exists there, and it should still just look like an ordinary
+// card until a second sibling shows up.
+//
+// Extracted into its own function (2026-10-23, previously inline in
+// CategoryScreen's displayRows) so activityGroupSections below can call it
+// once per ActivityGroup section - a cluster's members are collapsed
+// within whichever group section they landed in, not across the whole
+// page, so two siblings that were (unusually) given different groups
+// would each render as their own single-item card in their own section
+// rather than being nested together. Harmless no-op for a non-cluster-
+// using category (ShopType rows have no `.cluster`, so every row falls
+// through to the plain 'item' case) - called from the flat displayRows
+// path below too, so every category shares this one implementation.
+function buildDisplayRows(items) {
+  const rows = [];
+  const clusterRows = new Map(); // clusterId -> the row object already pushed into rows
+  items.forEach((item) => {
+    if (item.cluster) {
+      let row = clusterRows.get(item.cluster.id);
+      if (!row) {
+        row = { type: 'cluster', cluster: item.cluster, members: [] };
+        clusterRows.set(item.cluster.id, row);
+        rows.push(row);
+      }
+      row.members.push(item);
+    } else {
+      rows.push({ type: 'item', item });
+    }
+  });
+  return rows.flatMap((row) =>
+    row.type === 'cluster' && row.members.length === 1
+      ? [{ type: 'item', item: row.members[0] }]
+      : [row]
+  );
 }
 
 // sessionStorage can throw (private browsing, storage disabled) - these
@@ -270,12 +311,12 @@ function loadScrollY(key) {
 // EntryDetail (see activityTypeHref above). Everything else on this screen
 // - header, count line, loading/empty states - is unchanged, and the sort
 // machinery below safely no-ops for this case, since Activities sets
-// sortOptions to null. It does now offer one filter dimension
-// (`activityGroup`, 2026-09-10, see ActivityGroup in schema.prisma) shown
-// as its own always-visible chip row (showActivityGroupFilter below)
-// rather than through the shared collapsible "Filters" panel the other
-// categories use - see the doc comment on the `activities` entry in
-// categoryConfig.js for why.
+// sortOptions to null. It also renders its ActivityType cards sectioned by
+// ActivityGroup (`sectionByGroup`, 2026-10-23, replacing an earlier
+// single-select `activityGroup` filter chip row from 2026-09-10 - see
+// activityGroupSections below and the doc comment on the `activities`
+// entry in categoryConfig.js for the full history/reasoning) rather than
+// as one flat list.
 function CategoryScreen() {
   const { slug } = useParams();
   const { city, loading: cityLoading } = useCity();
@@ -309,12 +350,18 @@ function CategoryScreen() {
   const [selectedOpenNowOnly, setSelectedOpenNowOnly] = useState(
     initialPrefs?.openNowOnly ?? false
   );
-  // Activities' one filter dimension (see categoryConfig.js's
-  // 'activityGroup' doc comment) - a single slug or null ("All"), not a Set
-  // like selectedTypes/selectedPriceLevels above, since only one group can
-  // be chosen at a time.
-  const [selectedActivityGroup, setSelectedActivityGroup] = useState(
-    initialPrefs?.activityGroup ?? null
+  // Which of activityGroupSections' sections (below) are currently
+  // collapsed, by section key (an ActivityGroup slug, or 'other' for the
+  // ungrouped section) - added 2026-10-23 per Blake's request, right after
+  // the sections themselves. A Set, not a single value, since any number
+  // of sections can be collapsed independently. Persisted the same way as
+  // the sort/filter selections above (see the sessionStorage effect
+  // below) so collapsing, say, Fun & Entertainment survives navigating
+  // into an ActivityTypeDetail and back - same reasoning as scroll
+  // position being restored there. Always empty, and never rendered
+  // against, for a category that isn't sectioned this way.
+  const [collapsedGroups, setCollapsedGroups] = useState(
+    () => new Set(initialPrefs?.collapsedGroups ?? [])
   );
   // Which filter-dimension sheet (if any) is currently open - null, or one
   // of config.filterOptions' values ('types'/'priceLevel'/'distance'/
@@ -478,7 +525,7 @@ function CategoryScreen() {
       setSelectedPriceLevels(new Set());
       setSelectedRadiusKm(null);
       setSelectedOpenNowOnly(false);
-      setSelectedActivityGroup(null);
+      setCollapsedGroups(new Set());
     }
     // Cached derived data tied to `key`, not a user preference - unlike
     // the sort/filter selections above (deliberately preserved across the
@@ -529,7 +576,7 @@ function CategoryScreen() {
           priceLevels: Array.from(selectedPriceLevels),
           radiusKm: selectedRadiusKm,
           openNowOnly: selectedOpenNowOnly,
-          activityGroup: selectedActivityGroup,
+          collapsedGroups: Array.from(collapsedGroups),
         })
       );
     } catch {
@@ -542,7 +589,7 @@ function CategoryScreen() {
     selectedPriceLevels,
     selectedRadiusKm,
     selectedOpenNowOnly,
-    selectedActivityGroup,
+    collapsedGroups,
   ]);
 
   // Continuously records scroll position while on this screen (so the very
@@ -593,14 +640,17 @@ function CategoryScreen() {
     return Array.from(set).sort((a, b) => a - b);
   }, [items]);
 
-  // Chip values for Activities' group filter, derived from whatever's
-  // actually present among this city's ActivityType rows (same "don't show
-  // a chip nothing currently uses" principle as availableTypes/
-  // availablePriceLevels above), sorted by ActivityGroup.sortOrder rather
-  // than alphabetically - see that field's comment in schema.prisma. Always
-  // empty for a non-grouped category, since a flat Entry has no `.group`.
+  // Which ActivityGroups (Sport & Active, Culture & Arts, ...) are actually
+  // present among this city's ActivityType rows - drives the order/set of
+  // section headings in activityGroupSections below (2026-10-23; until
+  // then this fed a single-select filter chip row instead - same "don't
+  // show a section nothing currently uses" principle as availableTypes/
+  // availablePriceLevels above still applies, just to sections now rather
+  // than chips). Sorted by ActivityGroup.sortOrder rather than
+  // alphabetically - see that field's comment in schema.prisma. Always
+  // empty for a category that isn't sectioned this way.
   const availableActivityGroups = useMemo(() => {
-    if (!config.groupedByType) return [];
+    if (!config.sectionByGroup) return [];
     const bySlug = new Map();
     (items ?? []).forEach((item) => {
       if (item.group) bySlug.set(item.group.slug, item.group);
@@ -608,9 +658,7 @@ function CategoryScreen() {
     return Array.from(bySlug.values()).sort(
       (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)
     );
-  }, [items, config.groupedByType]);
-  const showActivityGroupFilter =
-    Boolean(config.filterOptions?.includes('activityGroup')) && availableActivityGroups.length > 0;
+  }, [items, config.sectionByGroup]);
 
   const hasCoordinateData = useMemo(
     () => (items ?? []).some((item) => item.latitude != null && item.longitude != null),
@@ -748,7 +796,6 @@ function CategoryScreen() {
         // filterItems treats the same as "not ready, use straight-line"
         // (see its doc comment above).
         walkingDistances: walkingDistancesStatus === 'ready' ? walkingDistances : null,
-        activityGroup: selectedActivityGroup,
       }),
     [
       items,
@@ -760,7 +807,6 @@ function CategoryScreen() {
       city?.timezone,
       walkingDistances,
       walkingDistancesStatus,
-      selectedActivityGroup,
     ]
   );
   // Same "only once the fetch has actually succeeded" treatment as
@@ -778,52 +824,54 @@ function CategoryScreen() {
     [filteredItems, sortBy, nearestUsable, walkingDistances, walkingDistancesStatus, userCoords]
   );
 
-  // Collapses sibling ActivityType rows that share an ActivityTypeCluster
-  // (e.g. Padel/Squash/Tennis/Badminton under "Racquet Sports") into one
-  // row rendered as a single navigable card, instead of each getting its
-  // own top-level card - added 2026-10-17, see ActivityTypeCluster in
-  // schema.prisma. Tapping that card goes to ActivityClusterDetail.jsx,
-  // which lists the members (changed from an earlier version that
-  // expanded the cluster and its members in place, accordion-style -
-  // Blake asked for a plain drill-down screen instead, matching how every
-  // other card in this app already navigates rather than expanding).
-  // Grouped by first-occurrence position in sortedItems (not a separate
-  // pass over cluster.sortOrder) so a cluster's position in the list is
-  // wherever its first/highest-sorted member would have landed on its
-  // own - correct regardless of which sort is active, same as any other
-  // item here. Harmless no-op for Shopping (ShopType rows have no
-  // `.cluster`, so every row falls through to the plain 'item' case) and
-  // for every non-grouped category (the early return below).
-  //
-  // A cluster with only one member actually present renders as a plain
-  // standalone item instead (see the single-member rows re-flattened
-  // below) - nesting pays off once there's something to collapse, not
-  // before. A city can have "Padel" clustered under "Racquet Sports" long
-  // before "Squash" exists there, and it should still just look like an
-  // ordinary card until a second sibling shows up.
+  // Flat row list for a groupedByType category that ISN'T also sectioned by
+  // ActivityGroup (Shopping's ShopType rows - see sectionByGroup in
+  // categoryConfig.js) and for every ordinary, non-grouped category -
+  // see buildDisplayRows above for the cluster-collapsing it does. Rendered
+  // directly in the list below when activityGroupSections (next) is null.
   const displayRows = useMemo(() => {
     if (!config.groupedByType) return sortedItems.map((item) => ({ type: 'item', item }));
-    const rows = [];
-    const clusterRows = new Map(); // clusterId -> the row object already pushed into rows
-    sortedItems.forEach((item) => {
-      if (item.cluster) {
-        let row = clusterRows.get(item.cluster.id);
-        if (!row) {
-          row = { type: 'cluster', cluster: item.cluster, members: [] };
-          clusterRows.set(item.cluster.id, row);
-          rows.push(row);
-        }
-        row.members.push(item);
-      } else {
-        rows.push({ type: 'item', item });
-      }
-    });
-    return rows.flatMap((row) =>
-      row.type === 'cluster' && row.members.length === 1
-        ? [{ type: 'item', item: row.members[0] }]
-        : [row]
-    );
+    return buildDisplayRows(sortedItems);
   }, [sortedItems, config.groupedByType]);
+
+  // Sections Activities' ActivityType cards by ActivityGroup (2026-10-23,
+  // see sectionByGroup in categoryConfig.js) - replaces the earlier
+  // single-select activityGroup filter chip, which hid every group but the
+  // one selected. Each section's rows are built the same way the flat
+  // displayRows above is (buildDisplayRows), just scoped to that one
+  // group's own slice of sortedItems first - so Racquet-Sports-style
+  // clustering still collapses correctly within a group rather than
+  // (unusually) across two different groups' siblings. Ordered to match
+  // availableActivityGroups (itself sorted by ActivityGroup.sortOrder, the
+  // same order the old chip row used), with an "Other" section for any
+  // ActivityType with no group assigned appended last - rather than
+  // silently dropping it from the page, see categoryConfig.js's
+  // sectionByGroup doc comment. A group with nothing currently in it is
+  // left out entirely (same "don't show an empty thing" principle
+  // availableActivityGroups itself already applies) rather than rendering
+  // an empty heading. null (not []) for every other category, so the
+  // render below can tell "sectioned" apart from "flat" with one check.
+  const activityGroupSections = useMemo(() => {
+    if (!config.sectionByGroup) return null;
+    const bySlug = new Map(); // group slug, or null for ungrouped -> items
+    sortedItems.forEach((item) => {
+      const slug = item.group?.slug ?? null;
+      if (!bySlug.has(slug)) bySlug.set(slug, []);
+      bySlug.get(slug).push(item);
+    });
+    const sections = availableActivityGroups
+      .map((group) => ({
+        key: group.slug,
+        label: group.name,
+        rows: buildDisplayRows(bySlug.get(group.slug) ?? []),
+      }))
+      .filter((section) => section.rows.length > 0);
+    const ungrouped = bySlug.get(null) ?? [];
+    if (ungrouped.length > 0) {
+      sections.push({ key: 'other', label: 'Other', rows: buildDisplayRows(ungrouped) });
+    }
+    return sections;
+  }, [sortedItems, config.sectionByGroup, availableActivityGroups]);
 
   // Real walking minutes for one card, or null when there isn't a real
   // number to show (2026-09-15, see the walkingMinutes doc comment in
@@ -847,7 +895,6 @@ function CategoryScreen() {
     setSelectedPriceLevels(new Set());
     setSelectedRadiusKm(null);
     setSelectedOpenNowOnly(false);
-    setSelectedActivityGroup(null);
   }
 
   // Per-dimension clears for each FilterSheet's own "Clear" action (2026-
@@ -867,6 +914,91 @@ function CategoryScreen() {
   }
   function clearOpenNowFilter() {
     setSelectedOpenNowOnly(false);
+  }
+
+  // Toggles one activityGroupSections section open/closed by its key
+  // (2026-10-23) - see collapsedGroups above.
+  function toggleGroupSection(sectionKey) {
+    setCollapsedGroups((prev) => toggleSetValue(prev, sectionKey));
+  }
+
+  // Renders one row from buildDisplayRows (a 'cluster' or plain 'item') as
+  // a card - shared by both the flat displayRows list and every section
+  // of activityGroupSections below, so there's exactly one place this
+  // markup lives. expandInPlace categories (Local Cuisine, see
+  // categoryConfig.js) render EntryCard directly instead of wrapping it in
+  // a Link - the card manages its own expand/collapse and only navigates
+  // via its own "Edit" link, so there's no separate detail screen to tap
+  // through to. A 'cluster' row renders as one ordinary-looking EntryCard
+  // too, just built from a synthetic entry-shaped object standing in for
+  // the cluster itself (name plus every member's providers pooled
+  // together for the count line - 'group' only reads entry.entries.length,
+  // never the contents) - tapping it goes to ActivityClusterDetail.jsx
+  // rather than ActivityTypeDetail.
+  function renderRow(row) {
+    if (row.type === 'cluster') {
+      const clusterEntry = {
+        id: `cluster-${row.cluster.id}`,
+        name: row.cluster.name,
+        description: null,
+        summary: null,
+        entries: row.members.flatMap((member) => member.entries ?? []),
+      };
+      return (
+        <Link
+          to={`/category/${slug}/cluster/${row.cluster.id}`}
+          className="entry-card-link"
+          key={`cluster-${row.cluster.id}`}
+        >
+          <EntryCard
+            entry={clusterEntry}
+            variant={config.cardVariant}
+            currencySymbol={currencySymbol}
+            countryCode={countryCode}
+            city={city}
+          />
+        </Link>
+      );
+    }
+    const item = row.item;
+    return config.expandInPlace ? (
+      <EntryCard
+        key={item.id}
+        entry={item}
+        variant={config.cardVariant}
+        currencySymbol={currencySymbol}
+        showPrice={config.cardShowPrice ?? true}
+        showPhone={config.cardShowPhone ?? false}
+        countryCode={countryCode}
+        showOpenStatus={config.cardShowOpenStatus ?? false}
+        timezone={city?.timezone}
+        city={city}
+        walkingMinutes={walkingMinutesFor(item)}
+        expandable
+        editHref={canEdit ? `/category/${slug}/entry/${item.id}/edit` : undefined}
+      />
+    ) : (
+      <Link
+        to={
+          config.groupedByType ? activityTypeHref(slug, item) : `/category/${slug}/entry/${item.id}`
+        }
+        className="entry-card-link"
+        key={item.id}
+      >
+        <EntryCard
+          entry={item}
+          variant={config.cardVariant}
+          currencySymbol={currencySymbol}
+          showPrice={config.cardShowPrice ?? true}
+          showPhone={config.cardShowPhone ?? false}
+          countryCode={countryCode}
+          city={city}
+          showOpenStatus={config.cardShowOpenStatus ?? false}
+          timezone={city?.timezone}
+          walkingMinutes={walkingMinutesFor(item)}
+        />
+      </Link>
+    );
   }
 
   return (
@@ -924,40 +1056,6 @@ function CategoryScreen() {
           {sortedItems.length === items.length
             ? `${items.length} ${items.length === 1 ? config.itemLabel : config.itemLabelPlural}`
             : `${sortedItems.length} of ${items.length} ${config.itemLabelPlural}`}
-        </div>
-      )}
-
-      {/* Activities' group filter (2026-09-10) - always-visible chip row,
-          not gated behind the "Filters" toggle below, since it's the only
-          dimension this category offers - see the doc comment on the
-          `activities` entry in categoryConfig.js. Horizontally scrollable
-          rather than wrapping, so it stays a fixed one-line height however
-          many groups eventually exist (four today). */}
-      {showActivityGroupFilter && (
-        <div className="category-screen-group-filter">
-          <div className="category-screen-group-filter-chips">
-            <button
-              type="button"
-              className="category-screen-group-chip"
-              aria-pressed={selectedActivityGroup === null}
-              onClick={() => setSelectedActivityGroup(null)}
-            >
-              All
-            </button>
-            {availableActivityGroups.map((group) => (
-              <button
-                type="button"
-                key={group.slug}
-                className="category-screen-group-chip"
-                aria-pressed={selectedActivityGroup === group.slug}
-                onClick={() =>
-                  setSelectedActivityGroup((prev) => (prev === group.slug ? null : group.slug))
-                }
-              >
-                {group.name}
-              </button>
-            ))}
-          </div>
         </div>
       )}
 
@@ -1368,87 +1466,59 @@ function CategoryScreen() {
         </div>
       )}
 
-      {sortedItems.length > 0 && (
+      {/* Sectioned (Activities, see activityGroupSections above) vs flat
+          (every other category) - each section's pill heading is now a
+          collapse/expand toggle (2026-10-23, collapsedGroups above),
+          independent per section. Expanded by default (nothing in
+          collapsedGroups until a section is actually collapsed) so a
+          fresh visit shows the full page exactly as the uncollapsible
+          version did - collapsing is something you opt into per section,
+          not a changed default. */}
+      {sortedItems.length > 0 && activityGroupSections && (
         <div className="category-screen-list">
-          {/* expandInPlace categories (Local Cuisine, see categoryConfig.js)
-              render EntryCard directly instead of wrapping it in a Link -
-              the card manages its own expand/collapse and only navigates
-              via its own "Edit" link, so there's no separate detail screen
-              to tap through to. A 'cluster' row (see displayRows above)
-              renders as one ordinary-looking EntryCard too, just built
-              from a synthetic entry-shaped object standing in for the
-              cluster itself (name plus every member's providers pooled
-              together for the count line - 'group' only reads
-              entry.entries.length, never the contents) - tapping it goes
-              to ActivityClusterDetail.jsx rather than ActivityTypeDetail. */}
-          {displayRows.map((row) => {
-            if (row.type === 'cluster') {
-              const clusterEntry = {
-                id: `cluster-${row.cluster.id}`,
-                name: row.cluster.name,
-                description: null,
-                summary: null,
-                entries: row.members.flatMap((member) => member.entries ?? []),
-              };
-              return (
-                <Link
-                  to={`/category/${slug}/cluster/${row.cluster.id}`}
-                  className="entry-card-link"
-                  key={`cluster-${row.cluster.id}`}
-                >
-                  <EntryCard
-                    entry={clusterEntry}
-                    variant={config.cardVariant}
-                    currencySymbol={currencySymbol}
-                    countryCode={countryCode}
-                    city={city}
-                  />
-                </Link>
-              );
-            }
-            const item = row.item;
-            return config.expandInPlace ? (
-              <EntryCard
-                key={item.id}
-                entry={item}
-                variant={config.cardVariant}
-                currencySymbol={currencySymbol}
-                showPrice={config.cardShowPrice ?? true}
-                showPhone={config.cardShowPhone ?? false}
-                countryCode={countryCode}
-                showOpenStatus={config.cardShowOpenStatus ?? false}
-                timezone={city?.timezone}
-                city={city}
-                walkingMinutes={walkingMinutesFor(item)}
-                expandable
-                editHref={canEdit ? `/category/${slug}/entry/${item.id}/edit` : undefined}
-              />
-            ) : (
-              <Link
-                to={
-                  config.groupedByType
-                    ? activityTypeHref(slug, item)
-                    : `/category/${slug}/entry/${item.id}`
-                }
-                className="entry-card-link"
-                key={item.id}
-              >
-                <EntryCard
-                  entry={item}
-                  variant={config.cardVariant}
-                  currencySymbol={currencySymbol}
-                  showPrice={config.cardShowPrice ?? true}
-                  showPhone={config.cardShowPhone ?? false}
-                  countryCode={countryCode}
-                  city={city}
-                  showOpenStatus={config.cardShowOpenStatus ?? false}
-                  timezone={city?.timezone}
-                  walkingMinutes={walkingMinutesFor(item)}
-                />
-              </Link>
+          {activityGroupSections.map((section) => {
+            const isCollapsed = collapsedGroups.has(section.key);
+            return (
+              <div className="category-screen-group-section" key={section.key}>
+                <h2 className="category-screen-group-section-heading-row">
+                  <button
+                    type="button"
+                    className="category-screen-group-section-heading"
+                    aria-expanded={!isCollapsed}
+                    onClick={() => toggleGroupSection(section.key)}
+                  >
+                    {section.label}
+                    <svg
+                      className="category-screen-group-section-chevron"
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M6 9l6 6 6-6"
+                        stroke="currentColor"
+                        strokeWidth="2.25"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </h2>
+                {!isCollapsed && (
+                  <div className="category-screen-group-section-items">
+                    {section.rows.map((row) => renderRow(row))}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
+      )}
+
+      {sortedItems.length > 0 && !activityGroupSections && (
+        <div className="category-screen-list">{displayRows.map((row) => renderRow(row))}</div>
       )}
     </div>
   );

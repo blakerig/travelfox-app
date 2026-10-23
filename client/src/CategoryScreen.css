@@ -75,45 +75,71 @@
   padding: 0 16px 10px;
 }
 
-/* Activities' group filter (2026-09-10) - an always-visible row, not tucked
-   behind the "Filters" toggle below (see CategoryScreen.jsx's
-   showActivityGroupFilter). Horizontally scrollable with the scrollbar
-   hidden (overflow-x, not flex-wrap) so it stays a fixed one-line height no
-   matter how many groups eventually exist, rather than pushing the list
-   down further as more get added - see that render block's comment. */
-.category-screen-group-filter {
-  padding: 0 20px 14px;
-}
-
-.category-screen-group-filter-chips {
+/* Activities' group sections (2026-10-23, see activityGroupSections in
+   CategoryScreen.jsx and sectionByGroup in categoryConfig.js) - replaces
+   the earlier always-visible filter chip row (2026-09-10) that hid every
+   group but the one selected. Each section is its own heading-plus-cards
+   block; -items gets the same column/gap treatment as the plain
+   .category-screen-list below so cards within one section read exactly
+   like the flat list already does. */
+.category-screen-group-section {
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.category-screen-group-filter-chips::-webkit-scrollbar {
-  display: none;
+/* Resets the <h2> wrapper's own default margin/font so all the real
+   styling lives on the <button> inside it (see below) - the <h2> exists
+   only for document-outline/accessibility purposes, same reasoning as
+   wrapping any other custom control in a semantic element. */
+.category-screen-group-section-heading-row {
+  margin: 4px 0 0;
+  font: inherit;
 }
 
-.category-screen-group-chip {
-  flex: 0 0 auto;
+/* The pill itself, now a collapse/expand toggle (2026-10-23) rather than
+   a plain label - font/border reset since this is a <button>, everything
+   else unchanged from the original static-label styling. */
+.category-screen-group-section-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
   font-size: 13px;
   font-weight: 600;
-  color: var(--muted);
-  background: var(--card);
-  border: 1px solid var(--line);
+  color: var(--card);
+  background: var(--g-600);
+  border: none;
   border-radius: 999px;
   padding: 6px 14px;
-  white-space: nowrap;
   cursor: pointer;
 }
 
-.category-screen-group-chip[aria-pressed='true'] {
-  background: var(--g-600);
-  color: var(--card);
-  border-color: var(--g-600);
+/* Chevron points down while expanded (the default), rotates to point
+   right while collapsed - targets aria-expanded on the button itself
+   rather than a separate class, so this never drifts out of sync with
+   the actual expanded/collapsed state. */
+.category-screen-group-section-chevron {
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+
+.category-screen-group-section-heading[aria-expanded='false'] .category-screen-group-section-chevron {
+  transform: rotate(-90deg);
+}
+
+.category-screen-group-section-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Extra breathing room between one section's last card and the next
+   section's heading, on top of .category-screen-list's own 10px gap
+   between every direct child - keeps spacing within a section (10px,
+   card-to-card) visibly tighter than spacing between sections. */
+.category-screen-group-section + .category-screen-group-section {
+  margin-top: 10px;
 }
 
 .category-screen-controls {

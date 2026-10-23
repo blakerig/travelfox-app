@@ -200,19 +200,21 @@ export const CATEGORY_CONFIG = {
   // and rating/price/type don't apply at the type level the way they do to
   // a flat Entry list.
   //
-  // filterOptions: ['activityGroup'] (2026-09-10, see ActivityGroup in
-  // schema.prisma) is the one filter dimension Activities does offer - a
-  // broader interest grouping (Sport & Active, Culture & Arts, Outdoors &
-  // Nature, Fun & Entertainment) an ActivityType can optionally belong to.
-  // Deliberately NOT rendered through the same collapsible "Filters" panel
-  // the other categories use (see CategoryScreen.jsx's showActivityGroupFilter
-  // rendering branch) - with only this one dimension, and given how
-  // fundamentally different an ActivityType card list is from a flat Entry
-  // list already, an always-visible chip row directly under the header
-  // reads better than a button that reveals a single row of chips. Single-
-  // select (a plain string or null, not a Set like the 'types'/'priceLevel'
-  // dimensions below) - "show me Sport & Active" is a single choice, not a
-  // combinable set of tags the way cuisines are.
+  // sectionByGroup: true (2026-10-23, see ActivityGroup in schema.prisma;
+  // replaces the earlier filterOptions: ['activityGroup'] single-select chip
+  // row from 2026-09-10) - Blake asked for the Activities page to show every
+  // group's ActivityTypes at once, organized under that group's own heading,
+  // running down the page (Culture & Arts's types, then Sport & Active's,
+  // ...), rather than making you pick one group to see at a time and hiding
+  // the rest. See CategoryScreen.jsx's activityGroupSections for the actual
+  // sectioning (ordered by ActivityGroup.sortOrder, same order the old chip
+  // row used) and its group-section heading markup - a plain, non-
+  // interactive pill-styled label now, since there's nothing left to toggle
+  // once every group is always shown. An ActivityType with no group assigned
+  // (groupId is optional - see schema.prisma) still shows, in its own
+  // "Other" section appended after every real group, rather than silently
+  // disappearing from the page - this is also a useful at-a-glance list of
+  // which types still need a group picked in ActivityTypeEditor.jsx.
   activities: {
     title: 'Activities',
     groupedByType: true,
@@ -225,7 +227,8 @@ export const CATEGORY_CONFIG = {
     // same as any other Activities entry used to be before grouping.
     providerCardVariant: 'venue',
     sortOptions: null,
-    filterOptions: ['activityGroup'],
+    filterOptions: null,
+    sectionByGroup: true,
     itemLabel: 'activity',
     itemLabelPlural: 'activities',
   },
