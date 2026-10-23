@@ -116,6 +116,7 @@ export function CityDataProvider({ children }) {
   const [bundles, setBundles] = useState({}); // { [cityId]: bundle }
   const [categories, setCategories] = useState(null);
   const [activityGroups, setActivityGroups] = useState(null);
+  const [activityTypeClusters, setActivityTypeClusters] = useState(null);
   const fetchedThisSession = useRef(new Set());
   const inFlight = useRef(new Map()); // cityId -> Promise, de-dupes overlapping fetches
 
@@ -194,6 +195,23 @@ export function CityDataProvider({ children }) {
         return [];
       });
   }, [activityGroups]);
+
+  // Same fetched-once pattern again, for ActivityTypeCluster rows (2026-
+  // 10-17) - see the doc comment on activityTypeClusters in
+  // city-data-context.js.
+  const ensureActivityTypeClusters = useCallback(() => {
+    if (activityTypeClusters !== null) return Promise.resolve(activityTypeClusters);
+    return fetch(`${import.meta.env.VITE_API_URL}/api/activity-type-clusters`)
+      .then((res) => res.json())
+      .then((data) => {
+        setActivityTypeClusters(data);
+        return data;
+      })
+      .catch((err) => {
+        console.error('Failed to fetch activity type clusters:', err);
+        return [];
+      });
+  }, [activityTypeClusters]);
 
   useEffect(() => {
     if (!city) return;
@@ -342,6 +360,8 @@ export function CityDataProvider({ children }) {
         upsertEntry,
         activityGroups,
         ensureActivityGroups,
+        activityTypeClusters,
+        ensureActivityTypeClusters,
         upsertActivityType,
         upsertShopType,
         refreshCity,

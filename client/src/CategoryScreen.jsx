@@ -778,6 +778,53 @@ function CategoryScreen() {
     [filteredItems, sortBy, nearestUsable, walkingDistances, walkingDistancesStatus, userCoords]
   );
 
+  // Collapses sibling ActivityType rows that share an ActivityTypeCluster
+  // (e.g. Padel/Squash/Tennis/Badminton under "Racquet Sports") into one
+  // row rendered as a single navigable card, instead of each getting its
+  // own top-level card - added 2026-10-17, see ActivityTypeCluster in
+  // schema.prisma. Tapping that card goes to ActivityClusterDetail.jsx,
+  // which lists the members (changed from an earlier version that
+  // expanded the cluster and its members in place, accordion-style -
+  // Blake asked for a plain drill-down screen instead, matching how every
+  // other card in this app already navigates rather than expanding).
+  // Grouped by first-occurrence position in sortedItems (not a separate
+  // pass over cluster.sortOrder) so a cluster's position in the list is
+  // wherever its first/highest-sorted member would have landed on its
+  // own - correct regardless of which sort is active, same as any other
+  // item here. Harmless no-op for Shopping (ShopType rows have no
+  // `.cluster`, so every row falls through to the plain 'item' case) and
+  // for every non-grouped category (the early return below).
+  //
+  // A cluster with only one member actually present renders as a plain
+  // standalone item instead (see the single-member rows re-flattened
+  // below) - nesting pays off once there's something to collapse, not
+  // before. A city can have "Padel" clustered under "Racquet Sports" long
+  // before "Squash" exists there, and it should still just look like an
+  // ordinary card until a second sibling shows up.
+  const displayRows = useMemo(() => {
+    if (!config.groupedByType) return sortedItems.map((item) => ({ type: 'item', item }));
+    const rows = [];
+    const clusterRows = new Map(); // clusterId -> the row object already pushed into rows
+    sortedItems.forEach((item) => {
+      if (item.cluster) {
+        let row = clusterRows.get(item.cluster.id);
+        if (!row) {
+          row = { type: 'cluster', cluster: item.cluster, members: [] };
+          clusterRows.set(item.cluster.id, row);
+          rows.push(row);
+        }
+        row.members.push(item);
+      } else {
+        rows.push({ type: 'item', item });
+      }
+    });
+    return rows.flatMap((row) =>
+      row.type === 'cluster' && row.members.length === 1
+        ? [{ type: 'item', item: row.members[0] }]
+        : [row]
+    );
+  }, [sortedItems, config.groupedByType]);
+
   // Real walking minutes for one card, or null when there isn't a real
   // number to show (2026-09-15, see the walkingMinutes doc comment in
   // EntryCard.jsx) - reads the same `walkingDistances` Map the distance
@@ -1327,9 +1374,40 @@ function CategoryScreen() {
               render EntryCard directly instead of wrapping it in a Link -
               the card manages its own expand/collapse and only navigates
               via its own "Edit" link, so there's no separate detail screen
-              to tap through to. */}
-          {sortedItems.map((item) =>
-            config.expandInPlace ? (
+              to tap through to. A 'cluster' row (see displayRows above)
+              renders as one ordinary-looking EntryCard too, just built
+              from a synthetic entry-shaped object standing in for the
+              cluster itself (name plus every member's providers pooled
+              together for the count line - 'group' only reads
+              entry.entries.length, never the contents) - tapping it goes
+              to ActivityClusterDetail.jsx rather than ActivityTypeDetail. */}
+          {displayRows.map((row) => {
+            if (row.type === 'cluster') {
+              const clusterEntry = {
+                id: `cluster-${row.cluster.id}`,
+                name: row.cluster.name,
+                description: null,
+                summary: null,
+                entries: row.members.flatMap((member) => member.entries ?? []),
+              };
+              return (
+                <Link
+                  to={`/category/${slug}/cluster/${row.cluster.id}`}
+                  className="entry-card-link"
+                  key={`cluster-${row.cluster.id}`}
+                >
+                  <EntryCard
+                    entry={clusterEntry}
+                    variant={config.cardVariant}
+                    currencySymbol={currencySymbol}
+                    countryCode={countryCode}
+                    city={city}
+                  />
+                </Link>
+              );
+            }
+            const item = row.item;
+            return config.expandInPlace ? (
               <EntryCard
                 key={item.id}
                 entry={item}
@@ -1368,8 +1446,8 @@ function CategoryScreen() {
                   walkingMinutes={walkingMinutesFor(item)}
                 />
               </Link>
-            )
-          )}
+            );
+          })}
         </div>
       )}
     </div>

@@ -7,6 +7,7 @@ import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
 import { useAuth } from './auth-context.js';
 import { authHeaders, responseError, describeSaveError } from './auth.js';
+import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import './ActivityTypeEditor.css';
 
 // Editor for an ActivityType (e.g. "Laser Tag", "Padel") itself - name,
@@ -41,8 +42,15 @@ function ActivityTypeEditor() {
   const navigate = useNavigate();
   const isCreate = typeId === 'new';
   const { city, loading: cityLoading } = useCity();
-  const { cityData, cityDataReady, activityGroups, ensureActivityGroups, upsertActivityType } =
-    useCityData();
+  const {
+    cityData,
+    cityDataReady,
+    activityGroups,
+    ensureActivityGroups,
+    activityTypeClusters,
+    ensureActivityTypeClusters,
+    upsertActivityType,
+  } = useCityData();
   const { user, isAuthenticated } = useAuth();
   // Publish workflow (2026-10-13) - see ActivityType.status in
   // schema.prisma, and the identical canPublish in EntryEditor.jsx. A
@@ -62,6 +70,9 @@ function ActivityTypeEditor() {
 
   const [name, setName] = useState('');
   const [groupId, setGroupId] = useState(''); // '' = no group, else the ActivityGroup id as a string
+  // '' = no cluster, else the ActivityTypeCluster id as a string - see
+  // Cluster dropdown below and ActivityTypeCluster in schema.prisma.
+  const [clusterId, setClusterId] = useState('');
   // Publish workflow (2026-10-13) - see canPublish above. Draft is the safe
   // default for a brand-new type, same reasoning as EntryEditor.jsx's
   // status default.
@@ -69,6 +80,12 @@ function ActivityTypeEditor() {
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
   const [descTab, setDescTab] = useState('write'); // 'write' | 'preview'
+  // Photo (2026-10-23) - same upload mechanism as EntryEditor.jsx's own
+  // photoUrl/uploadingPhoto/photoError trio, see handlePhotoChange below
+  // and ActivityType.photoUrl in schema.prisma.
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -83,10 +100,13 @@ function ActivityTypeEditor() {
     setError(null);
     setName('');
     setGroupId('');
+    setClusterId('');
     setStatus('DRAFT');
     setSummary('');
     setDescription('');
     setDescTab('write');
+    setPhotoUrl('');
+    setPhotoError(null);
   }
 
   // The Group dropdown needs every ActivityGroup that exists, not just the
@@ -95,6 +115,12 @@ function ActivityTypeEditor() {
   useEffect(() => {
     ensureActivityGroups();
   }, [ensureActivityGroups]);
+
+  // Same reasoning, for the Cluster dropdown - see ensureActivityTypeClusters
+  // in CityDataProvider.jsx.
+  useEffect(() => {
+    ensureActivityTypeClusters();
+  }, [ensureActivityTypeClusters]);
 
   // Edit mode: load the existing type's current values into the form -
   // cache first, falling back to a direct fetch only once the cache is
@@ -109,9 +135,11 @@ function ActivityTypeEditor() {
       setActivityType(data);
       setName(data.name ?? '');
       setGroupId(data.groupId != null ? String(data.groupId) : '');
+      setClusterId(data.clusterId != null ? String(data.clusterId) : '');
       setStatus(data.status ?? 'DRAFT');
       setSummary(data.summary ?? '');
       setDescription(data.description ?? '');
+      setPhotoUrl(data.photoUrl ?? '');
     }
 
     const cached = cityData?.activityTypes.find((t) => String(t.id) === typeId);
@@ -139,6 +167,37 @@ function ActivityTypeEditor() {
 
   const ready = isCreate ? Boolean(city) : activityType != null;
 
+  // Uploads the selected file to /api/upload (shared with EntryEditor.jsx
+  // - same Cloudinary folder, same handler) and stores the URL it
+  // returns. Mirrors EntryEditor.jsx's handlePhotoChange exactly: the
+  // upload happens immediately on file selection so the preview can
+  // update, but nothing is written to the ActivityType row until Save.
+  function handlePhotoChange(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    setPhotoError(null);
+
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    fetch(`${import.meta.env.VITE_API_URL}/api/upload`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: formData,
+    })
+      .then((res) => {
+        if (!res.ok) throw responseError(res, 'Upload');
+        return res.json();
+      })
+      .then((data) => setPhotoUrl(data.url))
+      .catch((err) => {
+        console.error('Failed to upload photo:', err);
+        setPhotoError(describeSaveError(err, 'upload the photo'));
+      })
+      .finally(() => setUploadingPhoto(false));
+  }
+
   function handleSave(e) {
     e.preventDefault();
     if (!name.trim()) {
@@ -152,7 +211,9 @@ function ActivityTypeEditor() {
       name,
       summary,
       description,
+      photoUrl,
       groupId: groupId === '' ? null : Number(groupId),
+      clusterId: clusterId === '' ? null : Number(clusterId),
     };
     const request = isCreate
       ? fetch(`${import.meta.env.VITE_API_URL}/api/activity-types`, {
@@ -288,6 +349,26 @@ function ActivityTypeEditor() {
 
           <label className="activity-type-editor-field">
             <span className="activity-type-editor-label">
+              Cluster (optional - nests this type under a shared arrow with its siblings on the
+              Activities screen, e.g. Padel/Squash/Tennis under "Racquet Sports", instead of
+              listing it as its own card)
+            </span>
+            <select
+              value={clusterId}
+              onChange={(e) => setClusterId(e.target.value)}
+              className="activity-type-editor-select"
+            >
+              <option value="">None</option>
+              {(activityTypeClusters ?? []).map((cluster) => (
+                <option key={cluster.id} value={cluster.id}>
+                  {cluster.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="activity-type-editor-field">
+            <span className="activity-type-editor-label">
               Summary (optional - short fallback shown only when there&apos;s no description
               below)
             </span>
@@ -298,6 +379,31 @@ function ActivityTypeEditor() {
               className="activity-type-editor-input"
             />
           </label>
+
+          <div className="activity-type-editor-field">
+            <span className="activity-type-editor-label">
+              Photo (optional - shown on the card and this type&apos;s own detail screen)
+            </span>
+            {photoUrl && (
+              <img
+                src={getEntryPhotoUrl(photoUrl, { width: 400, height: 300 })}
+                alt=""
+                className="activity-type-editor-photo-preview"
+              />
+            )}
+            <input type="file" accept="image/*" onChange={handlePhotoChange} disabled={uploadingPhoto} />
+            {uploadingPhoto && <span className="activity-type-editor-photo-status">Uploading…</span>}
+            {photoUrl && !uploadingPhoto && (
+              <button
+                type="button"
+                className="activity-type-editor-photo-remove"
+                onClick={() => setPhotoUrl('')}
+              >
+                Remove photo
+              </button>
+            )}
+            {photoError && <div className="activity-type-editor-error">{photoError}</div>}
+          </div>
 
           <div className="activity-type-editor-field">
             <div className="activity-type-editor-desc-header">

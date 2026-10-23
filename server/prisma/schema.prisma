@@ -350,6 +350,17 @@ model ActivityType {
   id          Int     @id @default(autoincrement())
   name        String
   slug        String
+  // URL of the type's own photo, hosted on Cloudinary - added 2026-10-23
+  // so a Padel/Laser Tag card shows a picture immediately on the
+  // Activities screen, rather than only once you've drilled into a
+  // specific provider. Same field/upload mechanism as Entry.photoUrl
+  // below (same /api/upload endpoint, same getEntryPhotoUrl helper) - see
+  // EntryCard.jsx's 'group' variant for where this renders on the card,
+  // and ActivityTypeDetail.jsx for the type's own detail screen. Entry
+  // keeps its own independent photoUrl too (deliberately not removed,
+  // Blake's call) - a provider can still carry its own picture even
+  // though it's no longer what the Activities list shows at a glance.
+  photoUrl    String?
   // Optional short, punchy blurb for card display - same idea as
   // Entry.summary above. NOTE the fallback order here is the reverse of
   // Entry's: on the group card (see client/src/EntryCard.jsx) `description`
@@ -393,16 +404,74 @@ model ActivityType {
   // could create/edit one and it was visible to everyone immediately, with
   // no draft or review step. See the matching GET-endpoint filtering and
   // POST/PATCH role checks in server/index.js, and ActivityTypeEditor.jsx's
-  // Status field. The migration backfills every row that exists before
-  // this field is added to PUBLISHED (NOT the DRAFT default) so nothing
-  // already live on the public site goes dark the moment this ships - see
-  // that migration's own comment for why.
+  // Status field. Unlike Entry.status's original migration, this one does
+  // NOT backfill existing rows to PUBLISHED - every ActivityType that
+  // existed before this field was added becomes DRAFT, the plain column
+  // default, same as a brand-new one. Deliberate (2026-10-17, Blake's
+  // call): every pre-existing type goes dark on the public site the
+  // moment this ships and needs republishing by hand via the Status
+  // dropdown, rather than being grandfathered straight to Published.
   status      EntryStatus @default(DRAFT)
+
+  // Optional narrower, display-only subdivision (Racquet Sports, Water
+  // Sports, Creative Workshops, ...) - see ActivityTypeCluster below for
+  // why this is a separate model from ActivityGroup above rather than
+  // reusing it. Optional for the same reason groupId is: most ActivityType
+  // rows have no cluster and render as a standalone card exactly as
+  // before. Only once two or more siblings (Padel, Squash, Tennis, ...)
+  // share the same cluster does CategoryScreen.jsx nest them under one
+  // outer card instead of listing each as its own top-level entry.
+  cluster     ActivityTypeCluster? @relation(fields: [clusterId], references: [id])
+  clusterId   Int?
 
   // Slugs are unique per city rather than globally, since types are
   // per-city - e.g. a "padel" slug can exist independently in both
   // Barcelona and a future city without colliding.
   @@unique([cityId, slug])
+}
+
+// A narrower, display-only grouping of ActivityType rows (e.g. Padel,
+// Squash, Tennis, Badminton clustered under "Racquet Sports") - added
+// 2026-10-17 so the Activities screen doesn't have to show every one of
+// them as its own top-level card (discussed with Blake: listing each
+// racquet sport separately would clutter the list with near-duplicate
+// entries). Deliberately a separate model from ActivityGroup above rather
+// than reusing it: ActivityGroup is the broad "Sport & Active" / "Culture
+// & Arts" filter-chip row shown above the whole list, picked by the user
+// to filter it down; a cluster is a narrower subdivision shown *within*
+// the list, with its own expand arrow, and was never meant to appear as a
+// filter chip alongside the four broad groups - conflating the two would
+// make both harder to reason about and to extend later.
+//
+// Same shape as ActivityGroup (a real row, not free text) for the same
+// reason: Blake named three likely clusters (Racquet Sports, Creative
+// Workshops, Water Sports) within a single conversation, which is a
+// pattern rather than a one-off, and once there's more than one of these,
+// spelling drift between an ActivityType's typed label and another's
+// would silently leave one sitting outside its intended cluster rather
+// than failing loudly - a worse outcome here than for Entry.types (which
+// deliberately stays free text - see that field's comment) because
+// getting it wrong breaks the page layout rather than just adding a stray
+// filter chip.
+//
+// Shared globally, same reasoning as ActivityGroup - "Racquet Sports" is
+// the same concept in every city even though which ActivityType rows (and
+// therefore which providers) populate it varies per city.
+//
+// Deliberately opt-in and sparse: most ActivityType rows have no cluster
+// at all. Created by hand in Prisma Studio for now, same as ActivityGroup
+// - no admin UI for managing the cluster list itself, only for assigning
+// an existing ActivityType to one (see ActivityTypeEditor.jsx's Cluster
+// dropdown and GET /api/activity-type-clusters in server/index.js).
+model ActivityTypeCluster {
+  id            Int            @id @default(autoincrement())
+  name          String
+  slug          String         @unique
+  // Manual display order for the outer cluster row among other
+  // ActivityType cards on the Activities screen - same mechanism as
+  // ActivityType.sortOrder above and ActivityGroup.sortOrder above that.
+  sortOrder     Float          @default(0)
+  activityTypes ActivityType[]
 }
 
 // Groups multiple provider Entries under one shop "type" (e.g. Local

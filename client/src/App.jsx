@@ -12,6 +12,7 @@ import EntryDetail from './EntryDetail.jsx';
 import EntryEditor from './EntryEditor.jsx';
 import ActivityTypeDetail from './ActivityTypeDetail.jsx';
 import ActivityTypeEditor from './ActivityTypeEditor.jsx';
+import ActivityClusterDetail from './ActivityClusterDetail.jsx';
 import ShopTypeDetail from './ShopTypeDetail.jsx';
 import ShopTypeEditor from './ShopTypeEditor.jsx';
 import CityEditor from './CityEditor.jsx';
@@ -113,6 +114,18 @@ function AppRoutes() {
             routes below just for readability. */}
         <Route path="/category/shopping/type/:typeId" element={<ShopTypeDetail />} />
         <Route path="/category/shopping/type/:typeId/edit" element={<ShopTypeEditor />} />
+        {/* ActivityTypeCluster drill-down (2026-10-17, see
+            ActivityClusterDetail.jsx and ActivityTypeCluster in
+            schema.prisma) - a cluster card on CategoryScreen (e.g.
+            "Racquet Sports") links here instead of straight to
+            ActivityTypeDetail, listing its member types one level up from
+            where that screen takes over. Placed above the :typeId route
+            below for the same reason "holidays"/"shopping" are placed
+            above their own dynamic siblings elsewhere in this file -
+            readability only, not matching order: "cluster" and :typeId
+            are different literal/first-segment shapes, so there's no
+            actual route-matching ambiguity between them. */}
+        <Route path="/category/:slug/cluster/:clusterId" element={<ActivityClusterDetail />} />
         <Route path="/category/:slug/type/:typeId" element={<ActivityTypeDetail />} />
         {/* Create/edit an ActivityType itself (2026-09-14, see
             ActivityTypeEditor.jsx) - distinct from the entry-edit routes

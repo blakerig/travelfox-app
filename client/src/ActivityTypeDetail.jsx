@@ -8,6 +8,7 @@ import { getCategoryConfig } from './categoryConfig.js';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
 import { useAuth } from './auth-context.js';
+import { getEntryPhotoUrl } from './cloudinaryUrl.js';
 import EntryCard from './EntryCard.jsx';
 
 // Detail screen for one ActivityType (e.g. "Laser Tag", "Padel") - reached
@@ -117,6 +118,20 @@ function ActivityTypeDetail() {
 
       {activityType && (
         <div className="activity-type-detail-body">
+          {/* Hero photo (2026-10-23) - ActivityType.photoUrl, set via the
+              Photo field in ActivityTypeEditor.jsx. No placeholder fallback
+              when absent, unlike EntryDetail.jsx's 'photo' variant - this
+              follows the 'reference' EntryCard variant's precedent instead,
+              since most types won't have a photo set yet and an empty-box
+              placeholder would be more noise than help here. */}
+          {activityType.photoUrl && (
+            <img
+              src={getEntryPhotoUrl(activityType.photoUrl)}
+              alt=""
+              className="activity-type-detail-photo"
+            />
+          )}
+
           <h1 className="activity-type-detail-name">{activityType.name}</h1>
 
           {activityType.description && (

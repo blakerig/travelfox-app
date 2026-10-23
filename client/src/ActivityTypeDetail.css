@@ -15,6 +15,18 @@
   padding-bottom: 32px;
 }
 
+/* Hero photo (2026-10-23) - ActivityType.photoUrl. No placeholder
+   background needed since ActivityTypeDetail.jsx only renders this element
+   at all when a photo is actually set - see the doc comment there. */
+.activity-type-detail-photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 14px;
+}
+
 .activity-type-detail-header {
   display: flex;
   align-items: center;

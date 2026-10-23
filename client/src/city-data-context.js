@@ -6,8 +6,9 @@ import { createContext, useContext } from 'react';
 //
 // Context value shape:
 //   { cityData, cityDataReady, categories, ensureCategories, upsertEntry,
-//     activityGroups, ensureActivityGroups, upsertActivityType,
-//     upsertShopType, refreshCity }
+//     activityGroups, ensureActivityGroups, activityTypeClusters,
+//     ensureActivityTypeClusters, upsertActivityType, upsertShopType,
+//     refreshCity }
 //
 //   - cityData: the current city's cached bundle -
 //     { entries, activityTypes, shopTypes, homeCategorySlugs,
@@ -43,6 +44,16 @@ import { createContext, useContext } from 'react';
 //     populating its Group dropdown). null until then.
 //   - ensureActivityGroups(): returns a Promise of `activityGroups`,
 //     fetching once if it hasn't been already.
+//   - activityTypeClusters: every ActivityTypeCluster that exists ([{ id,
+//     slug, name, sortOrder }, ...]) - same idea as `activityGroups` above,
+//     but for the narrower, display-only groupings (Racquet Sports, Water
+//     Sports, ...) CategoryScreen.jsx nests sibling ActivityType cards
+//     under - see ActivityTypeCluster in schema.prisma. Fetched once the
+//     first time anything calls ensureActivityTypeClusters()
+//     (ActivityTypeEditor.jsx, populating its Cluster dropdown). null
+//     until then.
+//   - ensureActivityTypeClusters(): returns a Promise of
+//     `activityTypeClusters`, fetching once if it hasn't been already.
 //   - upsertActivityType(activityType): patches a just-created/just-edited
 //     ActivityType into the current city's cached bundle in place (see
 //     ActivityTypeEditor.jsx's handleSave), same idea as upsertEntry above

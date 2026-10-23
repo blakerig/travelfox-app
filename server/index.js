@@ -758,6 +758,12 @@ app.get('/api/cities/:cityId/activity-types', async (req, res) => {
     where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
     include: {
       group: true,
+      // Included (2026-10-17, see ActivityTypeCluster in schema.prisma) so
+      // CategoryScreen.jsx can group sibling ActivityType rows under one
+      // outer card straight from this list, same "no separate endpoint"
+      // pattern as `group` above - an unclustered ActivityType simply
+      // comes back with cluster: null and renders as a standalone card.
+      cluster: true,
       entries: {
         where: req.user ? {} : { status: 'PUBLISHED' },
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
@@ -794,6 +800,9 @@ app.get('/api/activity-types/:id', async (req, res) => {
       where: { id },
       include: {
         group: true,
+        // Same reasoning as the city-level list above - kept consistent
+        // even though ActivityTypeDetail.jsx doesn't render it yet.
+        cluster: true,
         entries: {
           where: req.user ? {} : { status: 'PUBLISHED' },
           orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
@@ -858,7 +867,7 @@ async function uniqueActivityTypeSlug(name, cityId, excludeId) {
 // Creator's new type no longer goes live unreviewed - same
 // ALLOWED_STATUSES/can't-publish check as POST /api/entries above.
 app.post('/api/activity-types', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
-  const { cityId, name, summary, description, groupId, status } = req.body;
+  const { cityId, name, summary, description, photoUrl, groupId, clusterId, status } = req.body;
 
   if (!cityId) {
     return res.status(400).json({ error: 'cityId is required' });
@@ -888,10 +897,12 @@ app.post('/api/activity-types', requireAuth, requireRole('CREATOR', 'EDITOR', 'A
         status: resolvedStatus,
         summary: summary || null,
         description: description || null,
+        photoUrl: photoUrl || null,
         city: { connect: { id: Number(cityId) } },
         ...(groupId ? { group: { connect: { id: Number(groupId) } } } : {}),
+        ...(clusterId ? { cluster: { connect: { id: Number(clusterId) } } } : {}),
       },
-      include: { group: true, entries: true },
+      include: { group: true, cluster: true, entries: true },
     });
     res.status(201).json(activityType);
   } catch (err) {
@@ -909,7 +920,7 @@ app.post('/api/activity-types', requireAuth, requireRole('CREATOR', 'EDITOR', 'A
 // out from under an edit that didn't touch the name at all.
 app.patch('/api/activity-types/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, summary, description, groupId, status } = req.body;
+  const { name, summary, description, photoUrl, groupId, clusterId, status } = req.body;
 
   if (!Number.isInteger(id)) {
     return res.status(400).json({ error: 'Invalid activity type id' });
@@ -933,8 +944,12 @@ app.patch('/api/activity-types/:id', requireAuth, requireRole('CREATOR', 'EDITOR
     }
     if (summary !== undefined) data.summary = summary === '' ? null : summary;
     if (description !== undefined) data.description = description === '' ? null : description;
+    if (photoUrl !== undefined) data.photoUrl = photoUrl === '' ? null : photoUrl;
     if (groupId !== undefined) {
       data.group = groupId ? { connect: { id: Number(groupId) } } : { disconnect: true };
+    }
+    if (clusterId !== undefined) {
+      data.cluster = clusterId ? { connect: { id: Number(clusterId) } } : { disconnect: true };
     }
     // Same ALLOWED_STATUSES/can't-publish rule as PATCH /api/entries/:id
     // (2026-10-13) - see ActivityType.status in schema.prisma.
@@ -954,6 +969,7 @@ app.patch('/api/activity-types/:id', requireAuth, requireRole('CREATOR', 'EDITOR
       data,
       include: {
         group: true,
+        cluster: true,
         entries: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
       },
     });
@@ -981,6 +997,16 @@ app.patch('/api/activity-types/:id', requireAuth, requireRole('CREATOR', 'EDITOR
 app.get('/api/activity-groups', async (req, res) => {
   const groups = await prisma.activityGroup.findMany({ orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
   res.json(groups);
+});
+
+// Every ActivityTypeCluster that exists (2026-10-17) - mirrors
+// /api/activity-groups exactly, same reasoning: ActivityTypeEditor.jsx's
+// Cluster dropdown needs every cluster to assign an ActivityType to, not
+// just the ones a city's types already happen to use (see
+// ActivityTypeCluster in schema.prisma).
+app.get('/api/activity-type-clusters', async (req, res) => {
+  const clusters = await prisma.activityTypeCluster.findMany({ orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
+  res.json(clusters);
 });
 
 // ShopType rows for a city (2026-09-15, see ShopType in schema.prisma) -

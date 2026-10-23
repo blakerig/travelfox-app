@@ -41,7 +41,13 @@ function snippet(text, max = 120) {
 // type's own optional description as the snippet - see groupedByType in
 // categoryConfig.js and ActivityType in schema.prisma. ('photo' was named
 // 'restaurant' until Sightseeing started using the same layout, 2026-08-28
-// - see cardVariant in categoryConfig.js.)
+// - see cardVariant in categoryConfig.js.) 'group' optionally shows a photo
+// too (2026-10-23, see ActivityType.photoUrl) - when entry.photoUrl is set
+// it gets the same photo-frame/entry-card-body wrapper as 'photo' above;
+// without one it stays the plain text-only card this always was. 'venue'
+// never shows a photo - Activities providers kept their own independent
+// photoUrl, but the Activities list itself shows the type's picture, not
+// each provider's, so there was no reason to add a frame there too.
 //
 // 'reference' (Essentials only) got its own dedicated photo-card treatment
 // 2026-09-19 - a full-bleed background photo with a left-to-right scrim,
@@ -388,8 +394,18 @@ function EntryCard({
     );
   }
 
-  return (
-    <div className={`entry-card${statusCardClass}`}>
+  // 'group' cards (ActivityType, see schema.prisma) got their own
+  // photoUrl 2026-10-23, so a Padel/Laser Tag card can show a picture
+  // immediately on the Activities screen rather than only once you've
+  // drilled into a specific provider (Entry keeps its own independent
+  // photoUrl too - see that field's comment in schema.prisma). Content
+  // below is identical either way; only the wrapper changes - with a
+  // photo it's the same photo-frame/entry-card-body split the 'photo'
+  // variant above uses (so padding moves off .entry-card onto
+  // .entry-card-body, same reasoning as that variant's own comment),
+  // without one it's the plain single-div card this already was.
+  const groupNameAndMeta = (
+    <>
       <div className="entry-card-name-row">
         <div className="entry-card-name">{entry.name}</div>
         <div className="entry-card-name-row-end">
@@ -423,8 +439,21 @@ function EntryCard({
       )}
 
       {previewText && <div className="entry-card-snippet">{snippet(previewText)}</div>}
-    </div>
+    </>
   );
+
+  if (variant === 'group' && entry.photoUrl) {
+    return (
+      <div className={`entry-card entry-card-photo${statusCardClass}`}>
+        <div className="entry-card-photo-frame">
+          <img src={getEntryPhotoUrl(entry.photoUrl)} alt="" className="entry-card-photo-img" />
+        </div>
+        <div className="entry-card-body">{groupNameAndMeta}</div>
+      </div>
+    );
+  }
+
+  return <div className={`entry-card${statusCardClass}`}>{groupNameAndMeta}</div>;
 }
 
 export default EntryCard;
