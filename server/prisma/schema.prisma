@@ -413,6 +413,15 @@ model ActivityType {
   // dropdown, rather than being grandfathered straight to Published.
   status      EntryStatus @default(DRAFT)
 
+  // Internal-only working notes for Blake and his partner (added
+  // 2026-10-23) - mirrors Entry.notes above exactly, same reasoning: never
+  // rendered on any public-facing screen, only shown in
+  // ActivityTypeEditor.jsx's own form, at the bottom, same as
+  // EntryEditor.jsx's Notes field. Still comes back in the API response
+  // for any logged-in team role (same as Entry.notes) - same trust model
+  // as the rest of the app, not a hard privacy boundary.
+  notes       String?
+
   // Optional narrower, display-only subdivision (Racquet Sports, Water
   // Sports, Creative Workshops, ...) - see ActivityTypeCluster below for
   // why this is a separate model from ActivityGroup above rather than

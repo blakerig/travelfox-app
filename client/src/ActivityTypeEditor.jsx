@@ -86,6 +86,10 @@ function ActivityTypeEditor() {
   const [photoUrl, setPhotoUrl] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState(null);
+  // Internal-only - see ActivityType.notes in schema.prisma. Never read by
+  // any user-facing screen, only shown here at the bottom of the form -
+  // mirrors EntryEditor.jsx's own notes state exactly.
+  const [notes, setNotes] = useState('');
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -107,6 +111,7 @@ function ActivityTypeEditor() {
     setDescTab('write');
     setPhotoUrl('');
     setPhotoError(null);
+    setNotes('');
   }
 
   // The Group dropdown needs every ActivityGroup that exists, not just the
@@ -140,6 +145,7 @@ function ActivityTypeEditor() {
       setSummary(data.summary ?? '');
       setDescription(data.description ?? '');
       setPhotoUrl(data.photoUrl ?? '');
+      setNotes(data.notes ?? '');
     }
 
     const cached = cityData?.activityTypes.find((t) => String(t.id) === typeId);
@@ -212,6 +218,7 @@ function ActivityTypeEditor() {
       summary,
       description,
       photoUrl,
+      notes,
       groupId: groupId === '' ? null : Number(groupId),
       clusterId: clusterId === '' ? null : Number(clusterId),
     };
@@ -461,6 +468,19 @@ function ActivityTypeEditor() {
               what shows when there are no providers yet.
             </p>
           </div>
+
+          <label className="activity-type-editor-field">
+            <span className="activity-type-editor-label">
+              Notes (optional - for us only, never shown in the app. Ideas, things to
+              check, drafts to fold into the description later)
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="activity-type-editor-textarea"
+              rows={3}
+            />
+          </label>
 
           {error && <div className="activity-type-editor-error">{error}</div>}
 

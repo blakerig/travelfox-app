@@ -867,7 +867,7 @@ async function uniqueActivityTypeSlug(name, cityId, excludeId) {
 // Creator's new type no longer goes live unreviewed - same
 // ALLOWED_STATUSES/can't-publish check as POST /api/entries above.
 app.post('/api/activity-types', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
-  const { cityId, name, summary, description, photoUrl, groupId, clusterId, status } = req.body;
+  const { cityId, name, summary, description, photoUrl, notes, groupId, clusterId, status } = req.body;
 
   if (!cityId) {
     return res.status(400).json({ error: 'cityId is required' });
@@ -898,6 +898,7 @@ app.post('/api/activity-types', requireAuth, requireRole('CREATOR', 'EDITOR', 'A
         summary: summary || null,
         description: description || null,
         photoUrl: photoUrl || null,
+        notes: notes || null,
         city: { connect: { id: Number(cityId) } },
         ...(groupId ? { group: { connect: { id: Number(groupId) } } } : {}),
         ...(clusterId ? { cluster: { connect: { id: Number(clusterId) } } } : {}),
@@ -920,7 +921,7 @@ app.post('/api/activity-types', requireAuth, requireRole('CREATOR', 'EDITOR', 'A
 // out from under an edit that didn't touch the name at all.
 app.patch('/api/activity-types/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, summary, description, photoUrl, groupId, clusterId, status } = req.body;
+  const { name, summary, description, photoUrl, notes, groupId, clusterId, status } = req.body;
 
   if (!Number.isInteger(id)) {
     return res.status(400).json({ error: 'Invalid activity type id' });
@@ -945,6 +946,7 @@ app.patch('/api/activity-types/:id', requireAuth, requireRole('CREATOR', 'EDITOR
     if (summary !== undefined) data.summary = summary === '' ? null : summary;
     if (description !== undefined) data.description = description === '' ? null : description;
     if (photoUrl !== undefined) data.photoUrl = photoUrl === '' ? null : photoUrl;
+    if (notes !== undefined) data.notes = notes === '' ? null : notes;
     if (groupId !== undefined) {
       data.group = groupId ? { connect: { id: Number(groupId) } } : { disconnect: true };
     }
