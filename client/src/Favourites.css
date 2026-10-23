@@ -58,3 +58,25 @@
   text-decoration: none;
   color: inherit;
 }
+
+/* Category pill + its cards (2026-10-23) - see the comment above
+   Favourites() in Favourites.jsx. Same pill shape/colour language as the
+   other small labels in the app (EntryCard's open/status badges), but on
+   the light page background rather than over a photo, so it uses the green
+   tint instead of the dark translucent fill. */
+.favourites-type-group {
+  margin-bottom: 18px;
+}
+
+.favourites-type-pill {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--g-600);
+  background: oklch(93% 0.04 150);
+  border: 1px solid oklch(80% 0.06 150 / 0.6);
+}
