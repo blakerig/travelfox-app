@@ -1,0 +1,232 @@
+.admin-analytics {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: 32px;
+}
+
+.admin-analytics-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 8px;
+}
+
+.admin-analytics-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.admin-analytics-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.admin-analytics-status {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.admin-analytics-link {
+  color: var(--g-600);
+  font-weight: 600;
+}
+
+.admin-analytics-controls {
+  display: flex;
+  gap: 12px;
+  padding: 8px 20px 4px;
+}
+
+.admin-analytics-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.admin-analytics-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.admin-analytics-select {
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 10px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.admin-analytics-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 12px 20px 4px;
+}
+
+@media (min-width: 640px) {
+  .admin-analytics-cards {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.admin-analytics-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.admin-analytics-card-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--g-600);
+  line-height: 1.1;
+}
+
+.admin-analytics-card-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.admin-analytics-panel {
+  margin: 14px 20px 0;
+  padding: 14px 14px 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition: opacity 0.15s;
+}
+
+.is-loading {
+  opacity: 0.55;
+}
+
+.admin-analytics-panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.admin-analytics-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.admin-analytics-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 6px;
+  flex-wrap: wrap;
+}
+
+.admin-analytics-tab {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.admin-analytics-tab.is-active {
+  background: var(--g-600);
+  border-color: var(--g-600);
+  color: #fff;
+}
+
+.admin-analytics-chart {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.admin-analytics-empty {
+  margin: 10px 20px;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.admin-analytics-panel .admin-analytics-empty {
+  margin: 8px 0;
+}
+
+.admin-analytics-error {
+  padding: 10px 12px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: oklch(45% 0.15 25);
+  background: oklch(96% 0.03 25);
+  border-radius: 8px;
+}
+
+.admin-analytics-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+@media (min-width: 640px) {
+  .admin-analytics-columns {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-analytics-columns .admin-analytics-panel:first-child {
+    margin-right: 7px;
+  }
+
+  .admin-analytics-columns .admin-analytics-panel:last-child {
+    margin-left: 7px;
+  }
+}
+
+.admin-analytics-list {
+  list-style: none;
+  margin: 6px 0 4px;
+  padding: 0;
+}
+
+.admin-analytics-list-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.admin-analytics-list-row:first-child {
+  border-top: none;
+}
+
+.admin-analytics-list-count {
+  font-weight: 600;
+  color: var(--muted);
+}

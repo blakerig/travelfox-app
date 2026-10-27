@@ -742,3 +742,58 @@ model Favourite {
   // lookup fast without needing the full composite key.
   @@index([deviceId])
 }
+
+// One row per anonymous usage event (added 2026-10-26) - the raw material
+// for the admin analytics dashboard (client/src/AdminAnalytics.jsx) and,
+// later, for the audience numbers behind ad sales ("Eating Out in
+// Barcelona gets ~X views a month"). Captured by POST /api/events,
+// aggregated on demand by GET /api/analytics/* in server/index.js.
+//
+// Anonymous by design: deviceId is the same random client-generated id
+// Favourites already uses (client/src/deviceId.js), not a user account, and
+// nothing here records an IP address, precise location, or anything else
+// that identifies a person - see the "what to capture" discussion that
+// preceded this model. That keeps it out of consumer-account/GDPR territory
+// for now; revisit the privacy notice before launch regardless.
+//
+// eventType is free text at the DB level (same convention as Entry.types/
+// Entry.icon - no enum for a list that's expected to grow) but only ever
+// one of ANALYTICS_EVENT_TYPES in server/index.js, which POST /api/events
+// enforces:
+//   page_view     - a screen was opened (path always set; categorySlug set
+//                   only on a category's own list screen, so counting
+//                   page_views by categorySlug means "category screen views",
+//                   not "anything under /category/...")
+//   entry_view    - an Entry detail screen was opened (entryId, cityId and
+//                   categorySlug set) - the per-listing number an advertiser
+//                   actually cares about
+//   search        - a search finished (query + resultCount set; a
+//                   resultCount of 0 is a content gap worth filling)
+//   ad_impression / ad_click - reserved for sponsored slots, which don't
+//                   exist yet; accepted now so the capture side doesn't need
+//                   another deploy when they do
+//
+// cityId/entryId are deliberately plain Ints, not relations (contrast
+// Favourite.entry): history must survive an entry or city being deleted
+// rather than cascading away with it, and an extra foreign key on a table
+// written to on every page view buys nothing. The dashboard looks names up
+// itself and tolerates a missing row.
+model AnalyticsEvent {
+  id           Int      @id @default(autoincrement())
+  deviceId     String
+  eventType    String
+  cityId       Int?
+  categorySlug String?
+  entryId      Int?
+  path         String?
+  query        String?
+  resultCount  Int?
+  createdAt    DateTime @default(now())
+
+  // Every dashboard query filters on a time window plus an event type, so
+  // this one composite covers the common case; the other two serve the
+  // per-entry and per-device (unique visitors) rollups.
+  @@index([eventType, createdAt])
+  @@index([entryId])
+  @@index([deviceId])
+}

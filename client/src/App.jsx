@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './AuthProvider.jsx';
 import { FavouritesProvider } from './FavouritesProvider.jsx';
@@ -22,6 +23,11 @@ import PublicHolidays from './PublicHolidays.jsx';
 import HolidayDetail from './HolidayDetail.jsx';
 import AdminLogin from './AdminLogin.jsx';
 import AdminUsers from './AdminUsers.jsx';
+import { usePageTracking } from './usePageTracking.js';
+
+// Loaded on demand (only when /admin/analytics is opened) so the charting
+// library stays out of the bundle every public visitor downloads.
+const AdminAnalytics = lazy(() => import('./AdminAnalytics.jsx'));
 
 function App() {
   return (
@@ -53,6 +59,7 @@ function App() {
 function AppRoutes() {
   const { loading } = useCity();
   const location = useLocation();
+  usePageTracking();
 
   // Search renders as an overlay on top of whichever screen was showing
   // when it was opened, rather than replacing it outright (2026-08-31,
@@ -145,6 +152,15 @@ function AppRoutes() {
             public nav, see claude/todo.md's "Login entry point" discussion. */}
         <Route path="/admin" element={<AdminLogin />} />
         <Route path="/admin/users" element={<AdminUsers />} />
+        {/* Usage numbers for the team (ADMIN/EDITOR) - see AdminAnalytics.jsx. */}
+        <Route
+          path="/admin/analytics"
+          element={
+            <Suspense fallback={<LoadingScreen />}>
+              <AdminAnalytics />
+            </Suspense>
+          }
+        />
       </Routes>
 
       {/* Rendered a second time, as a sibling, only when there's a

@@ -53,6 +53,11 @@ function AdminLogin() {
                 Manage team
               </Link>
             )}
+            {(user.role === 'ADMIN' || user.role === 'EDITOR') && (
+              <Link to="/admin/analytics" className="admin-login-link">
+                Analytics
+              </Link>
+            )}
             <button type="button" className="admin-login-logout" onClick={logout}>
               Log out
             </button>

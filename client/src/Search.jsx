@@ -6,6 +6,7 @@ import { getCategoryConfig } from './categoryConfig.js';
 import { activityTypeHref } from './activityTypeHref.js';
 import { authHeaders } from './auth.js';
 import EntryCard from './EntryCard.jsx';
+import { trackEvent } from './trackEvent.js';
 
 // How long to wait after the last keystroke before firing a request -
 // short enough to feel instant, long enough that a fast typist doesn't
@@ -140,6 +141,14 @@ function Search() {
         .then((data) => {
           setResults(data);
           setResultsForQuery(trimmedQuery);
+          // One event per completed (already debounced) search, with how
+          // many results it returned - zero-result searches are the
+          // content-gap signal on the analytics dashboard.
+          trackEvent('search', {
+            cityId: city.id,
+            query: trimmedQuery,
+            resultCount: Array.isArray(data) ? data.length : undefined,
+          });
         })
         .catch((err) => {
           console.error('Search failed:', err);

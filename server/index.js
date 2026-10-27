@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const { v2: cloudinary } = require('cloudinary');
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient, Prisma } = require('@prisma/client');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -1650,6 +1650,302 @@ app.get('/api/cities/:cityId/search', async (req, res) => {
   results.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
 
   res.json(results.slice(0, 30).map(({ rank, ...item }) => item));
+});
+
+// ---------------------------------------------------------------------------
+// Analytics (added 2026-10-26) - anonymous usage events, see AnalyticsEvent
+// in schema.prisma for what's captured and why. Two halves:
+//   POST /api/events        public, fire-and-forget, written to by the client
+//                           (client/src/trackEvent.js)
+//   GET  /api/analytics/*   team-only (ADMIN/EDITOR), read by the dashboard
+//                           (client/src/AdminAnalytics.jsx)
+// ---------------------------------------------------------------------------
+
+const ANALYTICS_EVENT_TYPES = new Set(['page_view', 'entry_view', 'search', 'ad_impression', 'ad_click']);
+
+// Obvious crawlers/headless browsers/link-preview fetchers - dropped
+// rather than stored, so the numbers shown to advertisers aren't inflated
+// by traffic that isn't a person. Best-effort only: a crawler that lies
+// about its user agent still gets through.
+const BOT_USER_AGENT = /bot|crawl|spider|slurp|headless|lighthouse|facebookexternalhit|preview/i;
+
+// Cheap abuse guard for an endpoint anyone can call: at most this many
+// events per IP per minute, kept in memory only (resets on a restart,
+// which is fine). Generous on purpose - a hotel's or café's shared wifi
+// puts many real visitors behind one IP. The IP is only ever a Map key
+// here and is never written to the database (see AnalyticsEvent).
+const EVENT_LIMIT_PER_MINUTE = 300;
+const eventHits = new Map(); // ip -> { count, resetAt }
+
+// Render (like most hosts) sits behind a proxy that appends the real client
+// address as the LAST X-Forwarded-For entry; earlier entries are whatever
+// the client claimed, so they can't be trusted. No header at all means a
+// direct connection (local dev).
+function clientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return String(forwarded).split(',').pop().trim();
+  return req.socket.remoteAddress || 'unknown';
+}
+
+function overEventLimit(ip) {
+  const now = Date.now();
+  const hit = eventHits.get(ip);
+  if (!hit || hit.resetAt <= now) {
+    eventHits.set(ip, { count: 1, resetAt: now + 60 * 1000 });
+    return false;
+  }
+  hit.count += 1;
+  return hit.count > EVENT_LIMIT_PER_MINUTE;
+}
+
+// unref() so this housekeeping timer never keeps the process alive on its own.
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, hit] of eventHits) {
+    if (hit.resetAt <= now) eventHits.delete(ip);
+  }
+}, 60 * 1000).unref();
+
+const asEventInt = (v) => (Number.isInteger(v) && v >= 0 && v < 2147483647 ? v : null);
+const asEventText = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+
+// Always answers 204 for anything that was well-formed - including events
+// dropped as bot/over-limit traffic or lost to a database error - because
+// the client fires these and forgets them; there's nothing useful it could
+// do with a failure, and analytics must never be able to break browsing. A
+// malformed request (bug in the caller) still gets a 400 so it shows up in
+// the browser's network tab during development.
+app.post('/api/events', async (req, res) => {
+  const { deviceId, eventType, cityId, categorySlug, entryId, path, query, resultCount } = req.body || {};
+  if (typeof deviceId !== 'string' || deviceId.length < 8 || deviceId.length > 64) {
+    return res.status(400).json({ error: 'deviceId is required' });
+  }
+  if (!ANALYTICS_EVENT_TYPES.has(eventType)) {
+    return res.status(400).json({ error: 'Unknown eventType' });
+  }
+
+  if (BOT_USER_AGENT.test(req.get('user-agent') || '') || overEventLimit(clientIp(req))) {
+    return res.status(204).end();
+  }
+
+  try {
+    await prisma.analyticsEvent.create({
+      data: {
+        deviceId,
+        eventType,
+        cityId: asEventInt(cityId),
+        categorySlug: asEventText(categorySlug, 80),
+        entryId: asEventInt(entryId),
+        path: asEventText(path, 300),
+        query: asEventText(query, 200),
+        resultCount: asEventInt(resultCount),
+      },
+    });
+  } catch (err) {
+    console.error('Failed to record analytics event:', err);
+  }
+  res.status(204).end();
+});
+
+// Who may read the numbers. ADMIN and EDITOR for now (so a business
+// partner with an Editor account can use them for ad conversations); drop
+// 'EDITOR' here to make it admin-only. Tester/Creator never see it.
+const analyticsAccess = [requireAuth, requireRole('ADMIN', 'EDITOR')];
+
+// Shared by every analytics GET: `?days=` (default 30, max 365) and an
+// optional `?cityId=`. The window is whole UTC calendar days ending today,
+// so a 30-day chart is exactly 30 bars with no partial first day.
+function analyticsWindow(req) {
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+  since.setUTCDate(since.getUTCDate() - (days - 1));
+  const parsedCity = parseInt(req.query.cityId, 10);
+  const cityId = Number.isInteger(parsedCity) ? parsedCity : null;
+  return {
+    days,
+    since,
+    cityId,
+    // Prisma `where` fragment and raw-SQL fragment for the same optional
+    // city filter, so groupBy and $queryRaw call sites stay consistent.
+    cityWhere: cityId != null ? { cityId } : {},
+    citySql: cityId != null ? Prisma.sql`AND "cityId" = ${cityId}` : Prisma.empty,
+  };
+}
+
+// Headline numbers for the dashboard's top row. "Unique devices" is the
+// reach figure an advertiser asks for first - distinct anonymous device ids
+// with any event in the window (so a person on two devices counts twice,
+// and one who clears their browser data counts again).
+app.get('/api/analytics/overview', ...analyticsAccess, async (req, res) => {
+  try {
+    const win = analyticsWindow(req);
+    const [byType, devices] = await Promise.all([
+      prisma.analyticsEvent.groupBy({
+        by: ['eventType'],
+        where: { createdAt: { gte: win.since }, ...win.cityWhere },
+        _count: { eventType: true },
+      }),
+      prisma.$queryRaw`
+        SELECT COUNT(DISTINCT "deviceId")::int AS n
+        FROM "AnalyticsEvent"
+        WHERE "createdAt" >= ${win.since} ${win.citySql}
+      `,
+    ]);
+    const count = (type) => byType.find((r) => r.eventType === type)?._count.eventType ?? 0;
+    res.json({
+      days: win.days,
+      uniqueDevices: devices[0]?.n ?? 0,
+      pageViews: count('page_view'),
+      entryViews: count('entry_view'),
+      searches: count('search'),
+    });
+  } catch (err) {
+    console.error('analytics overview failed:', err);
+    res.status(500).json({ error: 'Could not load analytics' });
+  }
+});
+
+// One point per day for the line chart, zero-filled so a quiet day shows as
+// a dip rather than being silently skipped. `eventType` is limited to the
+// ones that make sense as a trend line.
+app.get('/api/analytics/views-over-time', ...analyticsAccess, async (req, res) => {
+  try {
+    const win = analyticsWindow(req);
+    const eventType = ['page_view', 'entry_view', 'search'].includes(req.query.eventType)
+      ? req.query.eventType
+      : 'page_view';
+    const rows = await prisma.$queryRaw`
+      SELECT date_trunc('day', "createdAt") AS day,
+             COUNT(*)::int AS count,
+             COUNT(DISTINCT "deviceId")::int AS devices
+      FROM "AnalyticsEvent"
+      WHERE "eventType" = ${eventType} AND "createdAt" >= ${win.since} ${win.citySql}
+      GROUP BY 1
+      ORDER BY 1
+    `;
+    const byDay = new Map(rows.map((r) => [r.day.toISOString().slice(0, 10), r]));
+    const points = [];
+    for (let i = 0; i < win.days; i += 1) {
+      const d = new Date(win.since);
+      d.setUTCDate(d.getUTCDate() + i);
+      const key = d.toISOString().slice(0, 10);
+      points.push({ day: key, count: byDay.get(key)?.count ?? 0, devices: byDay.get(key)?.devices ?? 0 });
+    }
+    res.json(points);
+  } catch (err) {
+    console.error('analytics views-over-time failed:', err);
+    res.status(500).json({ error: 'Could not load analytics' });
+  }
+});
+
+// Most-viewed listings - the per-entry number to put in front of a
+// restaurant considering a promoted slot. Entry names are looked up
+// separately (AnalyticsEvent.entryId isn't a relation); an entry deleted
+// since still shows, labelled by id, rather than vanishing from history.
+app.get('/api/analytics/top-entries', ...analyticsAccess, async (req, res) => {
+  try {
+    const win = analyticsWindow(req);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+    const rows = await prisma.analyticsEvent.groupBy({
+      by: ['entryId'],
+      where: {
+        eventType: 'entry_view',
+        entryId: { not: null },
+        createdAt: { gte: win.since },
+        ...win.cityWhere,
+      },
+      _count: { entryId: true },
+      orderBy: { _count: { entryId: 'desc' } },
+      take: limit,
+    });
+    const entries = await prisma.entry.findMany({
+      where: { id: { in: rows.map((r) => r.entryId) } },
+      select: { id: true, name: true, category: { select: { name: true } }, city: { select: { name: true } } },
+    });
+    const byId = new Map(entries.map((e) => [e.id, e]));
+    res.json(
+      rows.map((r) => {
+        const entry = byId.get(r.entryId);
+        return {
+          entryId: r.entryId,
+          name: entry?.name ?? `Entry #${r.entryId} (deleted)`,
+          category: entry?.category.name ?? null,
+          city: entry?.city.name ?? null,
+          views: r._count.entryId,
+        };
+      })
+    );
+  } catch (err) {
+    console.error('analytics top-entries failed:', err);
+    res.status(500).json({ error: 'Could not load analytics' });
+  }
+});
+
+// Per category: how often its own list screen was opened vs how often one
+// of its entries was opened - together they show whether a category is just
+// browsed or actually drives people into listings.
+app.get('/api/analytics/views-by-category', ...analyticsAccess, async (req, res) => {
+  try {
+    const win = analyticsWindow(req);
+    const [screens, entries] = await Promise.all(
+      ['page_view', 'entry_view'].map((eventType) =>
+        prisma.analyticsEvent.groupBy({
+          by: ['categorySlug'],
+          where: { eventType, categorySlug: { not: null }, createdAt: { gte: win.since }, ...win.cityWhere },
+          _count: { categorySlug: true },
+        })
+      )
+    );
+    const totals = new Map();
+    for (const r of screens) totals.set(r.categorySlug, { slug: r.categorySlug, screenViews: r._count.categorySlug, entryViews: 0 });
+    for (const r of entries) {
+      const row = totals.get(r.categorySlug) ?? { slug: r.categorySlug, screenViews: 0, entryViews: 0 };
+      row.entryViews = r._count.categorySlug;
+      totals.set(r.categorySlug, row);
+    }
+    const categories = await prisma.category.findMany({
+      where: { slug: { in: [...totals.keys()] } },
+      select: { slug: true, name: true },
+    });
+    const nameBySlug = new Map(categories.map((c) => [c.slug, c.name]));
+    res.json(
+      [...totals.values()]
+        .map((row) => ({ ...row, name: nameBySlug.get(row.slug) ?? row.slug }))
+        .sort((a, b) => b.screenViews + b.entryViews - (a.screenViews + a.entryViews))
+    );
+  } catch (err) {
+    console.error('analytics views-by-category failed:', err);
+    res.status(500).json({ error: 'Could not load analytics' });
+  }
+});
+
+// What people typed, grouped case-insensitively. `noResults` lists terms
+// whose searches have only ever returned nothing - the clearest signal of
+// missing content - and `top` is simply the most-searched terms overall.
+app.get('/api/analytics/searches', ...analyticsAccess, async (req, res) => {
+  try {
+    const win = analyticsWindow(req);
+    const rows = await prisma.$queryRaw`
+      SELECT lower(trim("query")) AS term,
+             COUNT(*)::int AS searches,
+             MAX("resultCount")::int AS "maxResults"
+      FROM "AnalyticsEvent"
+      WHERE "eventType" = 'search' AND "query" IS NOT NULL
+        AND "createdAt" >= ${win.since} ${win.citySql}
+      GROUP BY 1
+      ORDER BY searches DESC
+      LIMIT 200
+    `;
+    const terms = rows.map((r) => ({ term: r.term, searches: r.searches, noResults: r.maxResults === 0 }));
+    res.json({
+      top: terms.slice(0, 15),
+      noResults: terms.filter((t) => t.noResults).slice(0, 15),
+    });
+  } catch (err) {
+    console.error('analytics searches failed:', err);
+    res.status(500).json({ error: 'Could not load analytics' });
+  }
 });
 
 const PORT = process.env.PORT || 3000;

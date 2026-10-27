@@ -25,6 +25,7 @@ import { formatEntryAddress } from './address.js';
 // import EntryLocationMap from './EntryLocationMap.jsx';
 import EntryWalkingTime from './EntryWalkingTime.jsx';
 import FavouriteButton from './FavouriteButton.jsx';
+import { trackEvent } from './trackEvent.js';
 
 // Prefixes a bare domain (e.g. "restaurant.com", typed without a scheme -
 // see the hint on EntryEditor.jsx's Website field, which doesn't enforce
@@ -148,6 +149,24 @@ function EntryDetail() {
   }, [entryId, cityDataReady, cachedEntry]);
 
   const entry = cachedEntry ?? fetchedEntry;
+
+  // One entry_view per entry opened (2026-10-26, see trackEvent.js) - the
+  // per-listing number shown to advertisers. Keyed on the entry's id and
+  // fired only once the entry has actually resolved, so a not-found link
+  // never counts and the cache-then-fetch path can't double count. Uses
+  // the entry's own cityId/category rather than the currently-selected
+  // city, since a shared link can open an entry from another city.
+  const viewedEntryId = entry?.id;
+  const viewedCityId = entry?.cityId;
+  const viewedCategorySlug = entry?.category?.slug;
+  useEffect(() => {
+    if (viewedEntryId == null) return;
+    trackEvent('entry_view', {
+      entryId: viewedEntryId,
+      cityId: viewedCityId,
+      categorySlug: viewedCategorySlug,
+    });
+  }, [viewedEntryId, viewedCityId, viewedCategorySlug]);
 
   const showMetaRow = config.cardVariant === 'venue' || config.cardVariant === 'photo';
 
