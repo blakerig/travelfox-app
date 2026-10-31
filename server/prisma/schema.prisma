@@ -533,6 +533,19 @@ model ShopType {
 model Entry {
   id             Int           @id @default(autoincrement())
   name           String
+  // Local-language name (2026-10-31) - Local Cuisine only. For a dish
+  // commonly known by a Spanish name but with a distinct name in the
+  // region's own language (e.g. "Pan con Tomate" vs. Catalan "Pa amb
+  // Tomaquet"), `name` stays whichever name a visitor is most likely to
+  // actually encounter (see the project's own notes on dish naming), and
+  // this field holds the local-language name instead. Rendered as a small
+  // pill directly beside the name - see .entry-card-local-name-badge in
+  // EntryCard.jsx/.css and the equivalent in EntryDetail.jsx/.css - only
+  // when non-blank, so every other category and any Local Cuisine entry
+  // that doesn't need it are unaffected. Editable from EntryEditor.jsx,
+  // gated on isLocalCuisine there the same way isEatingOut/isEssentials
+  // gate their own category-specific fields above.
+  localName      String?
   // Optional short, punchy blurb for card display. When present, the card
   // shows this instead of a truncated snippet of `description` - lets an
   // entry get a hand-written hook instead of relying on the first line of

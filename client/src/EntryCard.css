@@ -172,6 +172,50 @@
   margin-bottom: 4px;
 }
 
+/* Local-language name badge (2026-10-31) - Local Cuisine only (see
+   Entry.localName in schema.prisma). Shows the dish's name in the local/
+   regional language (e.g. Catalan) right next to the heading name, which
+   stays whichever name - English or Spanish - is judged most recognisable
+   to a visitor. Only rendered when localName is set, so every other
+   category and most Local Cuisine entries are unaffected. Deliberately a
+   small inline pill next to the text it's annotating, not another photo
+   overlay like the open/status/favourite badges above - it's describing
+   the name, not flagging something about the entry as a whole. The
+   terracotta tint echoes the Local Cuisine category icon's own colour
+   (see client/src/assets/icon-local-cuisine.png) rather than reusing the
+   status badges' grey/orange, so it reads as "extra naming detail", not
+   a draft/review flag. See the equivalent .entry-detail-local-name-badge
+   in EntryDetail.css for the standalone entry page. */
+.entry-card-name-local-row {
+  display: flex;
+  align-items: baseline;
+  /* Pushes the badge to the row's far right rather than sitting
+     immediately after the name text (2026-10-31, Blake's call). */
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  /* Same spacing .entry-card-name itself used to provide before the meta
+     line/snippet below, moved up here since the name's own margin is
+     zeroed out below to avoid doubling it when the badge is present. */
+  margin-bottom: 4px;
+}
+
+.entry-card-name-local-row .entry-card-name {
+  margin-bottom: 0;
+}
+
+.entry-card-local-name-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #b5563a;
+  background: rgba(181, 86, 58, 0.12);
+  white-space: nowrap;
+}
+
 .entry-card-meta {
   display: flex;
   flex-wrap: wrap;

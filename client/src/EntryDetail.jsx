@@ -237,7 +237,16 @@ function EntryDetail() {
 
       {entry && (
         <div className="entry-detail-body">
-          <h1 className="entry-detail-name">{entry.name}</h1>
+          <div className="entry-detail-name-row">
+            <h1 className="entry-detail-name">{entry.name}</h1>
+            {/* Local-language name (e.g. Catalan) - Local Cuisine only in
+                practice, since entry.localName is only ever populated there -
+                see Entry.localName in schema.prisma and the equivalent badge
+                in EntryCard.jsx. */}
+            {entry.localName && (
+              <div className="entry-detail-local-name-badge">{entry.localName}</div>
+            )}
+          </div>
 
           {showMetaRow && (
             <div className="entry-detail-meta">

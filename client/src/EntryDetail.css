@@ -56,11 +56,40 @@
   padding: 12px 20px 0;
 }
 
+/* Wraps the heading + the optional local-language name badge together -
+   see .entry-detail-local-name-badge below. */
+.entry-detail-name-row {
+  display: flex;
+  align-items: baseline;
+  /* Pushes the badge to the row's far right, same as
+     .entry-card-name-local-row in EntryCard.css. */
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .entry-detail-name {
   font-size: 24px;
   font-weight: 700;
   margin: 4px 0 8px;
   line-height: 1.25;
+}
+
+/* Local-language name badge (2026-10-31) - same idea and styling as
+   .entry-card-local-name-badge in EntryCard.css (duplicated rather than
+   shared across files, same approach this file already takes elsewhere -
+   see the 4:3 photo crop comment on .entry-detail-photo below). Local
+   Cuisine only in practice - see Entry.localName in schema.prisma. */
+.entry-detail-local-name-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b5563a;
+  background: rgba(181, 86, 58, 0.12);
+  white-space: nowrap;
 }
 
 .entry-detail-meta {

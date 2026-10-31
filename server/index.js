@@ -566,7 +566,7 @@ app.get('/api/entries/:id', async (req, res) => {
 // doesn't get called until the user actually hits Save there, so there's no
 // window where a half-empty stub entry exists in the database.
 app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
-  const { cityId, categoryId, name, summary, description, types, phone, website, openingTimes, photoUrl, icon, priceInfo, priceLevel, notes, activityTypeId, shopTypeId, address, latitude, longitude, status } = req.body;
+  const { cityId, categoryId, name, localName, summary, description, types, phone, website, openingTimes, photoUrl, icon, priceInfo, priceLevel, notes, activityTypeId, shopTypeId, address, latitude, longitude, status } = req.body;
 
   if (!cityId || !categoryId) {
     return res.status(400).json({ error: 'cityId and categoryId are required' });
@@ -617,6 +617,7 @@ app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'),
     const entry = await prisma.entry.create({
       data: {
         name,
+        localName: localName || null,
         status: resolvedStatus,
         summary: summary || null,
         description: description || null,
@@ -668,7 +669,7 @@ app.post('/api/entries', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'),
 // project notes if/when this needs to grow into a full editor.
 app.patch('/api/entries/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, summary, description, types, phone, website, openingTimes, photoUrl, icon, priceInfo, priceLevel, notes, address, latitude, longitude, status } = req.body;
+  const { name, localName, summary, description, types, phone, website, openingTimes, photoUrl, icon, priceInfo, priceLevel, notes, address, latitude, longitude, status } = req.body;
 
   const data = {};
   if (name !== undefined) {
@@ -677,6 +678,7 @@ app.patch('/api/entries/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADM
     }
     data.name = name;
   }
+  if (localName !== undefined) data.localName = localName === '' ? null : localName;
   if (summary !== undefined) data.summary = summary === '' ? null : summary;
   if (description !== undefined) data.description = description === '' ? null : description;
   if (types !== undefined) data.types = Array.isArray(types) ? types : [];

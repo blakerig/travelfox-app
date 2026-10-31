@@ -251,7 +251,15 @@ function EntryCard({
 
     const body = (
       <div className="entry-card-body">
-        <div className="entry-card-name">{entry.name}</div>
+        <div className="entry-card-name-local-row">
+          <div className="entry-card-name">{entry.name}</div>
+          {/* Local-language name (e.g. Catalan) - Local Cuisine only in
+              practice, since entry.localName is only ever populated there -
+              see Entry.localName in schema.prisma. */}
+          {entry.localName && (
+            <div className="entry-card-local-name-badge">{entry.localName}</div>
+          )}
+        </div>
 
         {hasMeta && (
           <div className="entry-card-meta">

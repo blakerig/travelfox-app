@@ -87,6 +87,9 @@ function EntryEditor() {
   // select) for Eating Out, priceInfo (free text) for every other
   // non-Essentials category - see the priceLevel doc comment above.
   const isEatingOut = slug === 'eating-out';
+  // Gates the Local name field below (Local Cuisine only) - see the
+  // Entry.localName doc comment in schema.prisma.
+  const isLocalCuisine = slug === 'local-cuisine';
   // Hides Type and Price for Shopping (2026-10-12, Blake's call) - neither
   // field really applies to a shop the way it does to a restaurant/
   // sightseeing entry (no cuisine/place-type tag, no single headline
@@ -152,6 +155,7 @@ function EntryEditor() {
   const [categoryLoadError, setCategoryLoadError] = useState(false);
 
   const [name, setName] = useState('');
+  const [localName, setLocalName] = useState('');
   const [summary, setSummary] = useState('');
   // Held as a plain comma-separated string while editing (e.g. "Tapas,
   // Catalan"), not an array - simplest possible UI for a field that can now
@@ -245,6 +249,7 @@ function EntryEditor() {
     setCategoryLoadError(false);
     setError(null);
     setName('');
+    setLocalName('');
     setSummary('');
     setTypesInput('');
     setPhone('');
@@ -283,6 +288,7 @@ function EntryEditor() {
       setPopulatedEntryId(entryId);
       setEntry(data);
       setName(data.name ?? '');
+      setLocalName(data.localName ?? '');
       setSummary(data.summary ?? '');
       setTypesInput((data.types ?? []).join(', '));
       setPhone(data.phone ?? '');
@@ -585,6 +591,7 @@ function EntryEditor() {
             cityId: city.id,
             categoryId,
             name,
+            localName: localName.trim() || null,
             status,
             summary,
             types: parseTypesInput(typesInput),
@@ -609,6 +616,7 @@ function EntryEditor() {
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({
             name,
+            localName: localName.trim() || null,
             // Omitted (not just re-sent as PUBLISHED) when a creator is
             // looking at an already-published entry they can't touch the
             // status of - see the read-only display below. Sending it
@@ -717,6 +725,25 @@ function EntryEditor() {
               autoFocus={isCreate}
             />
           </label>
+
+          {isLocalCuisine && (
+            <label className="entry-editor-field">
+              <span className="entry-editor-label">Local name (optional)</span>
+              <input
+                type="text"
+                value={localName}
+                onChange={(e) => setLocalName(e.target.value)}
+                className="entry-editor-input"
+                placeholder="e.g. Pa amb Tomaquet"
+              />
+              <p className="entry-editor-hint">
+                The dish's name in the local/regional language, if it differs from the
+                name above (which should stay whichever name a visitor's actually most
+                likely to recognise). Shown as a small badge next to the name. Leave
+                blank if there's no separate local-language name worth calling out.
+              </p>
+            </label>
+          )}
 
           <div className="entry-editor-field">
             <span className="entry-editor-label">Status</span>
