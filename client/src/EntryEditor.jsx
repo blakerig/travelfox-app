@@ -28,14 +28,17 @@ import './EntryEditor.css';
 // Essentials hides the venue-shaped fields (2026-09-13) - Type, Phone,
 // Website, Address, Coordinates, Opening times, Price - since Essentials
 // entries (airport, language, money, etc.) are reference content, not
-// venues, and these fields never made sense to fill in for them. They're
-// still fully supported server-side (unaffected for every other category);
-// this is purely a client-side display decision, gated on isEssentials
-// below, not a schema/API change. If an Essentials entry already has values
-// in any of these fields (e.g. from before this change), they're simply not
-// editable here anymore rather than being cleared - Save only ever sends
-// the fields this form actually shows plus whatever state each hidden
-// field's useState already held, so a hidden field's last-loaded value is
+// venues, and these fields never made sense to fill in for them. Local
+// Cuisine hides the same set (2026-10-31) for the same reason - a dish/
+// drink entry isn't a place with its own hours/phone/address either.
+// They're still fully supported server-side (unaffected for every other
+// category); this is purely a client-side display decision, gated on
+// isEssentials/isLocalCuisine below, not a schema/API change. If an entry
+// already has values in any of these fields (e.g. from before this change,
+// or from when it was a different category), they're simply not editable
+// here anymore rather than being cleared - Save only ever sends the fields
+// this form actually shows plus whatever state each hidden field's
+// useState already held, so a hidden field's last-loaded value is
 // preserved on save, not blanked out.
 //
 // Deliberately scoped to text/string fields only, matching the server's
@@ -826,9 +829,11 @@ function EntryEditor() {
 
           {/* Type/Phone/Website/Address/Coordinates/Opening times/Price are
               venue-shaped fields that don't apply to Essentials (reference
-              content like airport/language/money, not places) - hidden
-              here rather than removed, see the file comment at the top. */}
-          {!isEssentials && (
+              content like airport/language/money, not places) or to Local
+              Cuisine (a dish/drink entry, not a place with its own hours/
+              phone/address) - hidden here rather than removed, see the
+              file comment at the top. */}
+          {!isEssentials && !isLocalCuisine && (
             <>
               {/* Also hidden for Shopping - see the isShopping doc comment
                   near the top of this file. */}
