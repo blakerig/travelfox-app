@@ -112,6 +112,7 @@ function Favourites() {
           currencySymbol={currencySymbol}
           showPrice={config.cardShowPrice ?? true}
           showPhone={config.cardShowPhone ?? false}
+          showType={config.cardShowType ?? true}
           countryCode={city.country?.code}
           showOpenStatus={config.cardShowOpenStatus ?? false}
           timezone={city.timezone}
@@ -133,6 +134,7 @@ function Favourites() {
           currencySymbol={currencySymbol}
           showPrice={config.cardShowPrice ?? true}
           showPhone={config.cardShowPhone ?? false}
+          showType={config.cardShowType ?? true}
           countryCode={city.country?.code}
           showOpenStatus={config.cardShowOpenStatus ?? false}
           timezone={city.timezone}

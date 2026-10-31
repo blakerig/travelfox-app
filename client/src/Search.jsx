@@ -259,6 +259,7 @@ function Search() {
                       currencySymbol={currencySymbol}
                       showPrice={config.cardShowPrice ?? true}
                       showPhone={config.cardShowPhone ?? false}
+                      showType={config.cardShowType ?? true}
                       countryCode={countryCode}
                       showOpenStatus={config.cardShowOpenStatus ?? false}
                       timezone={city?.timezone}

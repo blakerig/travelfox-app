@@ -135,6 +135,7 @@ function EntryCard({
   currencySymbol = '$',
   showPrice = true,
   showPhone = false,
+  showType = true,
   countryCode,
   showOpenStatus = false,
   timezone,
@@ -170,7 +171,11 @@ function EntryCard({
     // Japanese/Mexican fusion place) - joined into one comma-separated
     // label for the card's compact meta line, same spot the single value
     // used to render.
-    const typesLabel = entry.types?.length ? entry.types.join(', ') : null;
+    // showType (2026-10-31, Local Cuisine only - see cardShowType in
+    // categoryConfig.js) hides this without touching entry.types itself -
+    // same "hide, don't clear" approach as EntryEditor.jsx's isLocalCuisine
+    // field gating.
+    const typesLabel = showType && entry.types?.length ? entry.types.join(', ') : null;
     const formattedPhone = showPhone ? formatPhoneNumber(entry.phone, countryCode) : null;
     const showPhoneMeta = Boolean(formattedPhone);
 

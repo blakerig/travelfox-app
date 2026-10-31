@@ -295,6 +295,11 @@ export const CATEGORY_CONFIG = {
     title: 'Local Cuisine',
     cardVariant: 'photo',
     cardShowPrice: false,
+    // Type was being used for a Spanish-general/Catalan/other-region
+    // label (2026-10-31) - hidden from the card for now (not removed -
+    // still fully supported server-side and in the data) while it's
+    // reconsidered; see EntryCard.jsx's showType prop.
+    cardShowType: false,
     // See the expandInPlace doc comment above.
     expandInPlace: true,
     sortOptions: null,
