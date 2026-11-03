@@ -23,6 +23,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
 // build itself) are allowed through - the check below only applies to
 // actual browser cross-origin requests.
 const allowedOrigins = [
+  'https://app.thecitytrail.com',
   'https://travelfox-app.vercel.app', // production client (Vercel)
   'http://localhost:5173',            // local Vite dev server
 ];
