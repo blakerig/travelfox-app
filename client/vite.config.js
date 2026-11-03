@@ -23,6 +23,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Let static pages in public/ (e.g. the beta install guide at
+      // /install.html) load as themselves. Without this, the service worker
+      // answers every page navigation with the app's index.html, so the
+      // React router shows its "doesn't exist" screen instead of the guide.
+      workbox: {
+        navigateFallbackDenylist: [/^\/install/],
+      },
       devOptions: {
         enabled: true,
       },
