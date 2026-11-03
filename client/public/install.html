@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Install TravelFox Beta</title>
+<meta name="description" content="How to install the TravelFox beta app on your Android phone or iPhone.">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+/* Layout: a single phone-width column; a "boarding pass" URL card up top, then a two-way platform switch and numbered steps that mirror what the tester sees on screen. */
+:root {
+  --bg: #fbf8f4;
+  --surface: #ffffff;
+  --ink: #1d1a17;
+  --muted: #6b625a;
+  --line: #e8e0d6;
+  --fox: #e8650f;
+  --fox-soft: #fdeadb;
+  --fox-ink: #b44c06;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #161310; --surface: #211c18; --ink: #f3ece4; --muted: #a99e92; --line: #352d26;
+  --fox: #ff8a3d; --fox-soft: #3a2415; --fox-ink: #ffa565; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #161310; --surface: #211c18; --ink: #f3ece4; --muted: #a99e92; --line: #352d26;
+  --fox: #ff8a3d; --fox-soft: #3a2415; --fox-ink: #ffa565; color-scheme: dark; }
+
+body { background: var(--bg); color: var(--ink); font: 17px/1.55 var(--body); }
+.wrap { max-width: 560px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 28px; }
+
+.eyebrow { font: 700 12px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--fox-ink); }
+h1 { font: 800 clamp(34px, 9vw, 48px)/1.02 var(--display); letter-spacing: -.02em; margin: 10px 0 12px; text-wrap: balance; }
+h1 span { color: var(--fox); }
+h2 { font: 600 22px/1.2 var(--display); margin: 0; text-wrap: balance; }
+h3 { font: 700 15px/1.3 var(--body); margin: 0 0 4px; }
+p { margin: 0; }
+.lede { color: var(--muted); max-width: 60ch; }
+
+/* URL ticket */
+.ticket { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; display: grid; grid-template-columns: 1fr auto; overflow: hidden; }
+.ticket .main { padding: 18px 20px; min-width: 0; }
+.ticket .label { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.ticket .url { font: 600 clamp(17px, 5vw, 21px)/1.3 var(--display); word-break: break-all; margin-top: 4px; user-select: all; }
+.ticket .stub { border-left: 2px dashed var(--line); display: flex; align-items: center; padding: 0 16px; background: var(--fox-soft); }
+button { font: 700 15px var(--body); cursor: pointer; border-radius: 999px; border: 0; padding: 10px 16px; }
+.copy { background: var(--fox); color: #fff; }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--fox); outline-offset: 2px; }
+.ticket .note { grid-column: 1 / -1; border-top: 1px solid var(--line); padding: 10px 20px; font-size: 14px; color: var(--muted); }
+
+/* Platform switch */
+.switch { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px; gap: 4px; }
+.switch button { background: transparent; color: var(--muted); padding: 12px; }
+.switch button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+.detected { font-size: 14px; color: var(--muted); margin-top: -18px; text-align: center; }
+
+.panel { display: flex; flex-direction: column; gap: 18px; }
+.browser-note { font-size: 15px; background: var(--fox-soft); color: var(--ink); border-radius: 12px; padding: 12px 16px; }
+.browser-note strong { color: var(--fox-ink); }
+
+ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; counter-reset: s; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 40px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+ol.steps li:last-child { border-bottom: 0; }
+ol.steps li::before { content: counter(s); width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--fox); color: var(--fox-ink);
+  display: grid; place-items: center; font: 800 17px var(--display); }
+ol.steps li > div { min-width: 0; }
+ol.steps p { color: var(--muted); font-size: 16px; }
+.ui { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 7px; padding: 0 7px; white-space: nowrap; font-size: 15px; vertical-align: 1px; }
+.ui svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; }
+details + details { margin-top: -18px; }
+summary { font-weight: 700; cursor: pointer; }
+details p { color: var(--muted); margin-top: 8px; font-size: 16px; }
+.faq h2 { margin-bottom: 4px; }
+.faq { display: flex; flex-direction: column; gap: 10px; }
+.faq details + details { margin-top: 0; }
+footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Beta tester guide</div>
+    <h1>Put Travel<span>Fox</span> on your home screen</h1>
+    <p class="lede">TravelFox isn't in the app stores yet. You install it straight from the web instead. It takes under a minute, needs no download from a store, and then opens full-screen from its own icon like any other app.</p>
+  </header>
+
+  <section class="ticket" aria-label="App address">
+    <div class="main">
+      <div class="label">Open this on your phone</div>
+      <div class="url" id="url">app.thecitytrail.com</div>
+    </div>
+    <div class="stub"><button class="copy" id="copy" type="button">Copy</button></div>
+    <div class="note">Reading this on a computer? Type the address into your phone's browser, or send it to yourself.</div>
+  </section>
+
+  <div class="switch" role="tablist" aria-label="Choose your phone">
+    <button role="tab" id="tab-android" aria-controls="android" aria-selected="true" type="button">Android</button>
+    <button role="tab" id="tab-ios" aria-controls="ios" aria-selected="false" type="button">iPhone</button>
+  </div>
+  <p class="detected" id="detected" hidden></p>
+
+  <section class="panel" id="android" role="tabpanel" aria-labelledby="tab-android">
+    <h2>Android, using Chrome</h2>
+    <p class="browser-note"><strong>Use Chrome.</strong> It's the browser most Android phones come with. Samsung Internet also works; see the note under the steps.</p>
+    <ol class="steps">
+      <li><div><h3>Open the address in Chrome</h3><p>Go to app.thecitytrail.com and wait for TravelFox to finish loading.</p></div></li>
+      <li><div><h3>Open Chrome's menu</h3><p>Tap the <span class="ui"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>three dots</span> at the top right of the screen.</p></div></li>
+      <li><div><h3>Choose “Install app”</h3><p>Tap <span class="ui">Install app</span>. On some phones it's called <span class="ui">Add to home screen</span> instead. Chrome may also show an install bar at the bottom of the page by itself; tapping that does the same thing.</p></div></li>
+      <li><div><h3>Confirm</h3><p>Tap <span class="ui">Install</span>. The orange fox icon appears on your home screen or in your app drawer after a few seconds.</p></div></li>
+      <li><div><h3>Open it from the icon</h3><p>From now on, open TravelFox from its icon rather than from Chrome. It runs full-screen, without the address bar.</p></div></li>
+    </ol>
+    <details><summary>Using Samsung Internet?</summary><p>Tap the <span class="ui">☰ menu</span> at the bottom right, then <span class="ui">Add page to</span>, then <span class="ui">Home screen</span>. Some versions show a download-arrow icon in the address bar that installs it in one tap.</p></details>
+  </section>
+
+  <section class="panel" id="ios" role="tabpanel" aria-labelledby="tab-ios" hidden>
+    <h2>iPhone, using Safari</h2>
+    <p class="browser-note"><strong>Use Safari</strong> if you can. Chrome on iPhone can also do it with the same Share steps, but Safari is the most reliable.</p>
+    <ol class="steps">
+      <li><div><h3>Open the address in Safari</h3><p>Go to app.thecitytrail.com and wait for TravelFox to finish loading.</p></div></li>
+      <li><div><h3>Tap the Share button</h3><p>Tap <span class="ui"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11v9h12v-9"/></svg>Share</span>, the square with an arrow pointing up. On recent iOS versions you first tap <span class="ui">•••</span> at the bottom of the screen, then Share.</p></div></li>
+      <li><div><h3>Choose “Add to Home Screen”</h3><p>Scroll down the list that slides up and tap <span class="ui"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg>Add to Home Screen</span>. If you don't see it, tap <span class="ui">View More</span> or <span class="ui">Edit Actions</span> at the bottom of the list.</p></div></li>
+      <li><div><h3>Keep “Open as Web App” on, then Add</h3><p>If you see an <span class="ui">Open as Web App</span> switch, leave it on. Check the name says TravelFox and tap <span class="ui">Add</span> at the top right.</p></div></li>
+      <li><div><h3>Open it from the icon</h3><p>The fox icon is now on your home screen. Always open TravelFox from there, not from Safari, so it runs full-screen like an app.</p></div></li>
+    </ol>
+  </section>
+
+  <section class="faq">
+    <h2>Good to know</h2>
+    <details><summary>How do I get updates?</summary><p>You don't need to do anything. Each time you open TravelFox it checks for the latest version. If something looks out of date, close the app fully and open it again.</p></details>
+    <details><summary>The first load is slow</summary><p>During the beta our server goes to sleep when nobody is using it. The first time you open the app after a quiet spell it can take up to a minute to wake up. After that it's quick.</p></details>
+    <details><summary>I can't find the install option</summary><p>Make sure you're in Chrome (Android) or Safari (iPhone), not inside another app's built-in browser. Links opened from WhatsApp, Instagram or email often open in a mini-browser. Use its menu to choose “Open in Chrome” or “Open in Safari” first.</p></details>
+    <details><summary>How do I remove it?</summary><p>Treat it like any other app. Press and hold the TravelFox icon, then choose Uninstall (Android) or Remove App, then Delete (iPhone).</p></details>
+  </section>
+
+  <footer>Thanks for testing TravelFox. Spotted a bug or have an idea? Tell us. Every note helps us get the app ready for launch.</footer>
+</div>
+
+<script>
+(function () {
+  const tabs = { android: document.getElementById('tab-android'), ios: document.getElementById('tab-ios') };
+  const panels = { android: document.getElementById('android'), ios: document.getElementById('ios') };
+  function show(key) {
+    for (const k in tabs) {
+      const on = k === key;
+      tabs[k].setAttribute('aria-selected', on);
+      panels[k].hidden = !on;
+    }
+  }
+  tabs.android.addEventListener('click', () => show('android'));
+  tabs.ios.addEventListener('click', () => show('ios'));
+  document.querySelector('.switch').addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      const next = tabs.android.getAttribute('aria-selected') === 'true' ? 'ios' : 'android';
+      show(next); tabs[next].focus();
+    }
+  });
+
+  const ua = navigator.userAgent || '';
+  const det = document.getElementById('detected');
+  if (/iPhone|iPad|iPod/i.test(ua)) { show('ios'); det.textContent = 'Looks like you’re on an iPhone, so we’ve opened those steps.'; det.hidden = false; }
+  else if (/Android/i.test(ua)) { show('android'); det.textContent = 'Looks like you’re on Android, so we’ve opened those steps.'; det.hidden = false; }
+
+  const btn = document.getElementById('copy');
+  const url = 'https://app.thecitytrail.com';
+  btn.addEventListener('click', () => {
+    const done = () => { btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 1800); };
+    const fallback = () => {
+      const r = document.createRange(); r.selectNodeContents(document.getElementById('url'));
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = 'Selected';
+      setTimeout(() => btn.textContent = 'Copy', 1800);
+    };
+    try { navigator.clipboard.writeText(url).then(done, fallback); } catch (e) { fallback(); }
+  });
+})();
+</script>
+</body>
+</html>
