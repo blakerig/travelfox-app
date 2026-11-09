@@ -8,6 +8,8 @@ import { CityDataProvider } from './CityDataProvider.jsx';
 import LoadingScreen from './LoadingScreen.jsx';
 import Home from './Home.jsx';
 import Favourites from './Favourites.jsx';
+import More from './More.jsx';
+import About from './About.jsx';
 import CategoryScreen from './CategoryScreen.jsx';
 import EntryDetail from './EntryDetail.jsx';
 import EntryEditor from './EntryEditor.jsx';
@@ -105,6 +107,8 @@ function AppRoutes() {
         <Route path="/category/essentials/holidays/:slug" element={<HolidayDetail />} />
         <Route path="/neighbourhoods" element={<Neighbourhoods />} />
         <Route path="/favourites" element={<Favourites />} />
+        <Route path="/more" element={<More />} />
+        <Route path="/about" element={<About />} />
         {/* Shopping's type detail/edit screens (2026-09-15, see ShopType in
             schema.prisma) get their own literal-slug routes rather than
             sharing the generic :slug ones below with Activities - both

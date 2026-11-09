@@ -1,0 +1,72 @@
+/* Same page shell/tokens as Favourites.css/More.css - see About.jsx. */
+.about-screen {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+}
+
+.about-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 6px;
+}
+
+.about-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.about-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.about-intro {
+  margin: 4px 20px 16px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.about-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 16px;
+}
+
+.about-section {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--g-600);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.about-section h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.about-section p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+}

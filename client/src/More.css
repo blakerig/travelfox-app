@@ -1,0 +1,73 @@
+/* Same page shell/tokens as Favourites.css - see More.jsx. */
+.more-screen {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+.more-header {
+  padding: 20px 20px 12px;
+}
+
+.more-header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.more-list {
+  margin: 0 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.more-item + .more-item {
+  border-top: 1px solid var(--line);
+}
+
+.more-item-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.more-item-label {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.more-item-hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.more-item-chevron {
+  font-size: 22px;
+  color: var(--faint);
+  line-height: 1;
+}

@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import './BottomNav.css';
 
 // Persistent bottom tab bar (added 2026-09-18 alongside Favourites) - the
@@ -21,6 +21,8 @@ import './BottomNav.css';
 // matching bottom padding so the fixed bar never covers its own content -
 // see the padding-bottom rules in Home.css/Favourites.css.
 function BottomNav() {
+  const { pathname } = useLocation();
+  const isAboutPath = () => pathname === '/about';
   return (
     <nav className="bottom-nav" aria-label="Primary">
       <NavLink
@@ -59,6 +61,21 @@ function BottomNav() {
           />
         </svg>
         <span>Favourites</span>
+      </NavLink>
+      {/* "More" (2026-11-09) - home for app-level pages that aren't city
+          content: About now, Contact/Privacy/Advertise later. Replaced the
+          old trust line at the top of Home - see About.jsx. Stays
+          highlighted on /about too, since About is reached from here. */}
+      <NavLink
+        to="/more"
+        className={({ isActive }) => `bottom-nav-item${isActive || isAboutPath() ? ' is-active' : ''}`}
+      >
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
+          <line x1="4" y1="7" x2="20" y2="7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="4" y1="17" x2="20" y2="17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+        <span>More</span>
       </NavLink>
     </nav>
   );
