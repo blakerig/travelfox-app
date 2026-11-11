@@ -165,6 +165,46 @@
   padding: 12px 16px 14px;
 }
 
+/* Name/provider-count overlay for 'group' cards with a photo (2026-11-11,
+   replacing the plain text block that used to sit below the photo - see
+   the 'group' + photo doc comment in EntryCard.jsx). Dark bottom-up
+   gradient, not the 'reference' variant's left-to-right one
+   (.entry-card-reference-scrim below) - that variant's text sits beside
+   its photo, this text sits directly on top of it, so the fade needs to
+   darken evenly along the bottom edge regardless of what's in the photo
+   there, rather than fading toward one particular side. */
+.entry-card-photo-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 6, 13, 0) 45%, rgba(8, 6, 13, 0.75) 100%);
+}
+
+.entry-card-photo-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 14px;
+  color: #fff;
+}
+
+.entry-card-photo-overlay-name {
+  font-size: 15px;
+  font-weight: 600;
+  /* Belt-and-braces alongside the scrim above - a text-shadow keeps the
+     name readable even over a bright/busy patch of photo the gradient
+     hasn't fully darkened yet at this height. */
+  text-shadow: 0 1px 3px rgba(8, 6, 13, 0.6);
+}
+
+.entry-card-photo-overlay-count {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 3px rgba(8, 6, 13, 0.6);
+}
+
 .entry-card-name {
   font-size: 15px;
   font-weight: 600;

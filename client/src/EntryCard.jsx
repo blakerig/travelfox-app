@@ -43,11 +43,20 @@ function snippet(text, max = 120) {
 // 'restaurant' until Sightseeing started using the same layout, 2026-08-28
 // - see cardVariant in categoryConfig.js.) 'group' optionally shows a photo
 // too (2026-10-23, see ActivityType.photoUrl) - when entry.photoUrl is set
-// it gets the same photo-frame/entry-card-body wrapper as 'photo' above;
-// without one it stays the plain text-only card this always was. 'venue'
-// never shows a photo - Activities providers kept their own independent
-// photoUrl, but the Activities list itself shows the type's picture, not
-// each provider's, so there was no reason to add a frame there too.
+// it gets the same photo-frame wrapper as 'photo' above; without one it
+// stays the plain text-only card this always was. 'venue' never shows a
+// photo - Activities providers kept their own independent photoUrl, but
+// the Activities list itself shows the type's picture, not each
+// provider's, so there was no reason to add a frame there too.
+//
+// 'group' + photo overlays the name and provider count directly on the
+// photo itself (2026-11-11, replacing the earlier plain text block below
+// the photo - Blake found the picture alone didn't say which activity it
+// was until you read the text underneath). A dark bottom-up scrim (see
+// .entry-card-photo-scrim/-overlay in EntryCard.css) keeps that text
+// legible over any photo. The description snippet stays below the photo,
+// in its own .entry-card-body, exactly where it always was - only the
+// name/count moved, not the whole card's layout.
 //
 // 'reference' (Essentials only) got its own dedicated photo-card treatment
 // 2026-09-19 - a full-bleed background photo with a left-to-right scrim,
@@ -456,12 +465,37 @@ function EntryCard({
   );
 
   if (variant === 'group' && entry.photoUrl) {
+    const groupCount =
+      entry.entries?.length > 0 ? (
+        <span className="entry-card-photo-overlay-count">
+          {entry.entries.length} {entry.entries.length === 1 ? 'provider' : 'providers'}
+        </span>
+      ) : null;
     return (
       <div className={`entry-card entry-card-photo${statusCardClass}`}>
         <div className="entry-card-photo-frame">
           <img src={getEntryPhotoUrl(entry.photoUrl)} alt="" className="entry-card-photo-img" />
+          {/* Scrim + name/count live directly on the photo - see the
+              'group' + photo doc comment above and EntryCard.css. */}
+          <div className="entry-card-photo-scrim" aria-hidden="true" />
+          <div className="entry-card-photo-overlay">
+            <div className="entry-card-photo-overlay-name">{entry.name}</div>
+            {groupCount}
+          </div>
+          {/* Same floating top-right placement the 'photo' variant above
+              already gives this via .entry-card-photo-frame >
+              .entry-card-status-badge - reused as-is, no new CSS needed. */}
+          {statusBadge}
         </div>
-        <div className="entry-card-body">{groupNameAndMeta}</div>
+        {/* Omitted entirely (not just empty) when there's no description -
+            a type with a photo but no description text just shows the
+            photo with its name/count overlay and nothing below, rather
+            than an empty padded strip. */}
+        {previewText && (
+          <div className="entry-card-body">
+            <div className="entry-card-snippet">{snippet(previewText)}</div>
+          </div>
+        )}
       </div>
     );
   }
