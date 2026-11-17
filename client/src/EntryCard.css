@@ -165,18 +165,21 @@
   padding: 12px 16px 14px;
 }
 
-/* Name/provider-count overlay for 'group' cards with a photo (2026-11-11,
-   replacing the plain text block that used to sit below the photo - see
-   the 'group' + photo doc comment in EntryCard.jsx). Dark bottom-up
-   gradient, not the 'reference' variant's left-to-right one
-   (.entry-card-reference-scrim below) - that variant's text sits beside
-   its photo, this text sits directly on top of it, so the fade needs to
-   darken evenly along the bottom edge regardless of what's in the photo
-   there, rather than fading toward one particular side. */
+/* Name/provider-count/snippet overlay for 'group' cards with a photo
+   (2026-11-11, name/count; 2026-11-17, the description snippet joined
+   them too, dropping the plain .entry-card-body strip that used to sit
+   below the photo - see the 'group' + photo doc comment in
+   EntryCard.jsx). Dark bottom-up gradient, not the 'reference' variant's
+   left-to-right one (.entry-card-reference-scrim below) - that variant's
+   text sits beside its photo, this text sits directly on top of it, so
+   the fade needs to darken evenly along the bottom edge regardless of
+   what's in the photo there, rather than fading toward one particular
+   side. Starts higher up the photo (25%, was 45%) now that there's a
+   third line of text to keep legible, not just the name/count. */
 .entry-card-photo-scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(8, 6, 13, 0) 45%, rgba(8, 6, 13, 0.75) 100%);
+  background: linear-gradient(180deg, rgba(8, 6, 13, 0) 25%, rgba(8, 6, 13, 0.82) 100%);
 }
 
 .entry-card-photo-overlay {
@@ -201,6 +204,24 @@
   display: block;
   margin-top: 2px;
   font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 3px rgba(8, 6, 13, 0.6);
+}
+
+/* Description snippet, joined into the overlay 2026-11-17 (was its own
+   .entry-card-body strip below the photo - see EntryCard.jsx). Clamped to
+   two lines rather than left to grow with however long the type's
+   description happens to be - the photo's height is fixed by its aspect
+   ratio, not by how much text sits on it, so an unclamped snippet could
+   overflow past the scrim's darkened area on a longer description. */
+.entry-card-photo-overlay-snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.35;
   color: rgba(255, 255, 255, 0.85);
   text-shadow: 0 1px 3px rgba(8, 6, 13, 0.6);
 }

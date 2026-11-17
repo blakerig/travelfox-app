@@ -49,14 +49,15 @@ function snippet(text, max = 120) {
 // the Activities list itself shows the type's picture, not each
 // provider's, so there was no reason to add a frame there too.
 //
-// 'group' + photo overlays the name and provider count directly on the
-// photo itself (2026-11-11, replacing the earlier plain text block below
-// the photo - Blake found the picture alone didn't say which activity it
-// was until you read the text underneath). A dark bottom-up scrim (see
-// .entry-card-photo-scrim/-overlay in EntryCard.css) keeps that text
-// legible over any photo. The description snippet stays below the photo,
-// in its own .entry-card-body, exactly where it always was - only the
-// name/count moved, not the whole card's layout.
+// 'group' + photo overlays the name, provider count, and description
+// snippet directly on the photo itself (2026-11-11, name/count only;
+// 2026-11-17, the snippet joined them too - Blake wanted the summary text
+// moved up off the plain strip below the photo to cut down on white
+// space). A dark bottom-up scrim (see .entry-card-photo-scrim/-overlay in
+// EntryCard.css) keeps all three legible over any photo - the scrim's
+// gradient was widened to start darkening higher up the photo now that
+// there's more text sitting on it. There's no separate .entry-card-body
+// below the photo on this branch at all any more.
 //
 // 'reference' (Essentials only) got its own dedicated photo-card treatment
 // 2026-09-19 - a full-bleed background photo with a left-to-right scrim,
@@ -481,21 +482,19 @@ function EntryCard({
           <div className="entry-card-photo-overlay">
             <div className="entry-card-photo-overlay-name">{entry.name}</div>
             {groupCount}
+            {/* Joined the name/count overlay 2026-11-17 (was its own
+                .entry-card-body strip below the photo) - omitted entirely
+                (not just empty) when there's no description, same as
+                before. */}
+            {previewText && (
+              <div className="entry-card-photo-overlay-snippet">{snippet(previewText)}</div>
+            )}
           </div>
           {/* Same floating top-right placement the 'photo' variant above
               already gives this via .entry-card-photo-frame >
               .entry-card-status-badge - reused as-is, no new CSS needed. */}
           {statusBadge}
         </div>
-        {/* Omitted entirely (not just empty) when there's no description -
-            a type with a photo but no description text just shows the
-            photo with its name/count overlay and nothing below, rather
-            than an empty padded strip. */}
-        {previewText && (
-          <div className="entry-card-body">
-            <div className="entry-card-snippet">{snippet(previewText)}</div>
-          </div>
-        )}
       </div>
     );
   }
