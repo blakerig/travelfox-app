@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import { markdownComponents } from './markdownComponents.jsx';
+import { snippet } from './textSnippet.js';
 import './EntryCard.css';
 import photoPlaceholder from './assets/entry-photo-placeholder.svg';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
@@ -12,24 +13,6 @@ import { formatPhoneNumber } from './phoneNumber.js';
 import { formatEntryAddress } from './address.js';
 import { formatWalkingMinutes } from './walkingDistance.js';
 import FavouriteButton from './FavouriteButton.jsx';
-
-// Strip common Markdown syntax for a plain-text card snippet. Entry.description
-// is authored as Markdown (see project notes), but full formatted rendering
-// (react-markdown) is deferred until there's an entry-detail screen to put it
-// on - a card in a grid just needs a clean plain-text preview.
-function stripMarkdown(text) {
-  return text
-    .replace(/[*_`]/g, '')
-    .replace(/^-\s+/gm, '')
-    .replace(/\n+/g, ' ')
-    .trim();
-}
-
-function snippet(text, max = 120) {
-  if (!text) return '';
-  const plain = stripMarkdown(text);
-  return plain.length > max ? `${plain.slice(0, max).trim()}…` : plain;
-}
 
 // variant: 'venue' shows rating/price/address (Activities provider cards,
 // via ActivityTypeDetail.jsx), 'photo' shows a photo plus a price/type line

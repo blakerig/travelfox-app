@@ -9,6 +9,7 @@ import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
 import { useAuth } from './auth-context.js';
 import { getEntryPhotoUrl } from './cloudinaryUrl.js';
+import { stripMarkdown } from './textSnippet.js';
 import EntryCard from './EntryCard.jsx';
 
 // Detail screen for one ActivityType (e.g. "Laser Tag", "Padel") - reached
@@ -83,6 +84,19 @@ function ActivityTypeDetail() {
 
   const activityType = cachedType ?? fetchedType;
   const providers = activityType?.entries ?? [];
+  // Teaser for the photo overlay below (2026-11-17, revised) - the type's
+  // own `summary` shown in full, not truncated and not falling back to
+  // `description` the way EntryCard.jsx's 'group' card does (Blake's
+  // call: this is a dedicated detail screen with room for the whole
+  // summary, not a card snippet, and showing a cut-down sliver of the
+  // description here just duplicated the start of the full Markdown
+  // block further down). Blank when no summary has been written - no
+  // placeholder text, same "omit, don't fall back" approach as the
+  // provider count elsewhere on this screen. Still run through
+  // stripMarkdown since summary is authored as Markdown but this overlay
+  // is plain text only, same reasoning as the card snippet's own use of
+  // it, just without that helper's length truncation.
+  const overlaySummary = activityType?.summary ? stripMarkdown(activityType.summary) : null;
 
   return (
     <div className="activity-type-detail">
@@ -123,16 +137,35 @@ function ActivityTypeDetail() {
               when absent, unlike EntryDetail.jsx's 'photo' variant - this
               follows the 'reference' EntryCard variant's precedent instead,
               since most types won't have a photo set yet and an empty-box
-              placeholder would be more noise than help here. */}
-          {activityType.photoUrl && (
-            <img
-              src={getEntryPhotoUrl(activityType.photoUrl)}
-              alt=""
-              className="activity-type-detail-photo"
-            />
-          )}
+              placeholder would be more noise than help here.
 
-          <h1 className="activity-type-detail-name">{activityType.name}</h1>
+              Name + the type's full summary (see overlaySummary above)
+              overlay directly on the photo when one is set (2026-11-17,
+              mirroring EntryCard.jsx's 'group' + photo card one screen up
+              - Blake wanted the same top-of-the-picture treatment here
+              instead of the plain title that used to sit underneath).
+              Without a photo there's nothing to overlay onto, so the name
+              falls back to the plain heading it always was. */}
+          {activityType.photoUrl ? (
+            <div className="activity-type-detail-photo-frame">
+              <img
+                src={getEntryPhotoUrl(activityType.photoUrl)}
+                alt=""
+                className="activity-type-detail-photo"
+              />
+              <div className="activity-type-detail-photo-scrim" aria-hidden="true" />
+              <div className="activity-type-detail-photo-overlay">
+                <h1 className="activity-type-detail-photo-overlay-name">{activityType.name}</h1>
+                {overlaySummary && (
+                  <div className="activity-type-detail-photo-overlay-snippet">
+                    {overlaySummary}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <h1 className="activity-type-detail-name">{activityType.name}</h1>
+          )}
 
           {activityType.description && (
             <div className="activity-type-detail-markdown">

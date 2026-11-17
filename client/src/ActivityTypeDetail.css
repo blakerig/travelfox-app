@@ -24,7 +24,62 @@
   aspect-ratio: 4 / 3;
   object-fit: cover;
   border-radius: 12px;
+}
+
+/* Positioning context for the title/teaser overlay below (2026-11-17) -
+   same role as EntryCard.css's .entry-card-photo-frame, just sized for a
+   full hero photo instead of a grid card. */
+.activity-type-detail-photo-frame {
+  position: relative;
   margin-bottom: 14px;
+}
+
+/* Dark bottom-up gradient so the overlaid title/teaser stays legible over
+   any photo - same approach as EntryCard.css's .entry-card-photo-scrim,
+   just rounded to match this hero photo's own corners. Starts a bit
+   earlier (20%) than the card's own scrim since the hero has more room
+   for the teaser text to wrap across a couple of lines. */
+.activity-type-detail-photo-scrim {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(8, 6, 13, 0) 20%, rgba(8, 6, 13, 0.82) 100%);
+}
+
+.activity-type-detail-photo-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 14px 18px;
+  color: #fff;
+}
+
+.activity-type-detail-photo-overlay-name {
+  /* Explicit white (2026-11-17 fix), not inherited from
+     .activity-type-detail-photo-overlay's color: #fff above - index.css
+     has a global `h1, h2 { color: var(--text-h) }` rule that, being an
+     explicit rule targeting this element rather than an inherited value,
+     wins over inheritance regardless of the ancestor's own specificity.
+     That's what was actually making this title render in var(--text-h)
+     (near-black) instead of white - not a brightness/contrast issue with
+     any particular photo, a plain CSS bug. EntryCard.css's equivalent
+     (.entry-card-photo-overlay-name) never had this problem since that
+     one's a <div>, not an <h1>. */
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0;
+  text-shadow: 0 1px 3px rgba(8, 6, 13, 0.6);
+}
+
+.activity-type-detail-photo-overlay-snippet {
+  margin-top: 4px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 3px rgba(8, 6, 13, 0.6);
 }
 
 .activity-type-detail-header {
