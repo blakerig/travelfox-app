@@ -1313,76 +1313,83 @@ app.delete('/api/favourites/:entryId', async (req, res) => {
 // this is what the home screen's icon grid uses to decide which icons to
 // show (an icon should never appear for an empty category).
 app.get('/api/cities/:cityId/home-categories', async (req, res) => {
-  const cityId = Number(req.params.cityId);
-  const categories = await prisma.category.findMany({
-    where: { entries: { some: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) } } },
-  });
-
-  // Activities also counts as having content if this city has at least one
-  // ActivityType, even with zero provider Entries so far (2026-08-28, see
-  // ActivityType in schema.prisma) - a type with no providers yet is a
-  // valid, deliberate state (e.g. "too many providers to list
-  // individually"), not missing data, so the Entry-based check above alone
-  // would wrongly hide the Activities icon for a city whose only Activities
-  // content right now is a description-only type.
-  if (!categories.some((c) => c.slug === 'activities')) {
-    // Same status filter as the Entry-based check above (2026-10-13) - an
-    // anonymous visitor shouldn't see the Activities icon appear on Home
-    // just because a still-Draft type exists with nothing else published.
-    const hasActivityType = await prisma.activityType.findFirst({
-      where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
+  // Whole handler wrapped in try/catch 2026-11-17, for the same reason as
+  // the Areas list below: an uncaught query error here crashed the server.
+  try {
+    const cityId = Number(req.params.cityId);
+    const categories = await prisma.category.findMany({
+      where: { entries: { some: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) } } },
     });
-    if (hasActivityType) {
-      const activitiesCategory = await prisma.category.findUnique({ where: { slug: 'activities' } });
-      if (activitiesCategory) categories.push(activitiesCategory);
+
+    // Activities also counts as having content if this city has at least one
+    // ActivityType, even with zero provider Entries so far (2026-08-28, see
+    // ActivityType in schema.prisma) - a type with no providers yet is a
+    // valid, deliberate state (e.g. "too many providers to list
+    // individually"), not missing data, so the Entry-based check above alone
+    // would wrongly hide the Activities icon for a city whose only Activities
+    // content right now is a description-only type.
+    if (!categories.some((c) => c.slug === 'activities')) {
+      // Same status filter as the Entry-based check above (2026-10-13) - an
+      // anonymous visitor shouldn't see the Activities icon appear on Home
+      // just because a still-Draft type exists with nothing else published.
+      const hasActivityType = await prisma.activityType.findFirst({
+        where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
+      });
+      if (hasActivityType) {
+        const activitiesCategory = await prisma.category.findUnique({ where: { slug: 'activities' } });
+        if (activitiesCategory) categories.push(activitiesCategory);
+      }
     }
-  }
 
-  // Same reasoning as the Activities special-case above, but for Shopping
-  // (2026-09-15, see ShopType in schema.prisma) - a ShopType with zero
-  // providers yet is a valid, deliberate state, not missing data, so the
-  // Entry-based check above alone would wrongly hide the Shopping icon for
-  // a city whose only Shopping content right now is a description-only type.
-  if (!categories.some((c) => c.slug === 'shopping')) {
-    const hasShopType = await prisma.shopType.findFirst({ where: { cityId } });
-    if (hasShopType) {
-      const shoppingCategory = await prisma.category.findUnique({ where: { slug: 'shopping' } });
-      if (shoppingCategory) categories.push(shoppingCategory);
+    // Same reasoning as the Activities special-case above, but for Shopping
+    // (2026-09-15, see ShopType in schema.prisma) - a ShopType with zero
+    // providers yet is a valid, deliberate state, not missing data, so the
+    // Entry-based check above alone would wrongly hide the Shopping icon for
+    // a city whose only Shopping content right now is a description-only type.
+    if (!categories.some((c) => c.slug === 'shopping')) {
+      const hasShopType = await prisma.shopType.findFirst({ where: { cityId } });
+      if (hasShopType) {
+        const shoppingCategory = await prisma.category.findUnique({ where: { slug: 'shopping' } });
+        if (shoppingCategory) categories.push(shoppingCategory);
+      }
     }
-  }
 
-  // Same reasoning as the Activities special-case above, but for
-  // Neighbourhoods (2026-08-31, see Neighbourhood in schema.prisma):
-  // Neighbourhoods has no Entry rows of its own at all (it's a map of
-  // Neighbourhood points, not a list of Entry cards), so the Entry-based
-  // check above can never find it. The icon should show whenever this
-  // city has at least one Neighbourhood.
-  if (!categories.some((c) => c.slug === 'neighbourhoods')) {
-    // Published-only for an anonymous caller (2026-11-17, see
-    // Neighbourhood.status in schema.prisma), so a city whose only Areas
-    // are still drafts doesn't show the public an empty Areas screen.
-    const hasNeighbourhood = await prisma.neighbourhood.findFirst({
-      where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
-    });
-    if (hasNeighbourhood) {
-      const neighbourhoodsCategory = await prisma.category.findUnique({ where: { slug: 'neighbourhoods' } });
-      if (neighbourhoodsCategory) categories.push(neighbourhoodsCategory);
+    // Same reasoning as the Activities special-case above, but for
+    // Neighbourhoods (2026-08-31, see Neighbourhood in schema.prisma):
+    // Neighbourhoods has no Entry rows of its own at all (it's a map of
+    // Neighbourhood points, not a list of Entry cards), so the Entry-based
+    // check above can never find it. The icon should show whenever this
+    // city has at least one Neighbourhood.
+    if (!categories.some((c) => c.slug === 'neighbourhoods')) {
+      // Published-only for an anonymous caller (2026-11-17, see
+      // Neighbourhood.status in schema.prisma), so a city whose only Areas
+      // are still drafts doesn't show the public an empty Areas screen.
+      const hasNeighbourhood = await prisma.neighbourhood.findFirst({
+        where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
+      });
+      if (hasNeighbourhood) {
+        const neighbourhoodsCategory = await prisma.category.findUnique({ where: { slug: 'neighbourhoods' } });
+        if (neighbourhoodsCategory) categories.push(neighbourhoodsCategory);
+      }
     }
+
+    // Attach this city's own icon art where it has any (see CategoryIcon in
+    // schema.prisma) - iconUrl is null for a category with no override, and
+    // the client falls back to its bundled default icon in that case (see
+    // CATEGORY_DISPLAY in Home.jsx), so this never needs its own "is there an
+    // override" flag.
+    const iconOverrides = await prisma.categoryIcon.findMany({ where: { cityId } });
+    const iconUrlByCategoryId = new Map(iconOverrides.map((o) => [o.categoryId, o.iconUrl]));
+    const categoriesWithIcons = categories.map((c) => ({
+      ...c,
+      iconUrl: iconUrlByCategoryId.get(c.id) ?? null,
+    }));
+
+    res.json(categoriesWithIcons);
+  } catch (err) {
+    console.error('Failed to fetch home categories:', err);
+    res.status(500).json({ error: 'Failed to fetch home categories' });
   }
-
-  // Attach this city's own icon art where it has any (see CategoryIcon in
-  // schema.prisma) - iconUrl is null for a category with no override, and
-  // the client falls back to its bundled default icon in that case (see
-  // CATEGORY_DISPLAY in Home.jsx), so this never needs its own "is there an
-  // override" flag.
-  const iconOverrides = await prisma.categoryIcon.findMany({ where: { cityId } });
-  const iconUrlByCategoryId = new Map(iconOverrides.map((o) => [o.categoryId, o.iconUrl]));
-  const categoriesWithIcons = categories.map((c) => ({
-    ...c,
-    iconUrl: iconUrlByCategoryId.get(c.id) ?? null,
-  }));
-
-  res.json(categoriesWithIcons);
 });
 
 // Neighbourhood pins for the Neighbourhoods map screen (client/src/
@@ -1394,11 +1401,19 @@ app.get('/api/cities/:cityId/neighbourhoods', async (req, res) => {
   // Published-only for an anonymous caller, every status for any logged-in
   // team role - same rule as the activity-types list (2026-11-17, see
   // Neighbourhood.status in schema.prisma).
-  const neighbourhoods = await prisma.neighbourhood.findMany({
-    where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
-    orderBy: { name: 'asc' },
-  });
-  res.json(neighbourhoods);
+  // try/catch added 2026-11-17: without it, any failed query here (e.g. a
+  // local database missing the Neighbourhood table) was an unhandled
+  // rejection that took the whole server down, not just this request.
+  try {
+    const neighbourhoods = await prisma.neighbourhood.findMany({
+      where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
+      orderBy: { name: 'asc' },
+    });
+    res.json(neighbourhoods);
+  } catch (err) {
+    console.error('Failed to fetch areas:', err);
+    res.status(500).json({ error: 'Failed to fetch areas' });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -2159,4 +2174,20 @@ app.get('/api/analytics/searches', ...analyticsAccess, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+// Which database this server is talking to (host + database name only,
+// never the password) - added 2026-11-17 after the server and the Prisma CLI
+// turned out to be pointed at different databases. dotenv never overrides
+// a variable that's already set, so a leftover $env:DATABASE_URL in the
+// terminal silently wins over server/.env.
+function describeDatabaseUrl(url) {
+  try {
+    const u = new URL(url);
+    return `${u.hostname}:${u.port || '5432'}/${u.pathname.replace(/^\//, '')}`;
+  } catch {
+    return url ? '(unparseable DATABASE_URL)' : '(DATABASE_URL not set)';
+  }
+}
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Database: ${describeDatabaseUrl(process.env.DATABASE_URL)}`);
+});

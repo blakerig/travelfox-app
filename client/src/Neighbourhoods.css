@@ -77,16 +77,26 @@
 
 /* Pin shape: a rounded square rotated 45deg, classic CSS map-pin trick.
    Plain <button> element (see Neighbourhoods.jsx) so it's keyboard/tap
-   accessible without extra ARIA wiring. */
+   accessible without extra ARIA wiring.
+
+   Deliberately NO `position` or `transform` here (fixed 2026-11-17).
+   MapLibre gives every marker element its own class (.maplibregl-marker,
+   from maplibre-gl.css) with position: absolute; top: 0; left: 0, then
+   places it with an inline transform. This rule used to set
+   position: relative, which - being loaded after maplibre-gl.css with the
+   same specificity - overrode that, so the pins sat in normal page flow
+   side by side and each one was shifted by the width of the pins before
+   it. A fixed pixel shift is barely visible zoomed in but covers
+   kilometres zoomed out, which is why Areas drifted into the sea.
+   position: absolute from MapLibre also still anchors the name label
+   below. */
 .neighbourhood-pin {
-  position: relative;
   width: 26px;
   height: 26px;
   border: none;
   padding: 0;
   cursor: pointer;
   background: transparent;
-  transform: translateY(0);
 }
 
 /* Name label - added 2026-09-03 so a pin identifies itself before it's
