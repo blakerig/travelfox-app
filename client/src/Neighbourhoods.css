@@ -186,11 +186,19 @@
   white-space: nowrap;
 }
 
+/* Unpublished (Draft / Awaiting Review) Areas get a red pin instead of the
+   usual green, so the team can spot what isn't live yet at a glance. Only
+   logged-in team members ever see these pins - the API never sends
+   unpublished Areas to the public. Declared after the green .active rules
+   above (same specificity), so red wins for a selected draft too. */
 .neighbourhood-pin.is-draft::before {
-  opacity: 0.55;
-  border-style: dashed;
+  background: oklch(60% 0.19 27);
 }
 
-.neighbourhood-pin.is-draft .neighbourhood-pin-label {
-  font-style: italic;
+.neighbourhood-pin.is-draft.active::before {
+  background: oklch(50% 0.19 27);
+}
+
+.neighbourhood-pin.is-draft.active .neighbourhood-pin-label {
+  background: oklch(50% 0.19 27);
 }
