@@ -53,7 +53,9 @@ async function fetchCityBundle(cityId) {
     // (2026-09-15, see ShopType in schema.prisma).
     fetch(`${base}/api/cities/${cityId}/shop-types`, { headers }).then((res) => res.json()),
     fetch(`${base}/api/cities/${cityId}/home-categories`, { headers }).then((res) => res.json()),
-    fetch(`${base}/api/cities/${cityId}/neighbourhoods`).then((res) => res.json()),
+    // Headers added 2026-11-17 so a logged-in team member also gets Draft /
+    // Awaiting Review Areas - see Neighbourhood.status in schema.prisma.
+    fetch(`${base}/api/cities/${cityId}/neighbourhoods`, { headers }).then((res) => res.json()),
   ]);
   return {
     entries,
@@ -343,6 +345,47 @@ export function CityDataProvider({ children }) {
     [city]
   );
 
+  // Same idea as upsertActivityType above, for Areas (Neighbourhood rows,
+  // 2026-11-17) - see NeighbourhoodEditor.jsx's handleSave. Kept sorted by
+  // name to match GET /api/cities/:cityId/neighbourhoods' own ordering.
+  const upsertNeighbourhood = useCallback(
+    (neighbourhood) => {
+      if (!city) return;
+      setBundles((prev) => {
+        const bundle = prev[city.id];
+        if (!bundle) return prev;
+
+        const others = (bundle.neighbourhoods ?? []).filter((n) => n.id !== neighbourhood.id);
+        const neighbourhoods = [...others, neighbourhood].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
+
+        const updated = { ...bundle, neighbourhoods };
+        writeCachedBundle(city.id, updated);
+        return { ...prev, [city.id]: updated };
+      });
+    },
+    [city]
+  );
+
+  // Drops a just-deleted Area from the cached bundle - see
+  // NeighbourhoodEditor.jsx's handleDelete.
+  const removeNeighbourhood = useCallback(
+    (neighbourhoodId) => {
+      if (!city) return;
+      setBundles((prev) => {
+        const bundle = prev[city.id];
+        if (!bundle) return prev;
+
+        const neighbourhoods = (bundle.neighbourhoods ?? []).filter((n) => n.id !== neighbourhoodId);
+        const updated = { ...bundle, neighbourhoods };
+        writeCachedBundle(city.id, updated);
+        return { ...prev, [city.id]: updated };
+      });
+    },
+    [city]
+  );
+
   const refreshCity = useCallback(() => {
     if (!city) return Promise.resolve();
     return loadCity(city.id);
@@ -364,6 +407,8 @@ export function CityDataProvider({ children }) {
         ensureActivityTypeClusters,
         upsertActivityType,
         upsertShopType,
+        upsertNeighbourhood,
+        removeNeighbourhood,
         refreshCity,
       }}
     >

@@ -1,0 +1,48 @@
+/* Area editor (NeighbourhoodEditor.jsx, 2026-11-17). Form layout comes from
+   ActivityTypeEditor.css; these rules only cover the map-position row and
+   the delete button. Colour variables are defined on .activity-type-editor. */
+
+.area-editor-coords {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.area-editor-find {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-600);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  margin: 4px 0;
+  cursor: pointer;
+}
+
+.area-editor-find:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.area-editor-delete {
+  display: block;
+  width: 100%;
+  margin-top: 28px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: oklch(50% 0.17 25);
+  background: transparent;
+  border: 1px solid oklch(50% 0.17 25 / 0.4);
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.area-editor-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 // Namespace import, not a default import - maplibre-gl v5+ dropped its
 // default export and ships ESM-only with named exports (Map, Marker,
 // NavigationControl, LngLatBounds, ...). `import maplibregl from
@@ -13,12 +13,15 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './Neighbourhoods.css';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
+import { useAuth } from './auth-context.js';
+import AreaSheet from './AreaSheet.jsx';
 
 // Neighbourhoods map screen - added 2026-08-31. A first cut, deliberately
 // simple: pins only (no boundary polygons, no landmarks yet - those are
 // logged as a fast-follow, see claude/todo.md), map fills the screen, and
-// the selected neighbourhood's name/description shows in a fixed sheet at
-// the bottom rather than a drag-to-expand one. See the "Neighbourhoods"
+// the selected neighbourhood shows in a panel at the bottom. (That panel was
+// fixed at first; since 2026-11-17 it's the drag-up AreaSheet.jsx, which
+// holds the Area's full write-up.) See the "Neighbourhoods"
 // discussion in claude/home-screen-spec.md for the fuller reasoning behind
 // why this is a map at all rather than a plain card list.
 //
@@ -53,6 +56,17 @@ function Neighbourhoods() {
   // instead of fetching its own copy of
   // /api/cities/:cityId/neighbourhoods on every mount.
   const neighbourhoods = cityData?.neighbourhoods ?? null;
+  const { canEdit } = useAuth();
+  // ?area=<id> (2026-11-17) - set by NeighbourhoodDetail.jsx's back link so
+  // returning from an Area's full write-up re-selects that Area on the map
+  // instead of jumping back to the first one.
+  const [searchParams] = useSearchParams();
+  const requestedAreaId = Number(searchParams.get('area')) || null;
+  // ?open=1 alongside ?area - set when coming back from the Area editor, so
+  // you land on the Area you just edited with its panel already pulled up.
+  const openRequested = searchParams.get('open') === '1';
+  // Whether the selected Area's drag-up panel is pulled up - see AreaSheet.jsx.
+  const [expanded, setExpanded] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   // Tracks which city's neighbourhoods `selectedId` was last auto-picked
   // for - see the render-time block below.
@@ -73,7 +87,9 @@ function Neighbourhoods() {
   // selection you've already made by re-picking the first one again.
   if (city && neighbourhoods && autoSelectedForCity !== city.id) {
     setAutoSelectedForCity(city.id);
-    setSelectedId(neighbourhoods.length > 0 ? neighbourhoods[0].id : null);
+    const requested = requestedAreaId && neighbourhoods.find((n) => n.id === requestedAreaId);
+    setSelectedId(requested ? requested.id : neighbourhoods.length > 0 ? neighbourhoods[0].id : null);
+    setExpanded(Boolean(requested && openRequested));
   }
 
   // Creates the map once we have both a container to render into and at
@@ -127,7 +143,10 @@ function Neighbourhoods() {
     // claude/home-screen-spec.md for the full reasoning and the
     // self-hosted-PMTiles alternative if this ever needs to go away
     // entirely.
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+    // Top-left rather than bottom-right since 2026-11-17: the drag-up Area
+    // panel (AreaSheet.jsx) always covers the bottom of the map, and the
+    // attribution has to stay visible (see the licence note above).
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'top-left');
     map.on('error', (e) => {
       console.error('MapLibre error:', e?.error ?? e);
       setMapError('Map failed to load - check that VITE_MAPTILER_KEY in client/.env is a valid key.');
@@ -137,9 +156,17 @@ function Neighbourhoods() {
     neighbourhoods.forEach((n) => {
       const el = document.createElement('button');
       el.type = 'button';
-      el.className = 'neighbourhood-pin';
+      // Draft / Awaiting Review Areas only ever reach a logged-in team
+      // member (see GET /api/cities/:cityId/neighbourhoods) - drawn faded so
+      // it's obvious they aren't live yet.
+      el.className = n.status && n.status !== 'PUBLISHED' ? 'neighbourhood-pin is-draft' : 'neighbourhood-pin';
       el.setAttribute('aria-label', n.name);
-      el.addEventListener('click', () => setSelectedId(n.id));
+      el.addEventListener('click', () => {
+        setSelectedId(n.id);
+        // A newly tapped pin always starts with its panel collapsed, so the
+        // map stays visible around it.
+        setExpanded(false);
+      });
 
       // Name label, always visible rather than only on tap - added
       // 2026-09-03 so the user can tell what a pin is before tapping it,
@@ -162,7 +189,13 @@ function Neighbourhoods() {
     });
 
     if (!bounds.isEmpty()) {
-      map.fitBounds(bounds, { padding: 64, maxZoom: 15, duration: 0 });
+      // Extra bottom padding keeps the lowest pins clear of the collapsed
+      // Area panel, which always covers the bottom of the map.
+      map.fitBounds(bounds, {
+        padding: { top: 64, left: 48, right: 48, bottom: 180 },
+        maxZoom: 15,
+        duration: 0,
+      });
     }
 
     mapRef.current = map;
@@ -202,6 +235,12 @@ function Neighbourhoods() {
         {/* "Areas" - see the file comment above for why this reads
             differently to the route/class/model names around it. */}
         <h1 className="neighbourhoods-title">Areas</h1>
+        {/* Team-only (2026-11-17) - see NeighbourhoodEditor.jsx. */}
+        {canEdit && (
+          <Link to="/neighbourhoods/new/edit" className="neighbourhoods-add">
+            + Add
+          </Link>
+        )}
       </div>
 
       <div className="neighbourhoods-map-wrap">
@@ -216,13 +255,12 @@ function Neighbourhoods() {
         {mapError && <div className="neighbourhoods-status neighbourhoods-status-error">{mapError}</div>}
 
         {selected && (
-          <div className="neighbourhoods-sheet">
-            <div className="neighbourhoods-sheet-grabber" />
-            <div className="neighbourhoods-sheet-name">{selected.name}</div>
-            {selected.description && (
-              <div className="neighbourhoods-sheet-description">{selected.description}</div>
-            )}
-          </div>
+          <AreaSheet
+            area={selected}
+            canEdit={canEdit}
+            expanded={expanded}
+            onExpandedChange={setExpanded}
+          />
         )}
       </div>
     </div>

@@ -43,6 +43,9 @@
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  /* Clips the drag-up Area panel (AreaSheet.jsx), which is slid down past
+     the bottom edge when collapsed. */
+  overflow: hidden;
 }
 
 .neighbourhoods-map {
@@ -133,40 +136,6 @@
   height: 24px;
 }
 
-.neighbourhoods-sheet {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--card);
-  border-radius: 18px 18px 0 0;
-  box-shadow: 0 -4px 16px rgba(20, 30, 25, 0.14);
-  padding: 10px 20px 22px;
-  z-index: 1;
-  max-height: 40%;
-  overflow-y: auto;
-}
-
-.neighbourhoods-sheet-grabber {
-  width: 34px;
-  height: 4px;
-  background: var(--line);
-  border-radius: 3px;
-  margin: 0 auto 12px;
-}
-
-.neighbourhoods-sheet-name {
-  font-size: 17px;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.neighbourhoods-sheet-description {
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
 /* MapLibre's attribution control - added 2026-09-01. This is the small
    collapsed "i" button (compact: true, see Neighbourhoods.jsx) that
    expands to show the required "© MapTiler © OpenStreetMap
@@ -190,4 +159,28 @@
 .neighbourhoods-screen .maplibregl-ctrl-attrib-button {
   background-color: var(--card);
   box-shadow: 0 1px 4px rgba(20, 30, 25, 0.15);
+}
+
+/* Area editing (2026-11-17) - "+ Add" in the header for team members and
+   faded pins for Areas that aren't published yet. The bottom panel itself
+   now lives in AreaSheet.jsx / AreaSheet.css. */
+.neighbourhoods-add {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-600);
+  text-decoration: none;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.neighbourhood-pin.is-draft::before {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.neighbourhood-pin.is-draft .neighbourhood-pin-label {
+  font-style: italic;
 }

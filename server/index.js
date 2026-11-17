@@ -1358,7 +1358,12 @@ app.get('/api/cities/:cityId/home-categories', async (req, res) => {
   // check above can never find it. The icon should show whenever this
   // city has at least one Neighbourhood.
   if (!categories.some((c) => c.slug === 'neighbourhoods')) {
-    const hasNeighbourhood = await prisma.neighbourhood.findFirst({ where: { cityId } });
+    // Published-only for an anonymous caller (2026-11-17, see
+    // Neighbourhood.status in schema.prisma), so a city whose only Areas
+    // are still drafts doesn't show the public an empty Areas screen.
+    const hasNeighbourhood = await prisma.neighbourhood.findFirst({
+      where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
+    });
     if (hasNeighbourhood) {
       const neighbourhoodsCategory = await prisma.category.findUnique({ where: { slug: 'neighbourhoods' } });
       if (neighbourhoodsCategory) categories.push(neighbourhoodsCategory);
@@ -1386,11 +1391,213 @@ app.get('/api/cities/:cityId/home-categories', async (req, res) => {
 // already belongs to one city's Neighbourhoods, not a shared Entry table.
 app.get('/api/cities/:cityId/neighbourhoods', async (req, res) => {
   const cityId = Number(req.params.cityId);
+  // Published-only for an anonymous caller, every status for any logged-in
+  // team role - same rule as the activity-types list (2026-11-17, see
+  // Neighbourhood.status in schema.prisma).
   const neighbourhoods = await prisma.neighbourhood.findMany({
-    where: { cityId },
+    where: { cityId, ...(req.user ? {} : { status: 'PUBLISHED' }) },
     orderBy: { name: 'asc' },
   });
   res.json(neighbourhoods);
+});
+
+// ---------------------------------------------------------------------------
+// Area (Neighbourhood) editing - added 2026-11-17 so Areas can be added,
+// edited and deleted in-app (client/src/NeighbourhoodEditor.jsx) instead of
+// only via server/seedNeighbourhoods.js or Prisma Studio. Same shape and
+// rules as the ActivityType endpoints above: Creator/Editor/Admin can
+// create and edit, only Editor/Admin can publish, Tester can only read.
+// Delete is Editor/Admin only, since it's the one irreversible action.
+// ---------------------------------------------------------------------------
+
+const NEIGHBOURHOOD_TEXT_FIELDS = [
+  'summary',
+  'description',
+  'highlights',
+  'eatDrink',
+  'gettingThere',
+  'bestFor',
+  'headsUp',
+  'photoUrl',
+  'notes',
+];
+const NEIGHBOURHOOD_STATUSES = ['DRAFT', 'AWAITING_REVIEW', 'PUBLISHED'];
+
+// Same idea as uniqueActivityTypeSlug above - see the
+// @@unique([cityId, slug]) constraint on Neighbourhood in schema.prisma.
+async function uniqueNeighbourhoodSlug(name, cityId, excludeId) {
+  const base = slugify(name) || 'area';
+  let slug = base;
+  let suffix = 2;
+  while (
+    await prisma.neighbourhood.findFirst({
+      where: { cityId, slug, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    })
+  ) {
+    slug = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return slug;
+}
+
+// Parses a latitude/longitude from the request body. Returns
+// { value } on success or { error } with a message suitable for a 400.
+function parseCoordinate(raw, label, min, max) {
+  const n = Number(raw);
+  if (raw === null || raw === undefined || raw === '' || !Number.isFinite(n)) {
+    return { error: `${label} is required and must be a number` };
+  }
+  if (n < min || n > max) {
+    return { error: `${label} must be between ${min} and ${max}` };
+  }
+  return { value: n };
+}
+
+app.get('/api/neighbourhoods/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid area id' });
+  }
+  try {
+    const neighbourhood = await prisma.neighbourhood.findUnique({ where: { id } });
+    // Never leak a draft to an anonymous caller via a guessed url - same
+    // rule as GET /api/activity-types/:id.
+    if (!neighbourhood || (neighbourhood.status !== 'PUBLISHED' && !req.user)) {
+      return res.status(404).json({ error: 'Area not found' });
+    }
+    res.json(neighbourhood);
+  } catch (err) {
+    console.error('Failed to fetch area:', err);
+    res.status(500).json({ error: 'Failed to fetch area' });
+  }
+});
+
+app.post('/api/neighbourhoods', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
+  const { cityId, name, latitude, longitude, status } = req.body;
+
+  if (!cityId) {
+    return res.status(400).json({ error: 'cityId is required' });
+  }
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Name cannot be empty' });
+  }
+  const lat = parseCoordinate(latitude, 'Latitude', -90, 90);
+  if (lat.error) return res.status(400).json({ error: lat.error });
+  const lng = parseCoordinate(longitude, 'Longitude', -180, 180);
+  if (lng.error) return res.status(400).json({ error: lng.error });
+
+  let resolvedStatus = 'DRAFT';
+  if (status !== undefined) {
+    if (!NEIGHBOURHOOD_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    if (req.user.role === 'CREATOR' && status === 'PUBLISHED') {
+      return res.status(403).json({ error: 'Creators cannot publish areas' });
+    }
+    resolvedStatus = status;
+  }
+
+  const textData = {};
+  for (const field of NEIGHBOURHOOD_TEXT_FIELDS) {
+    const v = req.body[field];
+    textData[field] = typeof v === 'string' && v.trim() !== '' ? v : null;
+  }
+
+  try {
+    const slug = await uniqueNeighbourhoodSlug(name, Number(cityId));
+    const neighbourhood = await prisma.neighbourhood.create({
+      data: {
+        name: name.trim(),
+        slug,
+        latitude: lat.value,
+        longitude: lng.value,
+        status: resolvedStatus,
+        ...textData,
+        city: { connect: { id: Number(cityId) } },
+      },
+    });
+    res.status(201).json(neighbourhood);
+  } catch (err) {
+    console.error('Failed to create area:', err);
+    res.status(500).json({ error: 'Failed to create area' });
+  }
+});
+
+app.patch('/api/neighbourhoods/:id', requireAuth, requireRole('CREATOR', 'EDITOR', 'ADMIN'), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid area id' });
+  }
+  const { name, latitude, longitude, status } = req.body;
+
+  try {
+    const existing = await prisma.neighbourhood.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Area not found' });
+    }
+
+    const data = {};
+    if (name !== undefined) {
+      if (!name.trim()) {
+        return res.status(400).json({ error: 'Name cannot be empty' });
+      }
+      data.name = name.trim();
+      // Slug only changes when the name does, same as PATCH
+      // /api/activity-types/:id.
+      if (data.name !== existing.name) {
+        data.slug = await uniqueNeighbourhoodSlug(data.name, existing.cityId, id);
+      }
+    }
+    if (latitude !== undefined) {
+      const lat = parseCoordinate(latitude, 'Latitude', -90, 90);
+      if (lat.error) return res.status(400).json({ error: lat.error });
+      data.latitude = lat.value;
+    }
+    if (longitude !== undefined) {
+      const lng = parseCoordinate(longitude, 'Longitude', -180, 180);
+      if (lng.error) return res.status(400).json({ error: lng.error });
+      data.longitude = lng.value;
+    }
+    for (const field of NEIGHBOURHOOD_TEXT_FIELDS) {
+      const v = req.body[field];
+      if (v !== undefined) data[field] = typeof v === 'string' && v.trim() !== '' ? v : null;
+    }
+    if (status !== undefined) {
+      if (!NEIGHBOURHOOD_STATUSES.includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
+      if (req.user.role === 'CREATOR' && status === 'PUBLISHED') {
+        return res.status(403).json({ error: 'Creators cannot publish areas' });
+      }
+      data.status = status;
+    }
+
+    const neighbourhood = await prisma.neighbourhood.update({ where: { id }, data });
+    res.json(neighbourhood);
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Area not found' });
+    }
+    console.error('Failed to update area:', err);
+    res.status(500).json({ error: 'Failed to update area' });
+  }
+});
+
+app.delete('/api/neighbourhoods/:id', requireAuth, requireRole('EDITOR', 'ADMIN'), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid area id' });
+  }
+  try {
+    await prisma.neighbourhood.delete({ where: { id } });
+    res.status(204).end();
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Area not found' });
+    }
+    console.error('Failed to delete area:', err);
+    res.status(500).json({ error: 'Failed to delete area' });
+  }
 });
 
 // Public holidays for a city's country (and region, where relevant) - see

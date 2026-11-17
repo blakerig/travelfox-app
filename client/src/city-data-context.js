@@ -62,6 +62,9 @@ import { createContext, useContext } from 'react';
 //   - upsertShopType(shopType): same as upsertActivityType above, for
 //     ShopType (2026-09-15, see ShopTypeEditor.jsx's handleSave) - patches
 //     `bundle.shopTypes` only.
+//   - upsertNeighbourhood(neighbourhood) / removeNeighbourhood(id): same
+//     idea for Areas (Neighbourhood rows, 2026-11-17) - see
+//     NeighbourhoodEditor.jsx.
 //   - refreshCity(): forces a fresh network fetch of the current city's
 //     bundle. Not wired to any UI yet - available for a future
 //     pull-to-refresh.

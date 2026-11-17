@@ -21,6 +21,8 @@ import ShopTypeEditor from './ShopTypeEditor.jsx';
 import CityEditor from './CityEditor.jsx';
 import Search from './Search.jsx';
 import Neighbourhoods from './Neighbourhoods.jsx';
+import NeighbourhoodDetail from './NeighbourhoodDetail.jsx';
+import NeighbourhoodEditor from './NeighbourhoodEditor.jsx';
 import PublicHolidays from './PublicHolidays.jsx';
 import HolidayDetail from './HolidayDetail.jsx';
 import AdminLogin from './AdminLogin.jsx';
@@ -106,6 +108,10 @@ function AppRoutes() {
         <Route path="/category/essentials/holidays" element={<PublicHolidays />} />
         <Route path="/category/essentials/holidays/:slug" element={<HolidayDetail />} />
         <Route path="/neighbourhoods" element={<Neighbourhoods />} />
+        {/* Area detail + editor (2026-11-17, see NeighbourhoodDetail.jsx /
+            NeighbourhoodEditor.jsx). "new" as the :areaId means create. */}
+        <Route path="/neighbourhoods/:areaId" element={<NeighbourhoodDetail />} />
+        <Route path="/neighbourhoods/:areaId/edit" element={<NeighbourhoodEditor />} />
         <Route path="/favourites" element={<Favourites />} />
         <Route path="/more" element={<More />} />
         <Route path="/about" element={<About />} />

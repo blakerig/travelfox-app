@@ -204,7 +204,34 @@ model Neighbourhood {
   slug        String
   latitude    Float
   longitude   Float
+  // Main write-up for the Area's own detail screen (Markdown, same
+  // renderer as ActivityType.description). Before 2026-11-17 this was the
+  // only text field and showed in full in the map's bottom sheet; it now
+  // shows on NeighbourhoodDetail.jsx, with `summary` below taking its place
+  // in the sheet.
   description String?
+  // Area editor fields (2026-11-17) - added alongside NeighbourhoodEditor.jsx
+  // and the POST/PATCH/DELETE /api/neighbourhoods endpoints, so Areas can be
+  // added and edited in-app instead of only via seedNeighbourhoods.js /
+  // Prisma Studio. Split into separate fields (rather than one long
+  // Markdown blob) so every Area's detail screen has the same shape:
+  // one-line summary, main paragraph, then the short labelled sections.
+  // All optional; empty ones simply don't render.
+  summary      String? // one line, shown in the map's bottom sheet
+  highlights   String? // "Don't miss"
+  eatDrink     String? // "Eat & drink"
+  gettingThere String? // "Getting there" - mostly for Montjuic-style areas
+  bestFor      String? // "Best for"
+  headsUp      String? // "Heads-up" - safety, crowds, tourist traps
+  photoUrl     String? // Cloudinary, same /api/upload mechanism as ActivityType.photoUrl
+  // Internal-only working notes - never shown in the app, same as
+  // ActivityType.notes.
+  notes        String?
+  // Same Draft / Awaiting Review / Published workflow as Entry and
+  // ActivityType. Unlike ActivityType's migration, the migration that added
+  // this DOES backfill existing rows to PUBLISHED, so the Areas already
+  // live on the map don't disappear the moment it ships.
+  status       EntryStatus @default(DRAFT)
   city        City    @relation(fields: [cityId], references: [id])
   cityId      Int
 
