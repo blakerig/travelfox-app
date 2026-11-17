@@ -134,51 +134,99 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Dump saved to: $localDumpPath" -ForegroundColor Green
 
 # --- Step 2: restore into local, via the same disposable container --------
-# Runs against $localUrlForDocker (host.docker.internal, not localhost -
-# see above) since this container is a separate one-off, not travel-app-db
-# itself. --no-owner --no-acl: same reasoning migrate-to-neon.ps1 needed in
-# the other direction (see its git history) - Neon's tables are owned by
-# Neon's own role name, which doesn't exist as a role in your local Docker
-# Postgres, so "ALTER TABLE ... OWNER TO <neon-role>" would fail. Skipping
-# ownership/ACL statements means the restored tables just end up owned by
-# $localUser, which is exactly what you want locally anyway. A newer
-# pg_restore (18) targeting an older server (whatever version
-# travel-app-db actually runs) is the well-supported direction - it's only
-# the reverse, older-tool-against-newer-server, that Postgres refuses.
+# Rewritten 2026-11-17. The old version ran `pg_restore` straight into the
+# local database and treated "errors ignored on restore: N" as harmless.
+# That's how the local "Neighbourhood" (Areas) table silently vanished:
+#
+#   Neon adds its own column option, `SET (pg_attver=...)`, to columns added
+#   with ALTER TABLE ... ADD COLUMN (first seen on Neighbourhood after the
+#   2026-11-17 Area editor migration). Ordinary Postgres doesn't recognise
+#   it. pg_restore sends a table's CREATE TABLE and those ALTER lines as ONE
+#   command, so the ALTER failing rolled back the CREATE TABLE as well -
+#   after --clean had already dropped the old table. Result: table gone,
+#   one "ignored" error, script reported success.
+#
+# So the restore now happens in two steps:
+#   2a. pg_restore converts the dump to a plain SQL file (no database
+#       involved), and sed strips the Neon-only `pg_attver` lines and the
+#       `SET transaction_timeout` line (Postgres 17+ only, see the note at
+#       the top) - neither carries any data or schema we need locally.
+#   2b. psql runs that SQL file statement by statement, so one bad line can
+#       never take a neighbouring CREATE TABLE down with it.
+# Then 2c checks every table in the dump really exists locally, and any
+# remaining error is shown in red rather than assumed harmless.
+#
+# $localUrlForDocker (host.docker.internal, not localhost - see above) is
+# used since this container is a separate one-off, not travel-app-db
+# itself. --no-owner --no-acl: Neon's tables are owned by Neon's own role
+# name, which doesn't exist locally; skipping ownership/ACL statements
+# leaves the restored tables owned by $localUser, which is what you want.
+$sqlFileName  = [System.IO.Path]::ChangeExtension($dumpFileName, ".sql")
+$localSqlPath = Join-Path $dumpDir $sqlFileName
+
+Write-Host ""
+Write-Host "Converting the dump to SQL and removing Neon-only settings..." -ForegroundColor Cyan
+# Single-quoted PowerShell string ('' = a literal '), filled in with -f, so
+# PowerShell doesn't try to expand the $ in the sed pattern.
+$convertCmd = 'pg_restore --clean --if-exists --no-owner --no-acl -f - /dump/{0} | sed -E -e ''/SET \(pg_attver=[0-9]+\);$/d'' -e ''/^SET transaction_timeout/d'' > /dump/{1}' -f $dumpFileName, $sqlFileName
+docker run --rm -v "${dumpDir}:/dump" $dumpToolImage sh -c $convertCmd
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Converting the dump to SQL failed with exit code $LASTEXITCODE"
+}
+
 Write-Host ""
 Write-Host "Restoring into local database..." -ForegroundColor Cyan
-# Scoped down to just this call (2026-09-10): with the script-wide
-# $ErrorActionPreference = "Stop" (see top of file) still in effect, PowerShell
-# treats each line pg_restore writes to stderr - captured here via 2>&1 - as
-# its own terminating error the instant it appears, rather than collecting
-# them into $restoreOutput for the "errors ignored on restore" check below to
-# actually run. That's what was happening: the script died on the first
-# stderr line (e.g. the transaction_timeout warning this file's comments
-# already anticipated) before ever reaching its own graceful handling of it.
-# Temporarily relaxing to "Continue" for just this one native call lets
-# pg_restore run to completion and hand back its real exit code/output, while
-# every other command in this script still stops hard on a genuine failure.
+# psql writes each failed statement to stderr. With the script-wide
+# $ErrorActionPreference = "Stop" (see top of file), PowerShell would treat
+# the first such line as fatal before we could collect and report them all,
+# so relax it for just this one native call (same reason as the 2026-09-10
+# note in this file's git history).
 $prevErrorActionPreference = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-$restoreOutput = & docker run --rm -v "${dumpDir}:/dump" $dumpToolImage pg_restore -d $localUrlForDocker --clean --if-exists --no-owner --no-acl "/dump/$dumpFileName" 2>&1
+$restoreOutput = & docker run --rm -v "${dumpDir}:/dump" $dumpToolImage psql $localUrlForDocker -q -v ON_ERROR_STOP=0 -f "/dump/$sqlFileName" 2>&1
 $restoreExit = $LASTEXITCODE
 $ErrorActionPreference = $prevErrorActionPreference
-$restoreOutput | ForEach-Object { Write-Host $_ }
+
 if ($restoreExit -ne 0) {
-    # pg_restore returns the same nonzero exit code whether it aborted
-    # outright or just finished with some ignored, non-fatal errors (see
-    # the note at the top of this file) - "errors ignored on restore: N"
-    # in its own output is how it tells the two apart, so trust that
-    # rather than treating every nonzero exit as a hard failure.
-    $ignoredMatch = $restoreOutput | Select-String -Pattern 'errors ignored on restore:\s*(\d+)'
-    if ($ignoredMatch) {
-        Write-Host ""
-        Write-Host "pg_restore finished with $($ignoredMatch.Matches[0].Groups[1].Value) ignored error(s) - see the note at the top of this file (almost always the newer-server-setting quirk, e.g. Neon's transaction_timeout). Treating this as a success; everything else restored normally." -ForegroundColor Yellow
-    } else {
-        Write-Error "pg_restore failed with exit code $restoreExit - check the output above for details."
-    }
+    $restoreOutput | ForEach-Object { Write-Host $_ }
+    Write-Error "psql failed to run the restore (exit code $restoreExit) - check the output above."
+}
+
+# --- Step 2c: check the result ---------------------------------------------
+$restoreErrors = @($restoreOutput | Where-Object { "$_" -match 'ERROR:' })
+
+$expectedTables = @(
+    Select-String -Path $localSqlPath -Pattern '^CREATE TABLE public\."?([A-Za-z0-9_]+)"? \(' |
+        ForEach-Object { $_.Matches[0].Groups[1].Value }
+) | Sort-Object -Unique
+$prevErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$localTables = @(
+    & docker run --rm $dumpToolImage psql $localUrlForDocker -At -c "SELECT tablename FROM pg_tables WHERE schemaname = 'public'" 2>&1
+)
+$ErrorActionPreference = $prevErrorActionPreference
+$missingTables = @($expectedTables | Where-Object { $localTables -notcontains $_ })
+
+if ($restoreErrors.Count -gt 0) {
+    Write-Host ""
+    Write-Host "The restore hit $($restoreErrors.Count) error(s):" -ForegroundColor Red
+    $restoreErrors | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+}
+if ($missingTables.Count -gt 0) {
+    Write-Host ""
+    Write-Host "These tables are in Neon but did NOT get created locally:" -ForegroundColor Red
+    $missingTables | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+    Write-Host "Your local database is incomplete - don't develop against it until this is fixed." -ForegroundColor Red
+    Write-Host "Dump kept at: $localDumpPath"
+    Write-Host "SQL kept at:  $localSqlPath"
+    exit 1
+}
+if ($restoreErrors.Count -gt 0) {
+    Write-Host ""
+    Write-Host "All $($expectedTables.Count) tables exist locally, but check the errors above before relying on the data." -ForegroundColor Yellow
 }
 
 Write-Host ""
 Write-Host "Done. Your local database now matches Neon." -ForegroundColor Green
+Write-Host "Checked: all $($expectedTables.Count) tables from Neon exist locally." -ForegroundColor Green
 Write-Host "A local backup copy is also saved at: $localDumpPath"
