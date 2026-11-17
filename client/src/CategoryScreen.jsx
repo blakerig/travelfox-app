@@ -942,6 +942,11 @@ function CategoryScreen() {
         name: row.cluster.name,
         description: null,
         summary: null,
+        // The cluster's own photo (2026-11-17, see ActivityTypeCluster.
+        // photoUrl in schema.prisma) - deliberately NOT a member's photo.
+        // This is the card actually shown on this page; a member's own
+        // photo only surfaces one screen deeper, on ActivityClusterDetail.
+        photoUrl: row.cluster.photoUrl,
         entries: row.members.flatMap((member) => member.entries ?? []),
       };
       return (

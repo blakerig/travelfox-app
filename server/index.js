@@ -1014,6 +1014,40 @@ app.get('/api/activity-type-clusters', async (req, res) => {
   res.json(clusters);
 });
 
+// Edit an ActivityTypeCluster's photo (2026-11-17, see
+// ActivityTypeClusterEditor.jsx) - deliberately the only field this
+// accepts for now (Blake's call): name/slug/sortOrder/which ActivityTypes
+// belong to it all stay Prisma-Studio-only, same as before this existed.
+// Same role gate as PATCH /api/activity-types/:id - every team role can
+// set a cluster's photo, not just Editor/Admin.
+app.patch(
+  '/api/activity-type-clusters/:id',
+  requireAuth,
+  requireRole('CREATOR', 'EDITOR', 'ADMIN'),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    const { photoUrl } = req.body;
+
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Invalid activity type cluster id' });
+    }
+
+    const data = {};
+    if (photoUrl !== undefined) data.photoUrl = photoUrl === '' ? null : photoUrl;
+
+    try {
+      const cluster = await prisma.activityTypeCluster.update({ where: { id }, data });
+      res.json(cluster);
+    } catch (err) {
+      if (err.code === 'P2025') {
+        return res.status(404).json({ error: 'Activity type cluster not found' });
+      }
+      console.error('Failed to update activity type cluster:', err);
+      res.status(500).json({ error: 'Failed to update activity type cluster' });
+    }
+  }
+);
+
 // ShopType rows for a city (2026-09-15, see ShopType in schema.prisma) -
 // what CategoryScreen.jsx fetches for the Shopping category instead of a
 // flat entries list, mirroring GET /api/cities/:cityId/activity-types

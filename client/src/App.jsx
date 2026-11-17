@@ -16,6 +16,7 @@ import EntryEditor from './EntryEditor.jsx';
 import ActivityTypeDetail from './ActivityTypeDetail.jsx';
 import ActivityTypeEditor from './ActivityTypeEditor.jsx';
 import ActivityClusterDetail from './ActivityClusterDetail.jsx';
+import ActivityTypeClusterEditor from './ActivityTypeClusterEditor.jsx';
 import ShopTypeDetail from './ShopTypeDetail.jsx';
 import ShopTypeEditor from './ShopTypeEditor.jsx';
 import CityEditor from './CityEditor.jsx';
@@ -143,6 +144,15 @@ function AppRoutes() {
             are different literal/first-segment shapes, so there's no
             actual route-matching ambiguity between them. */}
         <Route path="/category/:slug/cluster/:clusterId" element={<ActivityClusterDetail />} />
+        {/* Edits an ActivityTypeCluster's own photo (2026-11-17, see
+            ActivityTypeClusterEditor.jsx) - reached from "Edit" on
+            ActivityClusterDetail.jsx's header. Placed directly after the
+            drill-down route above for the same readability-only reason
+            :typeId/edit sits near :typeId below. */}
+        <Route
+          path="/category/:slug/cluster/:clusterId/edit"
+          element={<ActivityTypeClusterEditor />}
+        />
         <Route path="/category/:slug/type/:typeId" element={<ActivityTypeDetail />} />
         {/* Create/edit an ActivityType itself (2026-09-14, see
             ActivityTypeEditor.jsx) - distinct from the entry-edit routes

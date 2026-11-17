@@ -324,6 +324,26 @@ export function CityDataProvider({ children }) {
     [city]
   );
 
+  // Same idea as upsertActivityType above, for ActivityTypeCluster
+  // (2026-11-17, see ActivityTypeClusterEditor.jsx's handleSave) - but
+  // patches the flat `activityTypeClusters` list directly rather than a
+  // per-city bundle, since clusters are global (see ActivityTypeCluster
+  // in schema.prisma), not scoped to `city` the way every other upsert*
+  // here is. A no-op (not an error) before activityTypeClusters has ever
+  // been fetched - the editor that calls this only exists once a cluster
+  // has already loaded into it from that same list, so this should never
+  // actually hit the null case in practice, but staying a no-op rather
+  // than throwing costs nothing and avoids a weird edge case if it ever
+  // did. Kept sorted by sortOrder then id, matching GET
+  // /api/activity-type-clusters' own ordering.
+  const upsertActivityTypeCluster = useCallback((cluster) => {
+    setActivityTypeClusters((prev) => {
+      if (prev === null) return prev;
+      const others = prev.filter((c) => c.id !== cluster.id);
+      return [...others, cluster].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+    });
+  }, []);
+
   // Same idea as upsertActivityType above, for ShopType (2026-09-15) - see
   // ShopTypeEditor.jsx's handleSave.
   const upsertShopType = useCallback(
@@ -406,6 +426,7 @@ export function CityDataProvider({ children }) {
         activityTypeClusters,
         ensureActivityTypeClusters,
         upsertActivityType,
+        upsertActivityTypeCluster,
         upsertShopType,
         upsertNeighbourhood,
         removeNeighbourhood,

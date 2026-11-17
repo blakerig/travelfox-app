@@ -496,9 +496,13 @@ model ActivityType {
 //
 // Deliberately opt-in and sparse: most ActivityType rows have no cluster
 // at all. Created by hand in Prisma Studio for now, same as ActivityGroup
-// - no admin UI for managing the cluster list itself, only for assigning
-// an existing ActivityType to one (see ActivityTypeEditor.jsx's Cluster
-// dropdown and GET /api/activity-type-clusters in server/index.js).
+// - no admin UI for managing the cluster list itself (name/slug/sortOrder/
+// creating a new one), only for assigning an existing ActivityType to one
+// (see ActivityTypeEditor.jsx's Cluster dropdown and GET
+// /api/activity-type-clusters in server/index.js) and, since 2026-11-17,
+// for setting the cluster's own photo (see photoUrl below and
+// ActivityTypeClusterEditor.jsx) - the one field that genuinely needed an
+// upload UI rather than a value Prisma Studio could just type in.
 model ActivityTypeCluster {
   id            Int            @id @default(autoincrement())
   name          String
@@ -507,6 +511,18 @@ model ActivityTypeCluster {
   // ActivityType cards on the Activities screen - same mechanism as
   // ActivityType.sortOrder above and ActivityGroup.sortOrder above that.
   sortOrder     Float          @default(0)
+  // The cluster's own photo (2026-11-17) - shown on the Activities screen
+  // itself, on the cluster's card (e.g. "Racquet Sports"), distinct from
+  // any individual member ActivityType's photo (e.g. Padel's own - see
+  // ActivityType.photoUrl above), which only surfaces one screen deeper,
+  // on that member's own card inside ActivityClusterDetail.jsx. Blake
+  // pointed out the cluster card was the one actually missing a photo in
+  // practice - a member's photo doesn't help there, since it isn't shown
+  // until you've already tapped in. Same Cloudinary mechanism as every
+  // other photoUrl field (reuses the same /api/upload endpoint and
+  // getEntryPhotoUrl helper) - set via ActivityTypeClusterEditor.jsx,
+  // reached from "Edit" on ActivityClusterDetail.jsx.
+  photoUrl      String?
   activityTypes ActivityType[]
 }
 

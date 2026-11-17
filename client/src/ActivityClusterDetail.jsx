@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { getCategoryConfig } from './categoryConfig.js';
 import { useCity } from './city-context.js';
 import { useCityData } from './city-data-context.js';
+import { useAuth } from './auth-context.js';
 import EntryCard from './EntryCard.jsx';
 import { activityTypeHref } from './activityTypeHref.js';
 import './ActivityTypeDetail.css';
@@ -43,6 +44,7 @@ function ActivityClusterDetail() {
   const config = getCategoryConfig(slug);
   const { city } = useCity();
   const { cityData, cityDataReady } = useCityData();
+  const { canEdit } = useAuth();
   const currencySymbol = city?.country?.currencySymbol || '$';
   const countryCode = city?.country?.code;
 
@@ -57,6 +59,21 @@ function ActivityClusterDetail() {
         <Link to={`/category/${slug}`} className="activity-type-detail-back" aria-label="Back">
           &larr;
         </Link>
+        {/* Edits the cluster's own photo via ActivityTypeClusterEditor.jsx
+            (2026-11-17) - the only cluster field with an in-app editor,
+            see that file's doc comment. Gated on members.length > 0, same
+            as the name/body below - no point offering an edit link for a
+            cluster id that doesn't actually resolve to anything here. */}
+        {members.length > 0 && canEdit && (
+          <div className="activity-type-detail-header-actions">
+            <Link
+              to={`/category/${slug}/cluster/${clusterId}/edit`}
+              className="activity-type-detail-add"
+            >
+              Edit
+            </Link>
+          </div>
+        )}
       </div>
 
       {!cityDataReady && <div className="activity-type-detail-status">Loading…</div>}

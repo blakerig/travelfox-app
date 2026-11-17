@@ -1,0 +1,143 @@
+/* Minimal editor, photo field only - see ActivityTypeClusterEditor.jsx's
+   doc comment for why this exists as its own small screen rather than
+   reusing ActivityTypeEditor's. Trimmed copy of ActivityTypeEditor.css's
+   shared structural classes (header/form/field/label/actions/buttons),
+   renamed to this component's own prefix - kept as a separate file
+   rather than importing ActivityTypeEditor.css directly so a later change
+   to that file's much larger set of classes (Group/Cluster dropdowns,
+   Markdown tabs, Status field, ...) can't accidentally affect this
+   screen, which doesn't use any of them. */
+.activity-type-cluster-editor {
+  --g-600: oklch(49% 0.135 150);
+  --ink: oklch(22% 0.02 150);
+  --muted: oklch(48% 0.02 150);
+  --faint: oklch(62% 0.015 150);
+  --line: oklch(70% 0.02 150 / 0.3);
+  --card: oklch(99% 0.004 150);
+
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 100svh;
+  background: oklch(97% 0.015 150);
+  color: var(--ink);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding-bottom: 32px;
+}
+
+.activity-type-cluster-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 8px;
+}
+
+.activity-type-cluster-editor-back {
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.activity-type-cluster-editor-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.activity-type-cluster-editor-status {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 14px;
+}
+
+.activity-type-cluster-editor-form {
+  padding: 8px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.activity-type-cluster-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.activity-type-cluster-editor-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Photo field - mirrors activity-type-editor-photo-preview/-status/
+   -remove exactly, see ActivityTypeClusterEditor.jsx's handlePhotoChange. */
+.activity-type-cluster-editor-photo-preview {
+  display: block;
+  width: 100%;
+  max-width: 240px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.activity-type-cluster-editor-photo-status {
+  font-size: 12.5px;
+  color: var(--faint);
+}
+
+.activity-type-cluster-editor-photo-remove {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.activity-type-cluster-editor-error {
+  font-size: 13px;
+  color: oklch(50% 0.18 25);
+  background: oklch(96% 0.03 25);
+  border: 1px solid oklch(80% 0.08 25);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.activity-type-cluster-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.activity-type-cluster-editor-cancel {
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 9px 16px;
+  border-radius: 10px;
+}
+
+.activity-type-cluster-editor-save {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--g-600);
+  border: none;
+  border-radius: 10px;
+  padding: 9px 18px;
+  cursor: pointer;
+}
+
+.activity-type-cluster-editor-save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

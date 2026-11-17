@@ -7,8 +7,8 @@ import { createContext, useContext } from 'react';
 // Context value shape:
 //   { cityData, cityDataReady, categories, ensureCategories, upsertEntry,
 //     activityGroups, ensureActivityGroups, activityTypeClusters,
-//     ensureActivityTypeClusters, upsertActivityType, upsertShopType,
-//     refreshCity }
+//     ensureActivityTypeClusters, upsertActivityType,
+//     upsertActivityTypeCluster, upsertShopType, refreshCity }
 //
 //   - cityData: the current city's cached bundle -
 //     { entries, activityTypes, shopTypes, homeCategorySlugs,
@@ -59,6 +59,11 @@ import { createContext, useContext } from 'react';
 //     ActivityTypeEditor.jsx's handleSave), same idea as upsertEntry above
 //     but simpler - an ActivityType save can't change which Entries exist,
 //     so only `bundle.activityTypes` needs touching, not `entries` too.
+//   - upsertActivityTypeCluster(cluster): same idea as upsertActivityType
+//     above, for ActivityTypeCluster (2026-11-17, see
+//     ActivityTypeClusterEditor.jsx's handleSave) - but patches the flat
+//     `activityTypeClusters` list directly rather than a per-city bundle,
+//     since clusters are global, not city-scoped.
 //   - upsertShopType(shopType): same as upsertActivityType above, for
 //     ShopType (2026-09-15, see ShopTypeEditor.jsx's handleSave) - patches
 //     `bundle.shopTypes` only.
